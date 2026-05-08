@@ -92,7 +92,7 @@ router.post("/photos", async (req, res): Promise<void> => {
     return;
   }
 
-  const uploadedBy = req.isAuthenticated() ? req.user.id : null;
+  const uploadedBy = req.authUser?.id ?? null;
   const [photo] = await db
     .insert(photosTable)
     .values({ ...parsed.data, uploadedBy })
@@ -143,7 +143,7 @@ router.patch("/photos/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const userId = req.isAuthenticated() ? req.user.id : null;
+  const userId = req.authUser?.id ?? null;
   if (existing.uploadedBy && existing.uploadedBy !== userId) {
     res.status(403).json({ error: "You don't have permission to edit this photo" });
     return;
@@ -175,7 +175,7 @@ router.delete("/photos/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const userId = req.isAuthenticated() ? req.user.id : null;
+  const userId = req.authUser?.id ?? null;
   if (existing.uploadedBy && existing.uploadedBy !== userId) {
     res.status(403).json({ error: "You don't have permission to delete this photo" });
     return;
@@ -203,10 +203,9 @@ router.post("/photos/:id/like", async (req, res): Promise<void> => {
     return;
   }
 
-  // Create notification for the photo owner (skip if liker owns the photo)
-  const likerId = req.isAuthenticated() ? req.user.id : null;
+  const user = req.authUser ?? null;
+  const likerId = user?.id ?? null;
   if (photo.uploadedBy && photo.uploadedBy !== likerId) {
-    const user = req.isAuthenticated() ? req.user : null;
     const actorName = user
       ? ([user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Someone")
       : "Someone";
@@ -245,7 +244,7 @@ router.post("/photos/:id/download", async (req, res): Promise<void> => {
 });
 
 router.get("/users/me/photos", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+  if (!req.authUser) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -258,7 +257,7 @@ router.get("/users/me/photos", async (req, res): Promise<void> => {
 
   const { page, limit } = parsed.data;
   const offset = (page - 1) * limit;
-  const userId = req.user.id;
+  const userId = req.authUser.id;
 
   const [photos, countResult] = await Promise.all([
     db

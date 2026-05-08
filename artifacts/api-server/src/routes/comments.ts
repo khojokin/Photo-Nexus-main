@@ -38,7 +38,7 @@ router.post("/photos/:id/comments", async (req, res): Promise<void> => {
     return;
   }
 
-  const user = req.isAuthenticated() ? req.user : null;
+  const user = req.authUser ?? null;
   const authorName = user
     ? ([user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Anonymous")
     : "Anonymous";
@@ -53,7 +53,6 @@ router.post("/photos/:id/comments", async (req, res): Promise<void> => {
     })
     .returning();
 
-  // Create notification for the photo owner (skip if commenter owns the photo)
   const [photo] = await db
     .select({ uploadedBy: photosTable.uploadedBy, title: photosTable.title })
     .from(photosTable)
@@ -90,7 +89,7 @@ router.delete("/photos/:id/comments/:commentId", async (req, res): Promise<void>
     return;
   }
 
-  const userId = req.isAuthenticated() ? req.user.id : null;
+  const userId = req.authUser?.id ?? null;
   if (existing.authorId && existing.authorId !== userId) {
     res.status(403).json({ error: "You can only delete your own comments" });
     return;

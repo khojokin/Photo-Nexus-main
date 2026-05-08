@@ -5,8 +5,6 @@ import {
   useEffect,
   useState,
 } from "react";
-import { useAuth as useClerkAuth } from "@clerk/clerk-react";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 export interface AuthUser {
   id: string;
@@ -22,6 +20,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   refetch: () => Promise<void>;
   logout: () => Promise<void>;
+  login: () => void;
   authFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 }
 
@@ -29,47 +28,12 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const { isLoaded, isSignedIn, getToken, signOut } = useClerkAuth();
-
-  useEffect(() => {
-    setAuthTokenGetter(async () => (await getToken()) ?? null);
-    return () => {
-      setAuthTokenGetter(null);
-    };
-  }, [getToken]);
-
-  const authFetch = useCallback(
-    async (input: RequestInfo | URL, init?: RequestInit) => {
-      const token = await getToken();
-      const headers = new Headers(init?.headers);
-      if (token && !headers.has("authorization")) {
-        headers.set("authorization", `Bearer ${token}`);
-      }
-
-      return fetch(input, {
-        ...init,
-        headers,
-        credentials: init?.credentials ?? "include",
-      });
-    },
-    [getToken],
-  );
+  const [isLoading, setIsLoading] = useState(true);
 
   const fetchUser = useCallback(async () => {
-    if (!isLoaded) {
-      return;
-    }
-
-    if (!isSignedIn) {
-      setUser(null);
-      setIsLoading(false);
-      return;
-    }
-
     setIsLoading(true);
     try {
-      const res = await authFetch("/api/auth/user");
+      const res = await fetch("/api/auth/user", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setUser(data.user ?? null);
@@ -81,16 +45,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [authFetch, isLoaded, isSignedIn]);
+  }, []);
 
   useEffect(() => {
     void fetchUser();
   }, [fetchUser]);
 
+  const authFetch = useCallback(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      return fetch(input, {
+        ...init,
+        credentials: init?.credentials ?? "include",
+      });
+    },
+    [],
+  );
+
+  const login = useCallback(() => {
+    const base = import.meta.env.BASE_URL.replace(/\/+$/, "") || "/";
+    window.location.href = `/login?returnTo=${encodeURIComponent(base)}`;
+  }, []);
+
   const logout = useCallback(async () => {
-    await signOut({ redirectUrl: "/signin" });
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     setUser(null);
-  }, [signOut]);
+    window.location.href = "/";
+  }, []);
 
   return (
     <AuthContext.Provider
@@ -100,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: user !== null,
         refetch: fetchUser,
         logout,
+        login,
         authFetch,
       }}
     >

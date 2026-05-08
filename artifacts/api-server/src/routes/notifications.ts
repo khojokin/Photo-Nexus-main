@@ -5,7 +5,7 @@ import { db, notificationsTable } from "@workspace/db";
 const router: IRouter = Router();
 
 router.get("/notifications", async (req: Request, res: Response): Promise<void> => {
-  if (!req.isAuthenticated()) {
+  if (!req.authUser) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -13,7 +13,7 @@ router.get("/notifications", async (req: Request, res: Response): Promise<void> 
   const notifications = await db
     .select()
     .from(notificationsTable)
-    .where(eq(notificationsTable.recipientId, req.user.id))
+    .where(eq(notificationsTable.recipientId, req.authUser.id))
     .orderBy(desc(notificationsTable.createdAt))
     .limit(50);
 
@@ -23,7 +23,7 @@ router.get("/notifications", async (req: Request, res: Response): Promise<void> 
 });
 
 router.patch("/notifications/read-all", async (req: Request, res: Response): Promise<void> => {
-  if (!req.isAuthenticated()) {
+  if (!req.authUser) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -33,7 +33,7 @@ router.patch("/notifications/read-all", async (req: Request, res: Response): Pro
     .set({ isRead: true })
     .where(
       and(
-        eq(notificationsTable.recipientId, req.user.id),
+        eq(notificationsTable.recipientId, req.authUser.id),
         eq(notificationsTable.isRead, false)
       )
     );
@@ -42,7 +42,7 @@ router.patch("/notifications/read-all", async (req: Request, res: Response): Pro
 });
 
 router.patch("/notifications/:id/read", async (req: Request, res: Response): Promise<void> => {
-  if (!req.isAuthenticated()) {
+  if (!req.authUser) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -60,7 +60,7 @@ router.patch("/notifications/:id/read", async (req: Request, res: Response): Pro
     .where(
       and(
         eq(notificationsTable.id, id),
-        eq(notificationsTable.recipientId, req.user.id)
+        eq(notificationsTable.recipientId, req.authUser.id)
       )
     );
 
