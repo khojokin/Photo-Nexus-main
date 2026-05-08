@@ -556,13 +556,22 @@ components:
           type: integer
         downloads:
           type: integer
+        views:
+          type: integer
         isFeatured:
+          type: boolean
+        contentWarning:
           type: boolean
         uploadedBy:
           type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
+        publishAt:
+          type: ["string", "null"]
+          format: date-time
+        seriesId:
+          type: ["integer", "null"]
         camera:
           type: ["string", "null"]
         lens:
@@ -593,7 +602,9 @@ components:
         - tags
         - likes
         - downloads
+        - views
         - isFeatured
+        - contentWarning
         - createdAt
         - license
         - status

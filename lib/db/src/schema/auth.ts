@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 // (IMPORTANT) This table is mandatory for auth, don't drop it.
 export const sessionsTable = pgTable(
@@ -20,6 +20,18 @@ export const usersTable = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  bio: text("bio"),
+  location: text("location"),
+  website: text("website"),
+  instagram: text("instagram"),
+  twitter: text("twitter"),
+  equipment: text("equipment").array().default([]),
+  styleTags: text("style_tags").array().default([]),
+  availability: text("availability").default("available"),
+  hiringUrl: text("hiring_url"),
+  accentColor: text("accent_color"),
+  featuredPhotoId: integer("featured_photo_id"),
+  profileViews: integer("profile_views").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

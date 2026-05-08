@@ -16,9 +16,13 @@ export const photosTable = pgTable("photos", {
   tags: text("tags").array().notNull().default([]),
   likes: integer("likes").notNull().default(0),
   downloads: integer("downloads").notNull().default(0),
+  views: integer("views").notNull().default(0),
   isFeatured: boolean("is_featured").notNull().default(false),
+  contentWarning: boolean("content_warning").notNull().default(false),
   uploadedBy: varchar("uploaded_by").references(() => usersTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  publishAt: timestamp("publish_at", { withTimezone: true }),
+  seriesId: integer("series_id"),
   camera: text("camera"),
   lens: text("lens"),
   aperture: text("aperture"),
@@ -33,6 +37,7 @@ export const insertPhotoSchema = createInsertSchema(photosTable).omit({
   id: true,
   likes: true,
   downloads: true,
+  views: true,
   createdAt: true,
 });
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { PhotoCard } from "@/components/photo-card";
@@ -11,6 +11,49 @@ import {
 } from "@workspace/api-client-react";
 import type { Photo } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Sun, ArrowRight } from "lucide-react";
+import { format } from "date-fns";
+
+function PhotoOfDayBanner() {
+  const [photo, setPhoto] = useState<Photo | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/photo-of-the-day")
+      .then((r) => r.json())
+      .then((d: { photo: Photo | null }) => setPhoto(d.photo))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || !photo) return null;
+
+  return (
+    <section className="border-y border-border/50 bg-muted/10 py-12">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center gap-3 mb-6">
+          <Sun className="w-4 h-4 text-yellow-400" />
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Photo of the Day · {format(new Date(), "MMMM d, yyyy")}</p>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+          <Link href={`/photos/${photo.id}`} className="block overflow-hidden group">
+            <img src={photo.imageUrl} alt={photo.title} className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500" />
+          </Link>
+          <div>
+            <h2 className="text-3xl font-serif mb-3">{photo.title}</h2>
+            {photo.description && <p className="text-muted-foreground mb-4">{photo.description}</p>}
+            <Link href={`/profile/${encodeURIComponent(photo.photographerName)}`} className="text-sm text-muted-foreground hover:text-foreground transition-colors block mb-6">
+              {photo.photographerName}
+            </Link>
+            <Link href="/photo-of-the-day" className="inline-flex items-center gap-2 text-sm border-b border-primary pb-1 hover:opacity-70 transition-opacity">
+              Full story <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export function Home() {
   const { data: summary, isLoading: loadingSummary } = useGetSiteSummary();
@@ -101,6 +144,9 @@ export function Home() {
           </div>
         </div>
       </section>
+
+      {/* Photo of the Day */}
+      <PhotoOfDayBanner />
 
       {/* Trending Section */}
       <section className="py-24 container mx-auto px-4">

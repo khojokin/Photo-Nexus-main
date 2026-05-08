@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "wouter";
 import {
@@ -23,6 +23,8 @@ export function Lightbox({ photos, initialIndex, onClose }: LightboxProps) {
   const queryClient = useQueryClient();
   const likeMutation = useLikePhoto();
   const downloadMutation = useDownloadPhoto();
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
 
   const photo = photos[currentIndex];
   const canPrev = currentIndex > 0;
@@ -77,10 +79,28 @@ export function Lightbox({ photos, initialIndex, onClose }: LightboxProps) {
     );
   }
 
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+    if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx) * 0.8) return;
+    if (dx < -40) goNext();
+    else if (dx > 40) goPrev();
+  }
+
   return createPortal(
     <div
       className="fixed inset-0 z-[200] flex flex-col bg-black/96 animate-in fade-in duration-150"
       onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
       role="dialog"
       aria-modal="true"
       aria-label={photo.title}

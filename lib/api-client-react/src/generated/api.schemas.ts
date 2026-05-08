@@ -82,10 +82,16 @@ export interface Photo {
   tags: string[];
   likes: number;
   downloads: number;
+  views: number;
   isFeatured: boolean;
+  contentWarning: boolean;
   /** @nullable */
   uploadedBy?: string | null;
   createdAt: string;
+  /** @nullable */
+  publishAt?: string | null;
+  /** @nullable */
+  seriesId?: number | null;
   /** @nullable */
   camera?: string | null;
   /** @nullable */

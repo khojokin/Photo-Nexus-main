@@ -51,6 +51,7 @@ interface QueueItem {
   license: string;
   publishStatus: "published" | "draft";
   isFeatured: boolean;
+  contentWarning: boolean;
   exifOpen: boolean;
   photoId?: number;
 }
@@ -90,6 +91,7 @@ function makeItem(file: File, defaultName: string): QueueItem {
     license: "cc0",
     publishStatus: "published",
     isFeatured: false,
+    contentWarning: false,
     exifOpen: false,
   };
 }
@@ -724,6 +726,16 @@ function QueueCard({ item, onUpdate, onRemove, onPublish, onRetry }: QueueCardPr
                   className="w-3.5 h-3.5 accent-foreground"
                 />
                 Nominate for featured
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={item.contentWarning}
+                  onChange={(e) => onUpdate({ contentWarning: e.target.checked })}
+                  disabled={item.status === "publishing"}
+                  className="w-3.5 h-3.5 accent-foreground"
+                />
+                Content warning
               </label>
             </div>
 

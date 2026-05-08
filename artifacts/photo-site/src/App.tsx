@@ -19,6 +19,16 @@ import { Settings } from "@/pages/settings";
 import { Dashboard } from "@/pages/dashboard";
 import { Messages } from "@/pages/messages";
 import { Notifications } from "@/pages/notifications";
+import { Leaderboard } from "@/pages/leaderboard";
+import { Activity } from "@/pages/activity";
+import { Challenges } from "@/pages/challenges";
+import { ChallengeDetail } from "@/pages/challenge-detail";
+import { PhotoOfTheDay } from "@/pages/photo-of-the-day";
+import { Moodboard } from "@/pages/moodboard";
+import { SeriesList } from "@/pages/series";
+import { SeriesDetail } from "@/pages/series-detail";
+import { Admin } from "@/pages/admin";
+import { EmbedPhoto } from "@/pages/embed";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,6 +57,16 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/messages" component={Messages} />
       <Route path="/notifications" component={Notifications} />
+      <Route path="/leaderboard" component={Leaderboard} />
+      <Route path="/activity" component={Activity} />
+      <Route path="/challenges" component={Challenges} />
+      <Route path="/challenges/:id" component={ChallengeDetail} />
+      <Route path="/photo-of-the-day" component={PhotoOfTheDay} />
+      <Route path="/moodboard" component={Moodboard} />
+      <Route path="/series" component={SeriesList} />
+      <Route path="/series/:id" component={SeriesDetail} />
+      <Route path="/admin" component={Admin} />
+      <Route path="/embed/:id" component={EmbedPhoto} />
       <Route component={NotFound} />
     </Switch>
   );

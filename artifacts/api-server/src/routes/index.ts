@@ -10,6 +10,14 @@ import notificationsRouter from "./notifications";
 import messagesRouter from "./messages";
 import followsRouter from "./follows";
 import uploadRouter from "./upload";
+import reactionsRouter from "./reactions";
+import reportsRouter from "./reports";
+import challengesRouter from "./challenges";
+import seriesRouter from "./series";
+import leaderboardRouter from "./leaderboard";
+import activityRouter from "./activity";
+import userprofileRouter from "./userprofile";
+import photoofdayRouter from "./photoofday";
 
 const router: IRouter = Router();
 
@@ -24,5 +32,13 @@ router.use(notificationsRouter);
 router.use(messagesRouter);
 router.use(followsRouter);
 router.use(uploadRouter);
+router.use(reactionsRouter);
+router.use(reportsRouter);
+router.use(challengesRouter);
+router.use(seriesRouter);
+router.use(leaderboardRouter);
+router.use(activityRouter);
+router.use(userprofileRouter);
+router.use(photoofdayRouter);
 
 export default router;

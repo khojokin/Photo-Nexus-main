@@ -13,11 +13,101 @@ import { Button } from "@/components/ui/button";
 import {
   Heart, Download, Calendar, Maximize2, Share2, Check,
   MessageSquare, Trash2, Send, BookmarkPlus, ChevronDown, Plus, FolderOpen,
-  Camera, Aperture, Clock, Zap, Ruler, Shield,
+  Camera, Aperture, Clock, Zap, Ruler, Shield, Eye, Flag, Code, X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
+
+const REACTION_EMOJIS = ["❤️", "🔥", "✨", "😮", "🎉"];
+
+function ReactionsPanel({ photoId }: { photoId: number }) {
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [mine, setMine] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/photos/${photoId}/reactions`)
+      .then((r) => r.json())
+      .then((d: { reactions: { emoji: string; count: number }[] }) => {
+        const map: Record<string, number> = {};
+        d.reactions.forEach((r) => { map[r.emoji] = r.count; });
+        setCounts(map);
+      })
+      .catch(() => {});
+  }, [photoId]);
+
+  async function toggle(emoji: string) {
+    const next = mine === emoji ? null : emoji;
+    setMine(next);
+    setCounts((prev) => {
+      const updated = { ...prev };
+      if (mine) updated[mine] = Math.max(0, (updated[mine] ?? 0) - 1);
+      if (next) updated[next] = (updated[next] ?? 0) + 1;
+      return updated;
+    });
+    await fetch(`/api/photos/${photoId}/reactions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emoji: next ?? mine, remove: next === null }),
+    }).catch(() => {});
+  }
+
+  return (
+    <div className="mt-4 flex items-center gap-2 flex-wrap">
+      {REACTION_EMOJIS.map((emoji) => (
+        <button
+          key={emoji}
+          onClick={() => void toggle(emoji)}
+          className={cn(
+            "flex items-center gap-1 px-2.5 py-1 text-sm border transition-colors",
+            mine === emoji ? "border-foreground/60 bg-muted" : "border-border/40 hover:border-border hover:bg-muted/40"
+          )}
+        >
+          <span>{emoji}</span>
+          {(counts[emoji] ?? 0) > 0 && <span className="text-xs text-muted-foreground">{counts[emoji]}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function EmbedButton({ photoId }: { photoId: number }) {
+  const [showEmbed, setShowEmbed] = useState(false);
+  const embedCode = `<iframe src="${window.location.origin}/embed/${photoId}" width="600" height="400" frameborder="0" allowfullscreen></iframe>`;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setShowEmbed((v) => !v)}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <Code className="w-3.5 h-3.5" /> Embed
+      </button>
+      {showEmbed && (
+        <div className="absolute bottom-7 left-0 z-10 w-72 border border-border bg-card p-3 shadow-lg">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-medium">Embed code</p>
+            <button onClick={() => setShowEmbed(false)} className="text-muted-foreground hover:text-foreground">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <textarea
+            readOnly
+            value={embedCode}
+            className="w-full text-xs font-mono bg-muted/30 border border-border/40 p-2 resize-none h-20 focus:outline-none"
+            onFocus={(e) => e.target.select()}
+          />
+          <button
+            onClick={() => { void navigator.clipboard.writeText(embedCode); setShowEmbed(false); }}
+            className="mt-2 w-full py-1.5 text-xs border border-border/50 hover:bg-muted transition-colors"
+          >
+            Copy
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const LICENSE_LABELS: Record<string, { label: string; url?: string }> = {
   "cc0": { label: "CC0 — Public Domain", url: "https://creativecommons.org/publicdomain/zero/1.0/" },
@@ -530,14 +620,20 @@ export function PhotoDetail() {
                 </div>
               </div>
 
-              <div className="mt-8 grid grid-cols-2 gap-3">
+              <div className="mt-6 flex items-center gap-4 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5"><Eye className="w-3.5 h-3.5" /> {photo.views.toLocaleString()} views</span>
+                <span className="flex items-center gap-1.5"><Heart className="w-3.5 h-3.5" /> {photo.likes} likes</span>
+                <span className="flex items-center gap-1.5"><Download className="w-3.5 h-3.5" /> {photo.downloads} downloads</span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
                 <Button onClick={handleLike} disabled={likeMutation.isPending} className={cn("rounded-none h-12 border transition-all", photo.likes > 0 ? "bg-white text-black hover:bg-white/90" : "bg-transparent text-foreground border-border hover:bg-accent")}>
                   <Heart className={cn("w-4 h-4 mr-2", photo.likes > 0 && "fill-black")} />
-                  {photo.likes} Likes
+                  Like
                 </Button>
                 <Button onClick={handleDownload} disabled={downloadMutation.isPending} className="rounded-none h-12 bg-transparent text-foreground border border-border hover:bg-accent transition-all">
                   <Download className="w-4 h-4 mr-2" />
-                  {photo.downloads} DLs
+                  Download
                 </Button>
               </div>
 
@@ -550,6 +646,26 @@ export function PhotoDetail() {
                 >
                   {copied ? <><Check className="w-4 h-4 mr-2" />Link copied!</> : <><Share2 className="w-4 h-4 mr-2" />Share</>}
                 </Button>
+              </div>
+
+              <ReactionsPanel photoId={photoId} />
+
+              <div className="mt-4 pt-4 border-t border-border/40 flex items-center justify-between">
+                <EmbedButton photoId={photoId} />
+                <button
+                  onClick={() => {
+                    const reason = prompt("Why are you reporting this photo?");
+                    if (!reason) return;
+                    fetch(`/api/photos/${photoId}/report`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ reason }),
+                    }).then(() => alert("Report submitted. Thank you.")).catch(() => {});
+                  }}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-red-400 transition-colors"
+                >
+                  <Flag className="w-3.5 h-3.5" /> Report
+                </button>
               </div>
             </div>
 

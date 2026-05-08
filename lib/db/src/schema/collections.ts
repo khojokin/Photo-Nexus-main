@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -7,6 +7,8 @@ export const collectionsTable = pgTable("collections", {
   name: text("name").notNull(),
   description: text("description"),
   coverImageUrl: text("cover_image_url"),
+  isPrivate: boolean("is_private").notNull().default(false),
+  ownerId: varchar("owner_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

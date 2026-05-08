@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Check, User, Bell, Palette, Shield, ChevronRight, Instagram, Twitter } from "lucide-react";
+import { Check, User, Bell, Palette, Shield, ChevronRight, Instagram, Twitter, Download as DownloadIcon, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SETTINGS_KEY = "affuaa_settings";
@@ -13,11 +13,19 @@ interface Settings {
   website: string;
   instagram: string;
   twitter: string;
+  equipment: string;
+  styleTags: string;
+  hireMeUrl: string;
+  availableForHire: boolean;
   notifyComments: boolean;
   notifyLikes: boolean;
   notifyMessages: boolean;
+  notifyFollows: boolean;
+  notifyChallenges: boolean;
   compactView: boolean;
   autoplayVideos: boolean;
+  accentColor: string;
+  publicProfile: boolean;
 }
 
 const defaultSettings: Settings = {
@@ -27,11 +35,19 @@ const defaultSettings: Settings = {
   website: "",
   instagram: "",
   twitter: "",
+  equipment: "",
+  styleTags: "",
+  hireMeUrl: "",
+  availableForHire: false,
   notifyComments: true,
   notifyLikes: true,
   notifyMessages: true,
+  notifyFollows: true,
+  notifyChallenges: true,
   compactView: false,
   autoplayVideos: false,
+  accentColor: "#ffffff",
+  publicProfile: true,
 };
 
 function loadSettings(): Settings {
@@ -187,6 +203,57 @@ export function Settings() {
                     </Field>
                   </div>
 
+                  <Field label="Equipment" hint="Cameras, lenses, and gear you use">
+                    <div className="flex items-center border border-border focus-within:border-foreground transition-colors px-3 py-2.5 gap-2">
+                      <Camera className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <input
+                        type="text"
+                        value={settings.equipment}
+                        onChange={(e) => update("equipment", e.target.value)}
+                        placeholder="Sony A7IV, 85mm f/1.4…"
+                        className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-muted-foreground/40"
+                      />
+                    </div>
+                  </Field>
+
+                  <Field label="Style Tags" hint="Comma-separated photography styles (shown on your profile)">
+                    <input
+                      type="text"
+                      value={settings.styleTags}
+                      onChange={(e) => update("styleTags", e.target.value)}
+                      placeholder="landscape, long exposure, minimalism…"
+                      className="w-full bg-transparent border border-border px-3 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors"
+                    />
+                    {settings.styleTags && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {settings.styleTags.split(",").map((t) => t.trim()).filter(Boolean).map((t) => (
+                          <span key={t} className="px-2 py-0.5 text-xs border border-border/50 text-muted-foreground">{t}</span>
+                        ))}
+                      </div>
+                    )}
+                  </Field>
+
+                  <div className="border-t border-border/40 pt-5 space-y-4">
+                    <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Hire Me</p>
+                    <ToggleRow
+                      label="Available for hire"
+                      desc="Show a 'Hire Me' badge on your profile"
+                      checked={settings.availableForHire}
+                      onChange={(v) => update("availableForHire", v)}
+                    />
+                    {settings.availableForHire && (
+                      <Field label="Contact / Booking URL">
+                        <input
+                          type="url"
+                          value={settings.hireMeUrl}
+                          onChange={(e) => update("hireMeUrl", e.target.value)}
+                          placeholder="https://calendly.com/yourname"
+                          className="w-full bg-transparent border border-border px-3 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors"
+                        />
+                      </Field>
+                    )}
+                  </div>
+
                   <div className="border-t border-border/40 pt-5">
                     <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-4">Social Links</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -245,6 +312,18 @@ export function Settings() {
                     checked={settings.notifyMessages}
                     onChange={(v) => update("notifyMessages", v)}
                   />
+                  <ToggleRow
+                    label="Follows"
+                    desc="When someone starts following you"
+                    checked={settings.notifyFollows}
+                    onChange={(v) => update("notifyFollows", v)}
+                  />
+                  <ToggleRow
+                    label="Challenges"
+                    desc="New photo challenges and contest results"
+                    checked={settings.notifyChallenges}
+                    onChange={(v) => update("notifyChallenges", v)}
+                  />
                 </>
               )}
 
@@ -262,6 +341,17 @@ export function Settings() {
                     checked={settings.autoplayVideos}
                     onChange={(v) => update("autoplayVideos", v)}
                   />
+                  <Field label="Accent Color" hint="Used for highlights on your profile page">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={settings.accentColor}
+                        onChange={(e) => update("accentColor", e.target.value)}
+                        className="w-10 h-10 border border-border cursor-pointer bg-transparent"
+                      />
+                      <span className="font-mono text-sm text-muted-foreground">{settings.accentColor.toUpperCase()}</span>
+                    </div>
+                  </Field>
                   <div className="border border-border/50 bg-muted/20 px-5 py-4 text-sm text-muted-foreground">
                     Affuaa uses a dark, cinema-inspired theme. Light mode coming soon.
                   </div>
@@ -270,6 +360,12 @@ export function Settings() {
 
               {active === "privacy" && (
                 <>
+                  <ToggleRow
+                    label="Public profile"
+                    desc="Allow anyone to view your profile and portfolio"
+                    checked={settings.publicProfile}
+                    onChange={(v) => update("publicProfile", v)}
+                  />
                   <div className="space-y-4 text-sm">
                     <div className="border border-border px-5 py-4 space-y-1">
                       <p className="font-medium">Profile visibility</p>
@@ -277,12 +373,29 @@ export function Settings() {
                     </div>
                     <div className="border border-border px-5 py-4 space-y-1">
                       <p className="font-medium">Analytics</p>
-                      <p className="text-muted-foreground">Anonymous engagement stats (likes, downloads) are always collected to power trending and recommendations.</p>
+                      <p className="text-muted-foreground">Anonymous engagement stats (likes, downloads, views) are always collected to power trending and recommendations.</p>
                     </div>
                     <div className="border border-border px-5 py-4 space-y-1">
                       <p className="font-medium">Messages</p>
                       <p className="text-muted-foreground">Anyone with your display name can send you a message. Manage messages from the Messages page.</p>
                     </div>
+                  </div>
+                  <div className="border-t border-border/40 pt-5">
+                    <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">Data</p>
+                    <button
+                      onClick={() => {
+                        const data = JSON.stringify({ settings }, null, 2);
+                        const blob = new Blob([data], { type: "application/json" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url; a.download = "affuaa-data.json"; a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2.5 border border-border/50 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/50 transition-colors"
+                    >
+                      <DownloadIcon className="w-4 h-4" />
+                      Export my data
+                    </button>
                   </div>
                 </>
               )}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, LayoutDashboard, MessageSquare, Upload, User, Settings, Bell, LogOut } from "lucide-react";
+import { Menu, X, LayoutDashboard, MessageSquare, Upload, User, Settings, Bell, LogOut, Trophy, Activity, BookOpen, Layout as LayoutIcon, Sun, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./notifications";
 import { useAuth } from "@/contexts/auth-context";
@@ -8,6 +8,8 @@ import { useAuth } from "@/contexts/auth-context";
 const PRIMARY_LINKS = [
   { href: "/photos", label: "Explore" },
   { href: "/collections", label: "Collections" },
+  { href: "/challenges", label: "Challenges" },
+  { href: "/leaderboard", label: "Leaderboard" },
 ];
 
 const MENU_LINKS = [
@@ -15,8 +17,13 @@ const MENU_LINKS = [
   { href: "/dashboard", label: "Analytics", icon: LayoutDashboard },
   { href: "/messages", label: "Messages", icon: MessageSquare },
   { href: "/upload", label: "Upload", icon: Upload },
+  { href: "/moodboard", label: "Mood Board", icon: LayoutIcon },
+  { href: "/series", label: "Series", icon: BookOpen },
+  { href: "/photo-of-the-day", label: "Photo of the Day", icon: Sun },
+  { href: "/activity", label: "Activity", icon: Activity },
   { href: "/profile", label: "Profile", icon: User },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/admin", label: "Moderation", icon: Shield },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

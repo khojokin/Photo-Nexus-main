@@ -243,6 +243,40 @@ router.post("/photos/:id/download", async (req, res): Promise<void> => {
   res.json(DownloadPhotoResponse.parse(photo));
 });
 
+router.get("/photos/random", async (_req, res): Promise<void> => {
+  const [photo] = await db
+    .select()
+    .from(photosTable)
+    .where(sql`${photosTable.status} = 'published'`)
+    .orderBy(sql`random()`)
+    .limit(1);
+  if (!photo) { res.status(404).json({ error: "No photos available" }); return; }
+  res.json(photo);
+});
+
+router.post("/photos/:id/view", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  await db.update(photosTable).set({ views: sql`${photosTable.views} + 1` }).where(eq(photosTable.id, id));
+  res.json({ success: true });
+});
+
+router.get("/photos/:id/analytics", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [photo] = await db.select().from(photosTable).where(eq(photosTable.id, id));
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
+  res.json({
+    photoId: id,
+    title: photo.title,
+    likes: photo.likes,
+    downloads: photo.downloads,
+    views: photo.views,
+    engagement: photo.likes + photo.downloads,
+    score: photo.likes + photo.downloads * 2 + Math.floor(photo.views / 10),
+  });
+});
+
 router.get("/users/me/photos", async (req, res): Promise<void> => {
   if (!req.authUser) {
     res.status(401).json({ error: "Not authenticated" });

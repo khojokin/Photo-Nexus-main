@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { PhotoCard } from "@/components/photo-card";
 import { Lightbox } from "@/components/lightbox";
@@ -7,7 +7,7 @@ import { useListPhotos, useListTags, ListPhotosSort } from "@workspace/api-clien
 import type { Photo } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Search, LayoutGrid, Rows, X } from "lucide-react";
+import { Search, LayoutGrid, Rows, X, Shuffle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 12;
@@ -15,6 +15,19 @@ const PAGE_SIZE = 12;
 export function Explore() {
   const [match, params] = useRoute("/tags/:tag");
   const activeTag = match ? params.tag : null;
+  const [, navigate] = useLocation();
+  const [surprisingMe, setSurprisingMe] = useState(false);
+
+  async function handleSurpriseMe() {
+    setSurprisingMe(true);
+    try {
+      const res = await fetch("/api/photos/random");
+      if (res.ok) {
+        const photo = await res.json() as { id: number };
+        navigate(`/photos/${photo.id}`);
+      }
+    } finally { setSurprisingMe(false); }
+  }
 
   const [inputValue, setInputValue] = useState("");
   const [search, setSearch] = useState("");
@@ -139,6 +152,16 @@ export function Explore() {
                   ))}
                 </div>
               </div>
+
+              <button
+                onClick={() => void handleSurpriseMe()}
+                disabled={surprisingMe}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-border/50 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/50 transition-colors disabled:opacity-50"
+                title="Take me to a random photo"
+              >
+                <Shuffle className="h-3.5 w-3.5" />
+                {surprisingMe ? "…" : "Surprise Me"}
+              </button>
 
               <div className="flex items-center gap-1 border border-border/50 p-1">
                 <button
