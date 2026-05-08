@@ -1,0 +1,780 @@
+import { useState, useEffect, useCallback } from "react";
+import { Link, useRoute } from "wouter";
+import { Layout } from "@/components/layout";
+import { PhotoCard } from "@/components/photo-card";
+import { Lightbox } from "@/components/lightbox";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useListPhotos } from "@workspace/api-client-react";
+import type { Photo } from "@workspace/api-client-react";
+import {
+  BadgeCheck, Camera, MapPin, Globe, MessageSquare, Calendar,
+  Instagram, Twitter, UserPlus, UserCheck, Loader2, Users,
+} from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+
+const SETTINGS_KEY = "affuaa_settings";
+
+interface ProfileSettings {
+  displayName: string;
+  bio: string;
+  location: string;
+  website: string;
+  instagram: string;
+  twitter: string;
+}
+
+function loadSettings(): ProfileSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      return {
+        displayName: (parsed.displayName as string) ?? "",
+        bio: (parsed.bio as string) ?? "",
+        location: (parsed.location as string) ?? "",
+        website: (parsed.website as string) ?? "",
+        instagram: (parsed.instagram as string) ?? "",
+        twitter: (parsed.twitter as string) ?? "",
+      };
+    }
+  } catch { /* ignore */ }
+  return { displayName: "", bio: "", location: "", website: "", instagram: "", twitter: "" };
+}
+
+const VERIFIED_PHOTOGRAPHERS = [
+  "Aria Chen", "Marcus Reid", "Hiroshi Nakamura", "Lena Fischer",
+  "Miguel Santos", "Amara Osei",
+];
+
+// Deterministic avatar color from name
+const AVATAR_COLORS = [
+  "bg-rose-900/60", "bg-orange-900/60", "bg-amber-900/60",
+  "bg-emerald-900/60", "bg-cyan-900/60", "bg-blue-900/60",
+  "bg-violet-900/60", "bg-fuchsia-900/60",
+];
+function avatarColor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+interface RelatedPhotographer {
+  name: string;
+  photoCount: number;
+  sharedTags: string[];
+  coverUrl: string | null;
+}
+
+function computeRelated(
+  allPhotos: Photo[],
+  viewingName: string,
+  myTags: string[],
+  limit = 6
+): RelatedPhotographer[] {
+  if (myTags.length === 0) return [];
+  const myTagSet = new Set(myTags);
+
+  // Group photos by photographer (excluding self)
+  const byName = new Map<string, Photo[]>();
+  for (const p of allPhotos) {
+    const n = p.photographerName;
+    if (n.toLowerCase() === viewingName.toLowerCase()) continue;
+    if (!byName.has(n)) byName.set(n, []);
+    byName.get(n)!.push(p);
+  }
+
+  const candidates: RelatedPhotographer[] = [];
+  for (const [name, photos] of byName.entries()) {
+    const allTags = Array.from(new Set(photos.flatMap((p) => p.tags)));
+    const shared = allTags.filter((t) => myTagSet.has(t));
+    if (shared.length > 0) {
+      candidates.push({
+        name,
+        photoCount: photos.filter((p) => p.status !== "draft").length,
+        sharedTags: shared.slice(0, 3),
+        coverUrl: photos[0]?.imageUrl ?? null,
+      });
+    }
+  }
+
+  // Sort by shared tag count desc, then photo count desc
+  return candidates
+    .sort((a, b) =>
+      b.sharedTags.length - a.sharedTags.length ||
+      b.photoCount - a.photoCount
+    )
+    .slice(0, limit);
+}
+
+function useFollowStats(name: string) {
+  const [followerCount, setFollowerCount] = useState<number | null>(null);
+  const [followingCount, setFollowingCount] = useState<number | null>(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [toggling, setToggling] = useState(false);
+
+  const myName = loadSettings().displayName;
+
+  const fetchStats = useCallback(async () => {
+    if (!name) return;
+    try {
+      const res = await fetch(`/api/photographers/${encodeURIComponent(name)}/follow-stats`);
+      if (res.ok) {
+        const data = await res.json() as { followerCount: number; followingCount: number };
+        setFollowerCount(data.followerCount);
+        setFollowingCount(data.followingCount);
+      }
+    } catch { /* ignore */ }
+  }, [name]);
+
+  const fetchIsFollowing = useCallback(async () => {
+    if (!name || !myName || myName.toLowerCase() === name.toLowerCase()) return;
+    try {
+      const res = await fetch(
+        `/api/photographers/${encodeURIComponent(name)}/is-followed-by/${encodeURIComponent(myName)}`
+      );
+      if (res.ok) {
+        const data = await res.json() as { isFollowing: boolean };
+        setIsFollowing(data.isFollowing);
+      }
+    } catch { /* ignore */ }
+  }, [name, myName]);
+
+  useEffect(() => {
+    void fetchStats();
+    void fetchIsFollowing();
+  }, [fetchStats, fetchIsFollowing]);
+
+  async function toggle() {
+    if (!myName || toggling) return;
+    setToggling(true);
+    try {
+      const method = isFollowing ? "DELETE" : "POST";
+      const res = await fetch(`/api/photographers/${encodeURIComponent(name)}/follow`, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ followerName: myName }),
+      });
+      if (res.ok || res.status === 201) {
+        const data = await res.json() as { followerCount: number };
+        setFollowerCount(data.followerCount);
+        setIsFollowing((prev) => !prev);
+      }
+    } finally {
+      setToggling(false);
+    }
+  }
+
+  return { followerCount, followingCount, isFollowing, toggling, toggle, myName };
+}
+
+// ─── Related photographers sidebar card ─────────────────────────────────────
+
+interface RelatedCardProps {
+  photographer: RelatedPhotographer;
+  myName: string;
+}
+
+function RelatedCard({ photographer, myName }: RelatedCardProps) {
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [toggling, setToggling] = useState(false);
+  const canFollow = !!myName && myName.toLowerCase() !== photographer.name.toLowerCase();
+
+  useEffect(() => {
+    if (!canFollow) return;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/photographers/${encodeURIComponent(photographer.name)}/is-followed-by/${encodeURIComponent(myName)}`
+        );
+        if (res.ok) {
+          const data = await res.json() as { isFollowing: boolean };
+          setIsFollowing(data.isFollowing);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [canFollow, myName, photographer.name]);
+
+  async function toggleFollow(e: React.MouseEvent) {
+    e.preventDefault();
+    if (!myName || toggling) return;
+    setToggling(true);
+    try {
+      const method = isFollowing ? "DELETE" : "POST";
+      const res = await fetch(
+        `/api/photographers/${encodeURIComponent(photographer.name)}/follow`,
+        {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ followerName: myName }),
+        }
+      );
+      if (res.ok || res.status === 201) setIsFollowing((prev) => !prev);
+    } finally {
+      setToggling(false);
+    }
+  }
+
+  const initial = photographer.name.charAt(0).toUpperCase();
+  const isVerified = VERIFIED_PHOTOGRAPHERS.some(
+    (n) => n.toLowerCase() === photographer.name.toLowerCase()
+  );
+
+  return (
+    <Link
+      href={`/profile/${encodeURIComponent(photographer.name)}`}
+      className="group flex items-center gap-3 p-3 -mx-3 hover:bg-muted/30 transition-colors"
+    >
+      {/* Avatar with mini cover */}
+      <div className={cn(
+        "w-10 h-10 rounded-full flex items-center justify-center text-sm font-serif flex-shrink-0 border border-border/50 relative overflow-hidden",
+        avatarColor(photographer.name)
+      )}>
+        {photographer.coverUrl ? (
+          <img
+            src={photographer.coverUrl}
+            alt={photographer.name}
+            className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity"
+          />
+        ) : null}
+        <span className="relative z-10 text-white/90 drop-shadow">{initial}</span>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium truncate group-hover:text-foreground transition-colors">
+            {photographer.name}
+          </p>
+          {isVerified && <BadgeCheck className="w-3 h-3 text-blue-400 flex-shrink-0" />}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <p className="text-xs text-muted-foreground">
+            {photographer.photoCount} {photographer.photoCount === 1 ? "photo" : "photos"}
+          </p>
+          <span className="text-muted-foreground/30 text-xs">·</span>
+          <p className="text-xs text-muted-foreground truncate">
+            {photographer.sharedTags.join(", ")}
+          </p>
+        </div>
+      </div>
+
+      {canFollow && (
+        <button
+          onClick={toggleFollow}
+          disabled={toggling}
+          aria-label={isFollowing ? "Unfollow" : "Follow"}
+          className={cn(
+            "flex-shrink-0 p-1.5 border transition-all disabled:opacity-40",
+            isFollowing
+              ? "border-border text-muted-foreground hover:border-destructive hover:text-destructive"
+              : "border-foreground/30 text-foreground/70 hover:border-foreground hover:text-foreground hover:bg-foreground/5"
+          )}
+        >
+          {toggling ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : isFollowing ? (
+            <UserCheck className="w-3 h-3" />
+          ) : (
+            <UserPlus className="w-3 h-3" />
+          )}
+        </button>
+      )}
+    </Link>
+  );
+}
+
+// ─── Main Profile page ────────────────────────────────────────────────────────
+
+export function Profile() {
+  const [matchOwn] = useRoute("/profile");
+  const [matchPublic, publicParams] = useRoute("/profile/:name");
+
+  const settings = loadSettings();
+  const viewingName = matchPublic && publicParams?.name
+    ? decodeURIComponent(publicParams.name)
+    : settings.displayName;
+
+  const isOwnProfile = matchOwn || viewingName === settings.displayName;
+  const isVerified = VERIFIED_PHOTOGRAPHERS.some(
+    (n) => n.toLowerCase() === viewingName.toLowerCase()
+  );
+
+  const { followerCount, followingCount, isFollowing, toggling, toggle, myName } =
+    useFollowStats(viewingName ?? "");
+
+  const canFollow = !!myName && !isOwnProfile && !!viewingName;
+
+  const { data: photosData, isLoading: loadingPhotos } = useListPhotos({ limit: 200 });
+
+  const allPhotos = photosData?.photos ?? [];
+  const myPhotos = allPhotos.filter(
+    (p) => viewingName && p.photographerName.toLowerCase() === viewingName.toLowerCase()
+  );
+
+  const publishedPhotos = myPhotos.filter((p) => p.status !== "draft" || isOwnProfile);
+  const draftPhotos = isOwnProfile ? myPhotos.filter((p) => p.status === "draft") : [];
+
+  const totalLikes = publishedPhotos.reduce((acc, p) => acc + p.likes, 0);
+  const totalDownloads = publishedPhotos.reduce((acc, p) => acc + p.downloads, 0);
+
+  const myTags = Array.from(
+    new Set(publishedPhotos.flatMap((p) => p.tags))
+  ).slice(0, 8);
+
+  const relatedPhotographers = computeRelated(allPhotos, viewingName ?? "", myTags);
+
+  const displayName = viewingName || "Unknown Photographer";
+  const initial = displayName.charAt(0).toUpperCase();
+
+  const [showVerify, setShowVerify] = useState(false);
+  const [verifyStep, setVerifyStep] = useState<"form" | "pending" | "done">("form");
+  const [verifyName, setVerifyName] = useState("");
+  const [verifyLinks, setVerifyLinks] = useState("");
+  const [activeTab, setActiveTab] = useState<"published" | "drafts">("published");
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  function submitVerification() {
+    setVerifyStep("pending");
+    setTimeout(() => setVerifyStep("done"), 1800);
+  }
+
+  const displayedPhotos = activeTab === "drafts" ? draftPhotos : publishedPhotos;
+
+  function openLightbox(photo: Photo) {
+    const idx = displayedPhotos.findIndex((p) => p.id === photo.id);
+    if (idx !== -1) setLightboxIndex(idx);
+  }
+
+  if (!viewingName) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-32 text-center max-w-md">
+          <Camera className="w-12 h-12 mx-auto mb-6 text-muted-foreground opacity-30" />
+          <h1 className="text-3xl font-serif mb-3">Your Profile</h1>
+          <p className="text-muted-foreground text-sm mb-8">
+            Set a display name in Settings to create your photographer profile.
+          </p>
+          <Link
+            href="/settings"
+            className="inline-flex items-center justify-center bg-foreground text-background px-6 py-3 text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            Go to Settings
+          </Link>
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      {/* Profile header */}
+      <div className="bg-muted/10 border-b border-border">
+        <div className="container mx-auto px-4 py-16 max-w-5xl">
+          <div className="flex items-start gap-8">
+            <div className="w-24 h-24 rounded-full flex items-center justify-center text-4xl font-serif flex-shrink-0 border-2 border-border relative overflow-hidden">
+              <div className={cn("absolute inset-0", avatarColor(displayName))} />
+              <span className="relative z-10 text-white drop-shadow">{initial}</span>
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 flex-wrap mb-2">
+                <h1 className="text-3xl font-serif">{displayName}</h1>
+                {isVerified && (
+                  <span className="flex items-center gap-1 bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs px-2 py-0.5">
+                    <BadgeCheck className="w-3.5 h-3.5" />
+                    Verified
+                  </span>
+                )}
+              </div>
+
+              {isOwnProfile && settings.bio && (
+                <p className="text-muted-foreground text-sm mb-4 max-w-xl">{settings.bio}</p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground mb-5">
+                {isOwnProfile && settings.location && (
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5" /> {settings.location}
+                  </span>
+                )}
+                {isOwnProfile && settings.website && (
+                  <a
+                    href={settings.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    {settings.website.replace(/^https?:\/\//, "")}
+                  </a>
+                )}
+                {isOwnProfile && settings.instagram && (
+                  <a
+                    href={`https://instagram.com/${settings.instagram}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors"
+                  >
+                    <Instagram className="w-3.5 h-3.5" />
+                    @{settings.instagram}
+                  </a>
+                )}
+                {isOwnProfile && settings.twitter && (
+                  <a
+                    href={`https://x.com/${settings.twitter}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors"
+                  >
+                    <Twitter className="w-3.5 h-3.5" />
+                    @{settings.twitter}
+                  </a>
+                )}
+                {publishedPhotos.length > 0 && (
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5" />
+                    Since {format(new Date(publishedPhotos[publishedPhotos.length - 1]?.createdAt ?? new Date()), "MMM yyyy")}
+                  </span>
+                )}
+              </div>
+
+              {/* Stats row */}
+              <div className="flex items-center gap-6 mb-6 flex-wrap">
+                <div className="text-center">
+                  <p className="text-2xl font-serif">{publishedPhotos.length}</p>
+                  <p className="text-xs text-muted-foreground">Photos</p>
+                </div>
+                <div className="w-px h-8 bg-border" />
+                <div className="text-center">
+                  <p className="text-2xl font-serif">{totalLikes}</p>
+                  <p className="text-xs text-muted-foreground">Likes</p>
+                </div>
+                <div className="w-px h-8 bg-border" />
+                <div className="text-center">
+                  <p className="text-2xl font-serif">{totalDownloads}</p>
+                  <p className="text-xs text-muted-foreground">Downloads</p>
+                </div>
+                <div className="w-px h-8 bg-border" />
+                <div className="text-center">
+                  <p className="text-2xl font-serif">
+                    {followerCount === null
+                      ? <span className="text-sm text-muted-foreground">—</span>
+                      : followerCount}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Followers</p>
+                </div>
+                <div className="w-px h-8 bg-border" />
+                <div className="text-center">
+                  <p className="text-2xl font-serif">
+                    {followingCount === null
+                      ? <span className="text-sm text-muted-foreground">—</span>
+                      : followingCount}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Following</p>
+                </div>
+                {isOwnProfile && draftPhotos.length > 0 && (
+                  <>
+                    <div className="w-px h-8 bg-border" />
+                    <div className="text-center">
+                      <p className="text-2xl font-serif text-amber-400">{draftPhotos.length}</p>
+                      <p className="text-xs text-muted-foreground">Drafts</p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-wrap gap-2">
+                {!isOwnProfile && (
+                  <>
+                    {canFollow && (
+                      <button
+                        onClick={() => void toggle()}
+                        disabled={toggling}
+                        className={cn(
+                          "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all border disabled:opacity-50",
+                          isFollowing
+                            ? "border-border bg-muted text-foreground hover:border-destructive hover:text-destructive hover:bg-destructive/5"
+                            : "border-foreground bg-foreground text-background hover:opacity-90"
+                        )}
+                      >
+                        {toggling ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : isFollowing ? (
+                          <UserCheck className="w-3.5 h-3.5" />
+                        ) : (
+                          <UserPlus className="w-3.5 h-3.5" />
+                        )}
+                        {isFollowing ? "Following" : "Follow"}
+                      </button>
+                    )}
+                    <Link
+                      href={`/messages?to=${encodeURIComponent(displayName)}`}
+                      className="inline-flex items-center gap-2 border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Message
+                    </Link>
+                  </>
+                )}
+                {isOwnProfile && (
+                  <>
+                    <Link
+                      href="/settings"
+                      className="inline-flex items-center gap-2 border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+                    >
+                      Edit Profile
+                    </Link>
+                    {!isVerified && (
+                      <button
+                        onClick={() => setShowVerify(true)}
+                        className="inline-flex items-center gap-2 border border-blue-500/30 text-blue-400 px-4 py-2 text-sm hover:bg-blue-500/10 transition-colors"
+                      >
+                        <BadgeCheck className="w-3.5 h-3.5" />
+                        Request Verification
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Verification modal */}
+      {showVerify && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-card border border-border w-full max-w-md mx-4">
+            <div className="border-b border-border px-6 py-4">
+              <h3 className="font-serif text-xl flex items-center gap-2">
+                <BadgeCheck className="w-5 h-5 text-blue-400" />
+                Verification Request
+              </h3>
+            </div>
+            <div className="p-6">
+              {verifyStep === "form" && (
+                <div className="space-y-5">
+                  <p className="text-sm text-muted-foreground">
+                    Verified photographers have an established online presence. Provide your details and we'll review within 5–7 days.
+                  </p>
+                  <div className="space-y-1.5">
+                    <label className="text-xs uppercase tracking-widest text-muted-foreground">Full Name</label>
+                    <input
+                      type="text"
+                      value={verifyName}
+                      onChange={(e) => setVerifyName(e.target.value)}
+                      className="w-full bg-transparent border border-border px-3 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors"
+                      placeholder="As it appears on your work"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs uppercase tracking-widest text-muted-foreground">Portfolio / Social Links</label>
+                    <textarea
+                      rows={3}
+                      value={verifyLinks}
+                      onChange={(e) => setVerifyLinks(e.target.value)}
+                      className="w-full bg-transparent border border-border px-3 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors resize-none"
+                      placeholder="Instagram, personal site, 500px…"
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      onClick={submitVerification}
+                      disabled={!verifyName.trim()}
+                      className="flex-1 bg-foreground text-background py-2.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      Submit Request
+                    </button>
+                    <button
+                      onClick={() => setShowVerify(false)}
+                      className="px-5 py-2.5 text-sm border border-border text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {verifyStep === "pending" && (
+                <div className="text-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Submitting…</p>
+                </div>
+              )}
+              {verifyStep === "done" && (
+                <div className="text-center py-8">
+                  <BadgeCheck className="w-10 h-10 text-blue-400 mx-auto mb-4" />
+                  <p className="font-serif text-xl mb-2">Request Submitted</p>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    We'll review your profile and get back to you within 5–7 days.
+                  </p>
+                  <button
+                    onClick={() => { setShowVerify(false); setVerifyStep("form"); }}
+                    className="bg-foreground text-background px-6 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Body: photos + sidebar */}
+      <div className="container mx-auto px-4 py-16 max-w-5xl">
+        <div className={cn(
+          "gap-12",
+          relatedPhotographers.length > 0
+            ? "lg:grid lg:grid-cols-[1fr_260px]"
+            : ""
+        )}>
+          {/* ── Left: tags + tabs + grid ───────────────────────── */}
+          <div className="min-w-0">
+            {myTags.length > 0 && (
+              <div className="mb-10 flex flex-wrap gap-2">
+                {myTags.map((tag) => (
+                  <Link
+                    key={tag}
+                    href={`/tags/${tag}`}
+                    className="px-3 py-1 text-xs border border-border/50 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    {tag}
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setActiveTab("published")}
+                  className={cn(
+                    "px-4 py-2 text-sm font-medium transition-colors border-b-2",
+                    activeTab === "published"
+                      ? "text-foreground border-foreground"
+                      : "text-muted-foreground border-transparent hover:text-foreground"
+                  )}
+                >
+                  {isOwnProfile ? "Your Photos" : "Photos"}
+                  {publishedPhotos.length > 0 && (
+                    <span className="ml-2 text-xs text-muted-foreground">{publishedPhotos.length}</span>
+                  )}
+                </button>
+                {isOwnProfile && draftPhotos.length > 0 && (
+                  <button
+                    onClick={() => setActiveTab("drafts")}
+                    className={cn(
+                      "px-4 py-2 text-sm font-medium transition-colors border-b-2",
+                      activeTab === "drafts"
+                        ? "text-foreground border-foreground"
+                        : "text-muted-foreground border-transparent hover:text-foreground"
+                    )}
+                  >
+                    Drafts
+                    <span className="ml-2 text-xs text-amber-400">{draftPhotos.length}</span>
+                  </button>
+                )}
+              </div>
+              {isOwnProfile && (
+                <Link
+                  href="/upload"
+                  className="bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  + Upload
+                </Link>
+              )}
+            </div>
+
+            {loadingPhotos ? (
+              <div className="masonry-grid">
+                {Array(8).fill(0).map((_, i) => (
+                  <div key={i} className="masonry-item">
+                    <Skeleton className="w-full h-[280px]" />
+                  </div>
+                ))}
+              </div>
+            ) : displayedPhotos.length === 0 ? (
+              <div className="py-24 text-center border border-dashed border-border">
+                <Camera className="w-8 h-8 mx-auto mb-3 opacity-20" />
+                <p className="text-muted-foreground text-sm">
+                  {activeTab === "drafts"
+                    ? "No drafts."
+                    : isOwnProfile
+                    ? "No photos yet."
+                    : `No photos by ${displayName}.`}
+                </p>
+                {isOwnProfile && activeTab === "published" && (
+                  <Link
+                    href="/upload"
+                    className="mt-4 inline-block text-sm underline underline-offset-4 hover:text-foreground transition-colors text-muted-foreground"
+                  >
+                    Upload your first photo
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="masonry-grid">
+                {displayedPhotos.map((photo, i) => (
+                  <div key={photo.id} className="masonry-item relative">
+                    {photo.status === "draft" && (
+                      <div className="absolute top-2 left-2 z-10 bg-amber-500/90 text-black text-xs font-semibold px-2 py-0.5 pointer-events-none">
+                        DRAFT
+                      </div>
+                    )}
+                    <PhotoCard photo={photo} priority={i < 3} onOpen={openLightbox} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Right: related photographers sidebar ────────────── */}
+          {relatedPhotographers.length > 0 && (
+            <aside className="mt-16 lg:mt-0">
+              <div className="lg:sticky lg:top-8">
+                <div className="flex items-center gap-2 mb-5 pb-4 border-b border-border/50">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <h2 className="text-xs uppercase tracking-widest text-muted-foreground font-medium">
+                    Similar Photographers
+                  </h2>
+                </div>
+
+                <div className="space-y-1">
+                  {relatedPhotographers.map((p) => (
+                    <RelatedCard key={p.name} photographer={p} myName={myName} />
+                  ))}
+                </div>
+
+                {myTags.length > 0 && (
+                  <div className="mt-6 pt-5 border-t border-border/40">
+                    <p className="text-xs text-muted-foreground/60 mb-3">Shared styles</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {myTags.map((tag) => (
+                        <Link
+                          key={tag}
+                          href={`/tags/${tag}`}
+                          className="text-xs px-2 py-0.5 border border-border/40 text-muted-foreground/70 hover:text-foreground hover:border-border transition-colors"
+                        >
+                          {tag}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </aside>
+          )}
+        </div>
+      </div>
+
+      {lightboxIndex !== null && displayedPhotos.length > 0 && (
+        <Lightbox
+          photos={displayedPhotos}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
+    </Layout>
+  );
+}

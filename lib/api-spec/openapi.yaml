@@ -1,0 +1,807 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Photo platform API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: photos
+    description: Photo operations
+  - name: collections
+    description: Collection operations
+  - name: tags
+    description: Tag operations
+  - name: stats
+    description: Stats and discovery operations
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /photos:
+    get:
+      operationId: listPhotos
+      tags: [photos]
+      summary: List photos
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: tag
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: search
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [latest, popular, trending]
+            default: latest
+      responses:
+        "200":
+          description: Photos list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhotoListResponse"
+    post:
+      operationId: createPhoto
+      tags: [photos]
+      summary: Upload a photo (metadata)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePhotoBody"
+      responses:
+        "201":
+          description: Created photo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Photo"
+
+  /photos/{id}:
+    get:
+      operationId: getPhoto
+      tags: [photos]
+      summary: Get photo by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Photo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Photo"
+        "404":
+          description: Not found
+    patch:
+      operationId: updatePhoto
+      tags: [photos]
+      summary: Update a photo (owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePhotoBody"
+      responses:
+        "200":
+          description: Updated photo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Photo"
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+    delete:
+      operationId: deletePhoto
+      tags: [photos]
+      summary: Delete a photo (owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden
+
+  /photos/{id}/like:
+    post:
+      operationId: likePhoto
+      tags: [photos]
+      summary: Like a photo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated photo likes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Photo"
+
+  /photos/{id}/download:
+    post:
+      operationId: downloadPhoto
+      tags: [photos]
+      summary: Track a photo download
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated photo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Photo"
+
+  /collections:
+    get:
+      operationId: listCollections
+      tags: [collections]
+      summary: List all collections
+      responses:
+        "200":
+          description: Collections list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Collection"
+    post:
+      operationId: createCollection
+      tags: [collections]
+      summary: Create a collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCollectionBody"
+      responses:
+        "201":
+          description: Created collection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
+
+  /collections/{id}:
+    get:
+      operationId: getCollection
+      tags: [collections]
+      summary: Get collection with its photos
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Collection with photos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CollectionWithPhotos"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteCollection
+      tags: [collections]
+      summary: Delete a collection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /collections/{id}/photos:
+    post:
+      operationId: addPhotoToCollection
+      tags: [collections]
+      summary: Add a photo to a collection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddPhotoToCollectionBody"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
+
+  /tags:
+    get:
+      operationId: listTags
+      tags: [tags]
+      summary: List all available tags with photo counts
+      responses:
+        "200":
+          description: Tags list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tag"
+
+  /stats/featured:
+    get:
+      operationId: getFeaturedPhotos
+      tags: [stats]
+      summary: Get featured/hero photos for the homepage
+      responses:
+        "200":
+          description: Featured photos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Photo"
+
+  /stats/trending:
+    get:
+      operationId: getTrendingPhotos
+      tags: [stats]
+      summary: Get trending photos (most liked recently)
+      responses:
+        "200":
+          description: Trending photos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Photo"
+
+  /stats/summary:
+    get:
+      operationId: getSiteSummary
+      tags: [stats]
+      summary: Get site-wide stats summary
+      responses:
+        "200":
+          description: Stats summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteSummary"
+
+  /users/me/photos:
+    get:
+      operationId: getMyPhotos
+      tags: [photos]
+      summary: List photos uploaded by the authenticated user
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: User's photos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhotoListResponse"
+        "401":
+          description: Not authenticated
+
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      responses:
+        '200':
+          description: Current auth state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserEnvelope'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: loginUser
+      summary: Sign in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginBody'
+      responses:
+        '200':
+          description: Signed in successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserEnvelope'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: registerUser
+      summary: Create a new account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterBody'
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserEnvelope'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutUser
+      summary: Sign out and clear session
+      responses:
+        '200':
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutSuccess'
+
+components:
+  parameters:
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      description: Opaque session token — `Bearer <sid>`.
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      description: Browser session cookie.
+      schema:
+        type: string
+
+  schemas:
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, 'null']
+          format: email
+        firstName:
+          type: [string, 'null']
+        lastName:
+          type: [string, 'null']
+        profileImageUrl:
+          type: [string, 'null']
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/AuthUser'
+            - type: 'null'
+    LoginBody:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+    RegisterBody:
+      type: object
+      required: [email, password, firstName]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        firstName:
+          type: string
+        lastName:
+          type: ["string", "null"]
+    LogoutSuccess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Photo:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        imageUrl:
+          type: string
+        blurHash:
+          type: ["string", "null"]
+        width:
+          type: integer
+        height:
+          type: integer
+        photographerName:
+          type: string
+        photographerAvatarUrl:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        likes:
+          type: integer
+        downloads:
+          type: integer
+        isFeatured:
+          type: boolean
+        uploadedBy:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        camera:
+          type: ["string", "null"]
+        lens:
+          type: ["string", "null"]
+        aperture:
+          type: ["string", "null"]
+        shutterSpeed:
+          type: ["string", "null"]
+        iso:
+          type: ["integer", "null"]
+        focalLength:
+          type: ["string", "null"]
+        license:
+          type: string
+          enum: [cc0, cc-by, cc-by-sa, editorial, all-rights-reserved]
+          default: cc0
+        status:
+          type: string
+          enum: [draft, published]
+          default: published
+      required:
+        - id
+        - title
+        - imageUrl
+        - width
+        - height
+        - photographerName
+        - tags
+        - likes
+        - downloads
+        - isFeatured
+        - createdAt
+        - license
+        - status
+
+    PhotoListResponse:
+      type: object
+      properties:
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Photo"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - photos
+        - total
+        - page
+        - limit
+
+    CreatePhotoBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        imageUrl:
+          type: string
+        width:
+          type: integer
+        height:
+          type: integer
+        photographerName:
+          type: string
+        photographerAvatarUrl:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        isFeatured:
+          type: boolean
+        camera:
+          type: ["string", "null"]
+        lens:
+          type: ["string", "null"]
+        aperture:
+          type: ["string", "null"]
+        shutterSpeed:
+          type: ["string", "null"]
+        iso:
+          type: ["integer", "null"]
+        focalLength:
+          type: ["string", "null"]
+        license:
+          type: string
+          enum: [cc0, cc-by, cc-by-sa, editorial, all-rights-reserved]
+        status:
+          type: string
+          enum: [draft, published]
+      required:
+        - title
+        - imageUrl
+        - width
+        - height
+        - photographerName
+        - tags
+
+    UpdatePhotoBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        imageUrl:
+          type: string
+        width:
+          type: integer
+        height:
+          type: integer
+        photographerName:
+          type: string
+        photographerAvatarUrl:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        isFeatured:
+          type: boolean
+        camera:
+          type: ["string", "null"]
+        lens:
+          type: ["string", "null"]
+        aperture:
+          type: ["string", "null"]
+        shutterSpeed:
+          type: ["string", "null"]
+        iso:
+          type: ["integer", "null"]
+        focalLength:
+          type: ["string", "null"]
+        license:
+          type: string
+          enum: [cc0, cc-by, cc-by-sa, editorial, all-rights-reserved]
+        status:
+          type: string
+          enum: [draft, published]
+
+    Collection:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        coverImageUrl:
+          type: ["string", "null"]
+        photoCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - photoCount
+        - createdAt
+
+    CollectionWithPhotos:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        coverImageUrl:
+          type: ["string", "null"]
+        photoCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Photo"
+      required:
+        - id
+        - name
+        - photoCount
+        - createdAt
+        - photos
+
+    CreateCollectionBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+      required:
+        - name
+
+    AddPhotoToCollectionBody:
+      type: object
+      properties:
+        photoId:
+          type: integer
+      required:
+        - photoId
+
+    Tag:
+      type: object
+      properties:
+        name:
+          type: string
+        photoCount:
+          type: integer
+      required:
+        - name
+        - photoCount
+
+    SiteSummary:
+      type: object
+      properties:
+        totalPhotos:
+          type: integer
+        totalLikes:
+          type: integer
+        totalDownloads:
+          type: integer
+        totalCollections:
+          type: integer
+        totalTags:
+          type: integer
+      required:
+        - totalPhotos
+        - totalLikes
+        - totalDownloads
+        - totalCollections
+        - totalTags
