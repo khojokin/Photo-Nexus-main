@@ -3,6 +3,7 @@ import multer from "multer";
 import path from "path";
 import { randomUUID } from "crypto";
 import fs from "fs";
+import { requireAuth } from "../replitAuth";
 
 const uploadDir = path.resolve(process.cwd(), "public", "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -26,7 +27,7 @@ const upload = multer({
 
 const router = Router();
 
-router.post("/upload", upload.single("file"), (req, res): void => {
+router.post("/upload", requireAuth, upload.single("file"), (req, res): void => {
   if (!req.file) {
     res.status(400).json({ error: "No file provided" });
     return;

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, LayoutDashboard, MessageSquare, Upload, User, Settings, Bell } from "lucide-react";
+import { Menu, X, LayoutDashboard, MessageSquare, Upload, User, Settings, Bell, LogOut, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./notifications";
+import { useAuth } from "@/contexts/auth-context";
 
 const PRIMARY_LINKS = [
   { href: "/photos", label: "Explore" },
@@ -22,6 +23,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { user, login, logout } = useAuth();
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -116,6 +118,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         </Link>
                       );
                     })}
+                  </div>
+                  <div className="border-t border-border/60 p-2">
+                    {user ? (
+                      <button
+                        onClick={() => void logout()}
+                        className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4 shrink-0" />
+                        Sign Out
+                      </button>
+                    ) : (
+                      <button
+                        onClick={login}
+                        className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                      >
+                        <LogIn className="w-4 h-4 shrink-0" />
+                        Sign In
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
