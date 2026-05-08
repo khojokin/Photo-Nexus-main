@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, LayoutDashboard, MessageSquare, Upload, User, Settings, Bell, LogOut, LogIn } from "lucide-react";
+import { Menu, X, LayoutDashboard, MessageSquare, Upload, User, Settings, Bell, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./notifications";
 import { useAuth } from "@/contexts/auth-context";
@@ -23,7 +23,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { user, login, logout } = useAuth();
+  const { user, isLoading, login, logout } = useAuth();
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -63,84 +63,94 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
 
-            {/* Notification bell — always visible */}
-            <NotificationBell />
+            {!isLoading && (
+              user ? (
+                <>
+                  <NotificationBell />
 
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setMenuOpen((o) => !o)}
-                aria-label="Toggle menu"
-                aria-expanded={menuOpen}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors",
-                  menuOpen
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                )}
-              >
-                {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
+                  <div className="relative" ref={menuRef}>
+                    <button
+                      onClick={() => setMenuOpen((o) => !o)}
+                      aria-label="Toggle menu"
+                      aria-expanded={menuOpen}
+                      className={cn(
+                        "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors",
+                        menuOpen
+                          ? "bg-accent text-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                      )}
+                    >
+                      {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                    </button>
 
-              {menuOpen && (
-                <div className="absolute right-0 mt-2 w-52 rounded-xl border border-border bg-background/95 backdrop-blur shadow-xl overflow-hidden">
-                  <div className="sm:hidden border-b border-border/60 pb-2 mb-1 px-2 pt-2">
-                    {PRIMARY_LINKS.map((l) => (
-                      <Link
-                        key={l.href}
-                        href={l.href}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
-                          location === l.href
-                            ? "text-foreground bg-accent"
-                            : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                        )}
-                      >
-                        {l.label}
-                      </Link>
-                    ))}
-                  </div>
-                  <div className="p-2">
-                    {MENU_LINKS.map((l) => {
-                      const Icon = l.icon;
-                      return (
-                        <Link
-                          key={l.href}
-                          href={l.href}
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
-                            location === l.href
-                              ? "text-foreground bg-accent"
-                              : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                          )}
-                        >
-                          <Icon className="w-4 h-4 shrink-0" />
-                          {l.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                  <div className="border-t border-border/60 p-2">
-                    {user ? (
-                      <button
-                        onClick={() => void logout()}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      >
-                        <LogOut className="w-4 h-4 shrink-0" />
-                        Sign Out
-                      </button>
-                    ) : (
-                      <button
-                        onClick={login}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                      >
-                        <LogIn className="w-4 h-4 shrink-0" />
-                        Sign In
-                      </button>
+                    {menuOpen && (
+                      <div className="absolute right-0 mt-2 w-52 rounded-xl border border-border bg-background/95 backdrop-blur shadow-xl overflow-hidden">
+                        <div className="sm:hidden border-b border-border/60 pb-2 mb-1 px-2 pt-2">
+                          {PRIMARY_LINKS.map((l) => (
+                            <Link
+                              key={l.href}
+                              href={l.href}
+                              className={cn(
+                                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                                location === l.href
+                                  ? "text-foreground bg-accent"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                              )}
+                            >
+                              {l.label}
+                            </Link>
+                          ))}
+                        </div>
+                        <div className="p-2">
+                          {MENU_LINKS.map((l) => {
+                            const Icon = l.icon;
+                            return (
+                              <Link
+                                key={l.href}
+                                href={l.href}
+                                className={cn(
+                                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                                  location === l.href
+                                    ? "text-foreground bg-accent"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                                )}
+                              >
+                                <Icon className="w-4 h-4 shrink-0" />
+                                {l.label}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                        <div className="border-t border-border/60 p-2">
+                          <button
+                            onClick={() => void logout()}
+                            className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          >
+                            <LogOut className="w-4 h-4 shrink-0" />
+                            Sign Out
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={login}
+                    className="px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    onClick={login}
+                    className="px-4 py-1.5 text-sm font-medium bg-foreground text-background hover:opacity-90 transition-opacity rounded-md"
+                  >
+                    Sign Up
+                  </button>
                 </div>
-              )}
-            </div>
+              )
+            )}
           </nav>
         </div>
       </header>
