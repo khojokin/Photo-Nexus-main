@@ -18,12 +18,14 @@ import leaderboardRouter from "./leaderboard";
 import activityRouter from "./activity";
 import userprofileRouter from "./userprofile";
 import photoofdayRouter from "./photoofday";
+import recommendationsRouter from "./recommendations";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(photosRouter);
+router.use(recommendationsRouter);
 router.use(collectionsRouter);
 router.use(tagsRouter);
 router.use(statsRouter);

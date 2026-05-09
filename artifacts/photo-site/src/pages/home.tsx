@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { PhotoCard } from "@/components/photo-card";
 import { Lightbox } from "@/components/lightbox";
+import { ForYouSection } from "@/components/for-you-section";
 import {
   useGetSiteSummary,
   useGetFeaturedPhotos,
@@ -225,6 +226,9 @@ export function Home() {
           </div>
         </div>
       </section>
+
+      {/* For You Section */}
+      <ForYouSection />
 
       {lightboxIndex !== null && trendingPhotos.length > 0 && (
         <Lightbox

@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { PhotoCard } from "@/components/photo-card";
+import { SimilarPhotos } from "@/components/similar-photos";
 import {
   useGetPhoto, useLikePhoto, useDownloadPhoto,
-  getGetPhotoQueryKey, useListPhotos, getListPhotosQueryKey,
+  getGetPhotoQueryKey,
   useListCollections, getListCollectionsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -674,28 +675,11 @@ export function PhotoDetail() {
         </div>
       </div>
 
-      {relatedPhotos.length > 0 && (
-        <div className="border-t border-border bg-muted/5 py-20">
-          <div className="container mx-auto px-4">
-            <div className="flex items-end justify-between mb-10">
-              <div>
-                <h2 className="text-2xl font-serif mb-1">Related Photographs</h2>
-                <p className="text-sm text-muted-foreground">More from the same theme</p>
-              </div>
-              {photo.tags[0] && (
-                <Link href={`/tags/${photo.tags[0]}`} className="text-sm border-b border-primary pb-1 hover:text-muted-foreground transition-colors">
-                  View all &rarr;
-                </Link>
-              )}
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {relatedPhotos.map((related) => (
-                <PhotoCard key={related.id} photo={related} />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <SimilarPhotos
+        photoId={photoId}
+        photoTags={photo.tags}
+        primaryTag={photo.tags[0]}
+      />
 
       <CommentsSection photoId={photoId} />
     </Layout>

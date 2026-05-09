@@ -3,6 +3,7 @@ import { useRoute, Link, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { PhotoCard } from "@/components/photo-card";
 import { Lightbox } from "@/components/lightbox";
+import { MoodFilter } from "@/components/mood-filter";
 import { useListPhotos, useListTags, ListPhotosSort } from "@workspace/api-client-react";
 import type { Photo } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +18,19 @@ export function Explore() {
   const activeTag = match ? params.tag : null;
   const [, navigate] = useLocation();
   const [surprisingMe, setSurprisingMe] = useState(false);
+  const [activeMood, setActiveMood] = useState<string | null>(null);
+  const [moodPhotos, setMoodPhotos] = useState<Photo[]>([]);
+  const [loadingMood, setLoadingMood] = useState(false);
+
+  useEffect(() => {
+    if (!activeMood) { setMoodPhotos([]); return; }
+    setLoadingMood(true);
+    fetch(`/api/recommendations/mood/${encodeURIComponent(activeMood)}?limit=24`)
+      .then((r) => r.json())
+      .then((d: { photos: Photo[] }) => setMoodPhotos(d.photos ?? []))
+      .catch(() => setMoodPhotos([]))
+      .finally(() => setLoadingMood(false));
+  }, [activeMood]);
 
   async function handleSurpriseMe() {
     setSurprisingMe(true);
@@ -192,8 +206,12 @@ export function Explore() {
             </div>
           </div>
 
-          {!loadingTags && Array.isArray(tags) && tags.length > 0 && !activeTag && (
-            <div className="mt-8 flex flex-wrap gap-2">
+          {!activeTag && (
+            <MoodFilter activeMood={activeMood} onMoodChange={(mood) => { setActiveMood(mood); setPage(1); }} />
+          )}
+
+          {!loadingTags && Array.isArray(tags) && tags.length > 0 && !activeTag && !activeMood && (
+            <div className="mt-6 flex flex-wrap gap-2">
               {tags.map((tag) => (
                 <Link
                   key={tag.name}
@@ -218,14 +236,40 @@ export function Explore() {
             </div>
           )}
 
-          {!isFirstLoad && totalPhotos > 0 && (
+          {!isFirstLoad && !activeMood && totalPhotos > 0 && (
             <p className="mt-6 text-sm text-muted-foreground">
               Showing {allPhotos.length} of {totalPhotos} photographs
             </p>
           )}
+          {activeMood && !loadingMood && (
+            <p className="mt-6 text-sm text-muted-foreground">
+              {moodPhotos.length} photographs in this mood
+            </p>
+          )}
         </div>
 
-        {isFirstLoad ? (
+        {activeMood ? (
+          loadingMood ? (
+            <div className="masonry-grid">
+              {Array(12).fill(0).map((_, i) => (
+                <div key={i} className="masonry-item"><Skeleton className="w-full h-[300px]" /></div>
+              ))}
+            </div>
+          ) : moodPhotos.length === 0 ? (
+            <div className="py-32 text-center text-muted-foreground">
+              <p className="font-serif text-xl">No photographs match this mood yet.</p>
+              <p className="text-sm mt-2">Try a different mood or explore all photos.</p>
+            </div>
+          ) : (
+            <div className="masonry-grid">
+              {moodPhotos.map((photo) => (
+                <div key={photo.id} className="masonry-item">
+                  <PhotoCard photo={photo} onOpen={(p) => setLightboxIndex(allPhotos.findIndex((x) => x.id === p.id))} />
+                </div>
+              ))}
+            </div>
+          )
+        ) : isFirstLoad ? (
           <div className={viewMode === "masonry" ? "masonry-grid" : "grid grid-cols-2 md:grid-cols-3 gap-4"}>
             {Array(PAGE_SIZE).fill(0).map((_, i) => (
               <div key={i} className={viewMode === "masonry" ? "masonry-item" : ""}>
