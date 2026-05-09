@@ -30,6 +30,7 @@ import { SeriesList } from "@/pages/series";
 import { SeriesDetail } from "@/pages/series-detail";
 import { Admin } from "@/pages/admin";
 import { EmbedPhoto } from "@/pages/embed";
+import { Monetise } from "@/pages/monetise";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +69,7 @@ function Router() {
       <Route path="/series/:id" component={SeriesDetail} />
       <Route path="/admin" component={Admin} />
       <Route path="/embed/:id" component={EmbedPhoto} />
+      <Route path="/monetise" component={Monetise} />
       <Route component={NotFound} />
     </Switch>
   );

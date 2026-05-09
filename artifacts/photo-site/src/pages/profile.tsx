@@ -9,6 +9,7 @@ import type { Photo } from "@workspace/api-client-react";
 import {
   BadgeCheck, Camera, MapPin, Globe, MessageSquare, Calendar,
   Instagram, Twitter, UserPlus, UserCheck, Loader2, Users,
+  Trophy, Award, Star, Zap, TrendingUp,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -280,6 +281,97 @@ function RelatedCard({ photographer, myName }: RelatedCardProps) {
         </button>
       )}
     </Link>
+  );
+}
+
+// ─── Achievement badges ───────────────────────────────────────────────────────
+
+const ACHIEVEMENTS = [
+  { id: "first_upload", label: "First Upload", icon: Camera, desc: "Uploaded your first photo", check: (p: { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number }) => p.photoCount >= 1, color: "text-blue-400" },
+  { id: "ten_photos", label: "Prolific", icon: TrendingUp, desc: "10+ photos uploaded", check: (p: { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number }) => p.photoCount >= 10, color: "text-green-400" },
+  { id: "fifty_likes", label: "Fan Favourite", icon: Star, desc: "50+ total likes", check: (p: { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number }) => p.totalLikes >= 50, color: "text-yellow-400" },
+  { id: "hundred_downloads", label: "Widely Shared", icon: Zap, desc: "100+ total downloads", check: (p: { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number }) => p.totalDownloads >= 100, color: "text-purple-400" },
+  { id: "top_view", label: "Viral", icon: Trophy, desc: "1,000+ total views", check: (p: { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number }) => p.totalViews >= 1000, color: "text-orange-400" },
+  { id: "hundred_photos", label: "Master", icon: Award, desc: "100+ photos uploaded", check: (p: { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number }) => p.photoCount >= 100, color: "text-rose-400" },
+];
+
+interface AchievementBadgesProps {
+  photoCount: number;
+  totalLikes: number;
+  totalDownloads: number;
+  totalViews: number;
+}
+
+function AchievementBadges({ photoCount, totalLikes, totalDownloads, totalViews }: AchievementBadgesProps) {
+  const stats = { photoCount, totalLikes, totalDownloads, totalViews };
+  const earned = ACHIEVEMENTS.filter((a) => a.check(stats));
+  const locked = ACHIEVEMENTS.filter((a) => !a.check(stats));
+
+  if (earned.length === 0 && photoCount === 0) return null;
+
+  return (
+    <div className="border border-border bg-card p-6 mb-8">
+      <h3 className="text-xs uppercase tracking-widest text-muted-foreground mb-4">Achievements</h3>
+      <div className="flex flex-wrap gap-3">
+        {earned.map(({ id, label, icon: Icon, desc, color }) => (
+          <div key={id} title={desc} className="group relative flex flex-col items-center gap-1.5">
+            <div className={cn("w-10 h-10 border border-border/60 bg-muted/20 flex items-center justify-center transition-transform group-hover:scale-110", color)}>
+              <Icon className="w-5 h-5" />
+            </div>
+            <p className="text-[10px] text-muted-foreground text-center max-w-[52px] leading-tight">{label}</p>
+          </div>
+        ))}
+        {locked.slice(0, 3).map(({ id, label, icon: Icon, desc }) => (
+          <div key={id} title={`Locked: ${desc}`} className="flex flex-col items-center gap-1.5 opacity-25">
+            <div className="w-10 h-10 border border-border/30 bg-muted/10 flex items-center justify-center">
+              <Icon className="w-5 h-5 text-muted-foreground" />
+            </div>
+            <p className="text-[10px] text-muted-foreground text-center max-w-[52px] leading-tight">{label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Profile completion bar ───────────────────────────────────────────────────
+
+interface ProfileCompletionProps {
+  settings: { displayName: string; bio: string; location: string; website: string; instagram: string; twitter: string };
+  photoCount: number;
+}
+
+function ProfileCompletion({ settings, photoCount }: ProfileCompletionProps) {
+  const checks = [
+    { label: "Display name", done: !!settings.displayName },
+    { label: "Bio", done: !!settings.bio },
+    { label: "Location", done: !!settings.location },
+    { label: "Website", done: !!settings.website },
+    { label: "Social link", done: !!(settings.instagram || settings.twitter) },
+    { label: "First photo", done: photoCount > 0 },
+  ];
+  const pct = Math.round((checks.filter((c) => c.done).length / checks.length) * 100);
+
+  if (pct === 100) return null;
+
+  return (
+    <div className="border border-border bg-card/50 p-4 mb-6">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">Profile Completion</p>
+        <p className="text-xs font-medium">{pct}%</p>
+      </div>
+      <div className="h-1 bg-muted rounded-full overflow-hidden mb-3">
+        <div className="h-full bg-foreground transition-all duration-500" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {checks.filter((c) => !c.done).map((c) => (
+          <p key={c.label} className="text-xs text-muted-foreground flex items-center gap-1">
+            <span className="w-1 h-1 rounded-full bg-muted-foreground/50 inline-block" />
+            Add {c.label.toLowerCase()}
+          </p>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -631,6 +723,15 @@ export function Profile() {
         )}>
           {/* ── Left: tags + tabs + grid ───────────────────────── */}
           <div className="min-w-0">
+            {isOwnProfile && (
+              <ProfileCompletion settings={settings} photoCount={publishedPhotos.length} />
+            )}
+            <AchievementBadges
+              photoCount={publishedPhotos.length}
+              totalLikes={totalLikes}
+              totalDownloads={totalDownloads}
+              totalViews={publishedPhotos.reduce((acc, p) => acc + p.views, 0)}
+            />
             {myTags.length > 0 && (
               <div className="mb-10 flex flex-wrap gap-2">
                 {myTags.map((tag) => (

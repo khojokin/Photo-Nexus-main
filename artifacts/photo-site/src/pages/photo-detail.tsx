@@ -7,6 +7,7 @@ import {
   useGetPhoto, useLikePhoto, useDownloadPhoto,
   getGetPhotoQueryKey,
   useListCollections, getListCollectionsQueryKey,
+  useListPhotos, getListPhotosQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +16,7 @@ import {
   Heart, Download, Calendar, Maximize2, Share2, Check,
   MessageSquare, Trash2, Send, BookmarkPlus, ChevronDown, Plus, FolderOpen,
   Camera, Aperture, Clock, Zap, Ruler, Shield, Eye, Flag, Code, X,
+  DollarSign, Coffee, Maximize, Minimize, Keyboard,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -457,11 +459,140 @@ function ExifPanel({ photo }: { photo: { camera?: string | null; lens?: string |
   );
 }
 
+function TipSection({ photographerName }: { photographerName: string }) {
+  const [tipped, setTipped] = useState<string | null>(null);
+  const [showCustom, setShowCustom] = useState(false);
+  const [customAmount, setCustomAmount] = useState("");
+  const presets = ["$3", "$5", "$10", "$25"];
+
+  function handleTip(amount: string) {
+    setTipped(amount);
+    setTimeout(() => setTipped(null), 3000);
+    setShowCustom(false);
+  }
+
+  return (
+    <div className="p-6 border border-border bg-card mt-4">
+      <h3 className="text-sm uppercase tracking-widest text-muted-foreground mb-4">Support this Photographer</h3>
+      {tipped ? (
+        <div className="flex items-center gap-2 py-3 text-sm text-green-400">
+          <Check className="w-4 h-4" />
+          <span>Thanks for tipping {tipped}! ☕</span>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">Buy {photographerName.split(" ")[0]} a coffee to support their work.</p>
+          <div className="flex gap-2 flex-wrap">
+            {presets.map((p) => (
+              <button
+                key={p}
+                onClick={() => handleTip(p)}
+                className="flex items-center gap-1.5 px-3 py-2 border border-border text-sm hover:bg-muted hover:border-foreground/50 transition-colors"
+              >
+                <Coffee className="w-3.5 h-3.5 text-muted-foreground" />
+                {p}
+              </button>
+            ))}
+            <button
+              onClick={() => setShowCustom(true)}
+              className="px-3 py-2 border border-dashed border-border text-sm text-muted-foreground hover:text-foreground hover:border-foreground/50 transition-colors"
+            >
+              Custom
+            </button>
+          </div>
+          {showCustom && (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-sm">$</span>
+              <input
+                type="number"
+                value={customAmount}
+                onChange={(e) => setCustomAmount(e.target.value)}
+                placeholder="0"
+                className="w-20 bg-transparent border border-border px-2 py-1.5 text-sm focus:outline-none focus:border-foreground transition-colors"
+                autoFocus
+              />
+              <button
+                onClick={() => customAmount && handleTip(`$${customAmount}`)}
+                className="px-3 py-1.5 bg-foreground text-background text-sm hover:opacity-90 transition-opacity disabled:opacity-40"
+                disabled={!customAmount}
+              >
+                Send
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ColorPalette({ imageUrl }: { imageUrl: string }) {
+  const [colors, setColors] = useState<string[]>([]);
+
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 80;
+        canvas.height = 80;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, 80, 80);
+        const data = ctx.getImageData(0, 0, 80, 80).data;
+        const buckets: Record<string, { r: number; g: number; b: number; count: number }> = {};
+        for (let i = 0; i < data.length; i += 16) {
+          const r = Math.round(data[i] / 32) * 32;
+          const g = Math.round(data[i + 1] / 32) * 32;
+          const b = Math.round(data[i + 2] / 32) * 32;
+          const key = `${r},${g},${b}`;
+          if (!buckets[key]) buckets[key] = { r, g, b, count: 0 };
+          buckets[key].count++;
+        }
+        const sorted = Object.values(buckets)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5)
+          .filter((c) => !(c.r > 240 && c.g > 240 && c.b > 240) && !(c.r < 15 && c.g < 15 && c.b < 15));
+        const hex = sorted.slice(0, 5).map((c) => {
+          const toHex = (n: number) => n.toString(16).padStart(2, "0");
+          return `#${toHex(c.r)}${toHex(c.g)}${toHex(c.b)}`;
+        });
+        setColors(hex);
+      } catch { /* tainted canvas — CORS */ }
+    };
+    img.src = imageUrl;
+  }, [imageUrl]);
+
+  if (colors.length === 0) return null;
+
+  return (
+    <div className="p-6 border border-border bg-card mt-4">
+      <h3 className="text-xs uppercase tracking-widest text-muted-foreground mb-4">Colour Palette</h3>
+      <div className="flex gap-2">
+        {colors.map((c) => (
+          <button
+            key={c}
+            title={c}
+            onClick={() => void navigator.clipboard.writeText(c).catch(() => {})}
+            className="group flex flex-col items-center gap-1.5"
+          >
+            <div className="w-10 h-10 border border-border/30 transition-transform group-hover:scale-110" style={{ backgroundColor: c }} />
+            <span className="text-[10px] text-muted-foreground font-mono opacity-0 group-hover:opacity-100 transition-opacity">{c}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function PhotoDetail() {
   const { id } = useParams<{ id: string }>();
   const photoId = parseInt(id, 10);
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   const { data: photo, isLoading } = useGetPhoto(photoId, {
     query: { enabled: !!photoId, queryKey: getGetPhotoQueryKey(photoId) }
@@ -513,6 +644,18 @@ export function PhotoDetail() {
     }
   };
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "f" || e.key === "F") setFocusMode((v) => !v);
+      if (e.key === "l" || e.key === "L") { if (photo) handleLike(); }
+      if (e.key === "Escape") { setFocusMode(false); setShowShortcuts(false); }
+      if (e.key === "?") setShowShortcuts((v) => !v);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [photo]);
+
   if (isLoading) {
     return (
       <Layout>
@@ -546,10 +689,55 @@ export function PhotoDetail() {
 
   return (
     <Layout>
+      {focusMode && (
+        <div
+          className="fixed inset-0 z-50 bg-black flex items-center justify-center"
+          onClick={() => setFocusMode(false)}
+        >
+          <img
+            src={photo.imageUrl}
+            alt={photo.title}
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setFocusMode(false)}
+            className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/30 text-xs tracking-wide">
+            Press ESC or click outside to exit
+          </p>
+        </div>
+      )}
+
+      {showShortcuts && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowShortcuts(false)}>
+          <div className="bg-card border border-border p-6 w-72 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif text-lg flex items-center gap-2"><Keyboard className="w-4 h-4 text-muted-foreground" /> Shortcuts</h3>
+              <button onClick={() => setShowShortcuts(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-2 text-sm">
+              {[["F", "Focus / immersive mode"], ["L", "Like this photo"], ["?", "Show shortcuts"], ["ESC", "Exit / close"]].map(([k, d]) => (
+                <div key={k} className="flex items-center justify-between">
+                  <span className="text-muted-foreground">{d}</span>
+                  <kbd className="px-2 py-0.5 border border-border bg-muted text-xs font-mono">{k}</kbd>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-black border-b border-border min-h-[70vh] flex items-center justify-center p-4 md:p-12">
         <div className="relative max-w-6xl w-full group image-glow">
           <img src={photo.imageUrl} alt={photo.title} className="w-full h-auto max-h-[80vh] object-contain mx-auto shadow-2xl" />
-          <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+            <Button variant="secondary" size="icon" className="bg-black/50 hover:bg-black/80 text-white border-0 backdrop-blur-md rounded-none" onClick={() => setFocusMode(true)} title="Focus mode (F)">
+              <Maximize className="h-4 w-4" />
+            </Button>
             <Button variant="secondary" size="icon" className="bg-black/50 hover:bg-black/80 text-white border-0 backdrop-blur-md rounded-none" onClick={() => window.open(photo.imageUrl, '_blank')}>
               <Maximize2 className="h-4 w-4" />
             </Button>
@@ -651,8 +839,15 @@ export function PhotoDetail() {
 
               <ReactionsPanel photoId={photoId} />
 
-              <div className="mt-4 pt-4 border-t border-border/40 flex items-center justify-between">
+              <div className="mt-4 pt-4 border-t border-border/40 flex items-center justify-between flex-wrap gap-2">
                 <EmbedButton photoId={photoId} />
+                <button
+                  onClick={() => setShowShortcuts(true)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  title="Keyboard shortcuts"
+                >
+                  <Keyboard className="w-3.5 h-3.5" /> Shortcuts
+                </button>
                 <button
                   onClick={() => {
                     const reason = prompt("Why are you reporting this photo?");
@@ -671,6 +866,8 @@ export function PhotoDetail() {
             </div>
 
             <ExifPanel photo={photo} />
+            <ColorPalette imageUrl={photo.imageUrl} />
+            <TipSection photographerName={photo.photographerName} />
           </div>
         </div>
       </div>
