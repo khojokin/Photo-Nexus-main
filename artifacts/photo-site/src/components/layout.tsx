@@ -22,7 +22,7 @@ const MENU_LINKS = [
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/profile", label: "Profile", icon: User },
   { href: "/settings", label: "Settings", icon: Settings },
-  { href: "/admin", label: "Moderation", icon: Shield },
+  { href: "/admin", label: "Admin Panel", icon: Shield },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
