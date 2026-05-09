@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, createContext, useContext } from "react";
-import { Link, useLocation } from "wouter";
+import { useEffect, useRef, useState, createContext, useContext, useCallback } from "react";
+import { Link, useLocation, useLocation as useNav } from "wouter";
 import {
   Menu, X, LayoutDashboard, MessageSquare, Upload, User, Settings, Bell,
   LogOut, Activity, BookOpen, Layout as LayoutIcon, Sun, Shield, DollarSign,
-  Moon, Sunset, Monitor, Lock, Telescope,
+  Moon, Sunset, Lock, Telescope, Search, Tag, ArrowRight, ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./notifications";
@@ -59,7 +59,7 @@ function ThemeCycler() {
       className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border border-transparent hover:border-border/50 rounded-sm"
     >
       <Icon className="w-3.5 h-3.5" />
-      <span className="hidden sm:inline">{labels[theme]}</span>
+      <span className="hidden lg:inline">{labels[theme]}</span>
     </button>
   );
 }
@@ -94,6 +94,482 @@ function useMonetiseQualification(displayName: string) {
   return { isQualified, followers: followers ?? 0, views: views ?? 0 };
 }
 
+// ─── Nav Search ───────────────────────────────────────────────────────────────
+interface PhotoSuggestion {
+  id: number;
+  title: string;
+  imageUrl: string;
+  photographerName: string;
+  tags?: string[];
+}
+
+interface TagSuggestion {
+  name: string;
+  photoCount: number;
+}
+
+type Suggestion =
+  | { kind: "photo"; photo: PhotoSuggestion }
+  | { kind: "tag"; tag: TagSuggestion }
+  | { kind: "photographer"; name: string; count: number }
+  | { kind: "all"; query: string };
+
+function NavSearch() {
+  const [, navigate] = useNav();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [photos, setPhotos] = useState<PhotoSuggestion[]>([]);
+  const [tags, setTags] = useState<TagSuggestion[]>([]);
+  const [photographers, setPhotographers] = useState<{ name: string; count: number }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // All suggestions in one flat list for keyboard nav
+  const suggestions: Suggestion[] = [
+    ...photos.slice(0, 5).map(p => ({ kind: "photo" as const, photo: p })),
+    ...tags.slice(0, 3).map(t => ({ kind: "tag" as const, tag: t })),
+    ...photographers.slice(0, 2).map(p => ({ kind: "photographer" as const, name: p.name, count: p.count })),
+    ...(query.trim().length > 0 ? [{ kind: "all" as const, query: query.trim() }] : []),
+  ];
+
+  function openSearch() {
+    setOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }
+
+  function closeSearch() {
+    setOpen(false);
+    setQuery("");
+    setPhotos([]);
+    setTags([]);
+    setPhotographers([]);
+    setActiveIdx(-1);
+  }
+
+  // Fetch suggestions with debounce
+  const fetchSuggestions = useCallback((q: string) => {
+    if (!q.trim()) {
+      setPhotos([]); setTags([]); setPhotographers([]); setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const lq = q.toLowerCase();
+
+    Promise.all([
+      fetch(`/api/photos?search=${encodeURIComponent(q)}&limit=6`).then(r => r.json()),
+      fetch(`/api/tags`).then(r => r.json()),
+    ]).then(([photoData, tagData]: [{ photos?: PhotoSuggestion[] }, TagSuggestion[] | { tags?: TagSuggestion[] }]) => {
+      const photoResults: PhotoSuggestion[] = photoData.photos ?? [];
+
+      // Tags: filter matching tags
+      const allTags: TagSuggestion[] = Array.isArray(tagData)
+        ? tagData
+        : (tagData as { tags?: TagSuggestion[] }).tags ?? [];
+      const matchingTags = allTags
+        .filter(t => t.name.toLowerCase().includes(lq))
+        .sort((a, b) => b.photoCount - a.photoCount)
+        .slice(0, 3);
+
+      // Photographers: dedupe from photo results
+      const photographerMap = new Map<string, number>();
+      photoResults.forEach(p => {
+        if (p.photographerName.toLowerCase().includes(lq)) {
+          photographerMap.set(p.photographerName, (photographerMap.get(p.photographerName) ?? 0) + 1);
+        }
+      });
+      const matchingPhotographers = Array.from(photographerMap.entries())
+        .map(([name, count]) => ({ name, count }))
+        .slice(0, 2);
+
+      setPhotos(photoResults.filter(p => !matchingPhotographers.some(ph => ph.name === p.photographerName) || true).slice(0, 5));
+      setTags(matchingTags);
+      setPhotographers(matchingPhotographers);
+    }).catch(() => {
+      setPhotos([]); setTags([]);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value;
+    setQuery(v);
+    setActiveIdx(-1);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(v), 220);
+  }
+
+  function selectSuggestion(s: Suggestion) {
+    if (s.kind === "photo") navigate(`/photos/${s.photo.id}`);
+    else if (s.kind === "tag") navigate(`/tags/${encodeURIComponent(s.tag.name)}`);
+    else if (s.kind === "photographer") navigate(`/profile/${encodeURIComponent(s.name)}`);
+    else navigate(`/photos?search=${encodeURIComponent(s.query)}`);
+    closeSearch();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") { closeSearch(); return; }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx(i => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx(i => Math.max(i - 1, -1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIdx >= 0 && suggestions[activeIdx]) {
+        selectSuggestion(suggestions[activeIdx]);
+      } else if (query.trim()) {
+        navigate(`/photos?search=${encodeURIComponent(query.trim())}`);
+        closeSearch();
+      }
+    }
+  }
+
+  // Close on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        closeSearch();
+      }
+    }
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const showDropdown = open && query.trim().length > 0;
+  const hasResults = photos.length > 0 || tags.length > 0 || photographers.length > 0;
+
+  let globalIdx = 0;
+
+  return (
+    <div ref={containerRef} className="relative flex-1 max-w-xs hidden md:block">
+      {!open ? (
+        <button
+          onClick={openSearch}
+          className="flex items-center gap-2 w-full px-3 py-2 border border-border/40 bg-muted/20 text-muted-foreground hover:border-border hover:text-foreground transition-colors text-sm"
+          aria-label="Open search"
+        >
+          <Search className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-xs">Search photos, tags, photographers…</span>
+          <kbd className="ml-auto text-[10px] px-1.5 py-0.5 border border-border/50 text-muted-foreground/60 hidden xl:inline">
+            /
+          </kbd>
+        </button>
+      ) : (
+        <div className="flex items-center border border-foreground/30 bg-background">
+          <Search className="w-3.5 h-3.5 text-muted-foreground ml-3 flex-shrink-0" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Search photos, tags, photographers…"
+            className="flex-1 bg-transparent px-3 py-2 text-sm focus:outline-none placeholder:text-muted-foreground/50"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {loading && (
+            <div className="w-3.5 h-3.5 rounded-full border-2 border-muted border-t-muted-foreground animate-spin mr-3" />
+          )}
+          <button onClick={closeSearch} className="p-2 text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Dropdown */}
+      {showDropdown && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border shadow-2xl z-[200] max-h-[420px] overflow-y-auto">
+          {!hasResults && !loading && (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              No results for "<span className="text-foreground">{query}</span>"
+            </div>
+          )}
+
+          {/* Photos */}
+          {photos.length > 0 && (
+            <div>
+              <div className="px-3 pt-3 pb-1.5">
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <ImageIcon className="w-3 h-3" /> Photos
+                </p>
+              </div>
+              {photos.map(p => {
+                const idx = globalIdx++;
+                const active = activeIdx === idx;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => selectSuggestion({ kind: "photo", photo: p })}
+                    onMouseEnter={() => setActiveIdx(idx)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors",
+                      active ? "bg-muted/60" : "hover:bg-muted/30"
+                    )}
+                  >
+                    <img
+                      src={p.imageUrl}
+                      alt={p.title}
+                      className="w-10 h-10 object-cover flex-shrink-0 border border-border/30"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{p.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{p.photographerName}</p>
+                    </div>
+                    {active && <ArrowRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Tags */}
+          {tags.length > 0 && (
+            <div className={cn(photos.length > 0 && "border-t border-border/40")}>
+              <div className="px-3 pt-3 pb-1.5">
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <Tag className="w-3 h-3" /> Tags
+                </p>
+              </div>
+              {tags.map(t => {
+                const idx = globalIdx++;
+                const active = activeIdx === idx;
+                return (
+                  <button
+                    key={t.name}
+                    onClick={() => selectSuggestion({ kind: "tag", tag: t })}
+                    onMouseEnter={() => setActiveIdx(idx)}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2.5 text-left transition-colors",
+                      active ? "bg-muted/60" : "hover:bg-muted/30"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-6 h-6 border border-border/40 bg-muted/40 flex items-center justify-center flex-shrink-0">
+                        <Tag className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                      <span className="text-sm">{t.name}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{t.photoCount} photo{t.photoCount !== 1 ? "s" : ""}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Photographers */}
+          {photographers.length > 0 && (
+            <div className={cn((photos.length > 0 || tags.length > 0) && "border-t border-border/40")}>
+              <div className="px-3 pt-3 pb-1.5">
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <User className="w-3 h-3" /> Photographers
+                </p>
+              </div>
+              {photographers.map(ph => {
+                const idx = globalIdx++;
+                const active = activeIdx === idx;
+                return (
+                  <button
+                    key={ph.name}
+                    onClick={() => selectSuggestion({ kind: "photographer", name: ph.name, count: ph.count })}
+                    onMouseEnter={() => setActiveIdx(idx)}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2.5 text-left transition-colors",
+                      active ? "bg-muted/60" : "hover:bg-muted/30"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-6 h-6 rounded-full border border-border/40 bg-muted/40 flex items-center justify-center flex-shrink-0">
+                        <User className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                      <span className="text-sm">{ph.name}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{ph.count} photo{ph.count !== 1 ? "s" : ""}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* "View all results" footer */}
+          {query.trim() && (
+            <div className="border-t border-border/40">
+              {(() => {
+                const idx = globalIdx++;
+                const active = activeIdx === idx;
+                return (
+                  <button
+                    onClick={() => selectSuggestion({ kind: "all", query: query.trim() })}
+                    onMouseEnter={() => setActiveIdx(idx)}
+                    className={cn(
+                      "w-full flex items-center gap-2.5 px-3 py-3 text-sm text-muted-foreground transition-colors",
+                      active ? "bg-muted/60 text-foreground" : "hover:bg-muted/30 hover:text-foreground"
+                    )}
+                  >
+                    <Search className="w-3.5 h-3.5 flex-shrink-0" />
+                    View all results for "<span className="font-medium text-foreground">{query.trim()}</span>"
+                    <ArrowRight className="w-3.5 h-3.5 ml-auto" />
+                  </button>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Mobile search button (opens full-screen search on small screens)
+function MobileSearch() {
+  const [, navigate] = useNav();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [photos, setPhotos] = useState<PhotoSuggestion[]>([]);
+  const [tags, setTags] = useState<TagSuggestion[]>([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function openModal() {
+    setOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 80);
+  }
+
+  function closeModal() {
+    setOpen(false);
+    setQuery("");
+    setPhotos([]);
+    setTags([]);
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value;
+    setQuery(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!v.trim()) { setPhotos([]); setTags([]); return; }
+    setLoading(true);
+    debounceRef.current = setTimeout(() => {
+      Promise.all([
+        fetch(`/api/photos?search=${encodeURIComponent(v)}&limit=6`).then(r => r.json()),
+        fetch(`/api/tags`).then(r => r.json()),
+      ]).then(([pd, td]: [{ photos?: PhotoSuggestion[] }, TagSuggestion[] | { tags?: TagSuggestion[] }]) => {
+        setPhotos(pd.photos?.slice(0, 5) ?? []);
+        const allTags: TagSuggestion[] = Array.isArray(td) ? td : (td as { tags?: TagSuggestion[] }).tags ?? [];
+        setTags(allTags.filter(t => t.name.toLowerCase().includes(v.toLowerCase())).slice(0, 4));
+      }).catch(() => {}).finally(() => setLoading(false));
+    }, 220);
+  }
+
+  function go(path: string) { navigate(path); closeModal(); }
+
+  // Keyboard: Escape closes
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: KeyboardEvent) { if (e.key === "Escape") closeModal(); }
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        onClick={openModal}
+        aria-label="Search"
+        className="md:hidden p-2 text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <Search className="w-4.5 h-4.5" />
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-[300] flex flex-col">
+          {/* Header */}
+          <div className="flex items-center gap-2 p-4 border-b border-border">
+            <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={handleChange}
+              onKeyDown={e => {
+                if (e.key === "Enter" && query.trim()) {
+                  go(`/photos?search=${encodeURIComponent(query.trim())}`);
+                }
+              }}
+              placeholder="Search photos, tags, photographers…"
+              className="flex-1 bg-transparent text-base focus:outline-none placeholder:text-muted-foreground/50"
+              autoComplete="off"
+            />
+            {loading && <div className="w-4 h-4 rounded-full border-2 border-muted border-t-muted-foreground animate-spin" />}
+            <button onClick={closeModal} className="text-muted-foreground hover:text-foreground transition-colors ml-1">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Results */}
+          <div className="flex-1 overflow-y-auto">
+            {photos.length === 0 && tags.length === 0 && !loading && query.trim() && (
+              <div className="py-16 text-center text-muted-foreground text-sm">No results for "{query}"</div>
+            )}
+            {!query.trim() && (
+              <div className="py-12 text-center text-muted-foreground text-sm">
+                <Search className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                Type to search photos, tags and photographers
+              </div>
+            )}
+
+            {photos.length > 0 && (
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-4 pt-4 pb-2">Photos</p>
+                {photos.map(p => (
+                  <button key={p.id} onClick={() => go(`/photos/${p.id}`)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left">
+                    <img src={p.imageUrl} alt={p.title} className="w-12 h-12 object-cover flex-shrink-0 border border-border/30" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{p.title}</p>
+                      <p className="text-xs text-muted-foreground">{p.photographerName}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {tags.length > 0 && (
+              <div className={cn(photos.length > 0 && "border-t border-border/40 mt-2")}>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-4 pt-4 pb-2">Tags</p>
+                <div className="flex flex-wrap gap-2 px-4 pb-4">
+                  {tags.map(t => (
+                    <button key={t.name} onClick={() => go(`/tags/${encodeURIComponent(t.name)}`)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-sm hover:border-foreground/40 transition-colors">
+                      <Tag className="w-3 h-3 text-muted-foreground" />
+                      {t.name}
+                      <span className="text-muted-foreground text-xs ml-0.5">{t.photoCount}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {query.trim() && (
+              <div className="px-4 py-3 border-t border-border/40">
+                <button onClick={() => go(`/photos?search=${encodeURIComponent(query.trim())}`)}
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  <Search className="w-3.5 h-3.5" />
+                  View all results for "<span className="font-medium text-foreground">{query.trim()}</span>"
+                  <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── Nav config ───────────────────────────────────────────────────────────────
 const PRIMARY_LINKS = [
   { href: "/photos", label: "Explore" },
@@ -123,7 +599,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { user, isLoading, login, logout } = useAuth();
+  const { user, isLoading, logout } = useAuth();
 
   const displayName = (() => {
     try { return JSON.parse(localStorage.getItem("affuaa_settings") ?? "{}").displayName ?? ""; }
@@ -145,6 +621,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setMenuOpen(false); }, [location]);
 
+  // Global "/" shortcut to focus search
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if (e.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+        e.preventDefault();
+        document.querySelector<HTMLButtonElement>("[data-nav-search]")?.click();
+      }
+    }
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
   const menuLinks = [
     ...MENU_LINKS,
     ...(isQualified || isAdmin ? [MONETISE_LINK] : []),
@@ -154,18 +642,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="font-serif text-2xl font-bold tracking-tight">
+        <div className="container mx-auto px-4 h-16 flex items-center gap-4">
+
+          {/* Logo */}
+          <Link href="/" className="font-serif text-2xl font-bold tracking-tight flex-shrink-0">
             Affuaa.
           </Link>
 
-          <nav className="flex items-center gap-4 text-sm font-medium">
+          {/* Primary links — desktop */}
+          <nav className="hidden lg:flex items-center gap-5 text-sm font-medium flex-shrink-0">
             {PRIMARY_LINKS.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
                 className={cn(
-                  "transition-colors hidden sm:block",
+                  "transition-colors whitespace-nowrap",
                   location === l.href || location.startsWith(l.href + "/")
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground"
@@ -174,6 +665,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {l.label}
               </Link>
             ))}
+          </nav>
+
+          {/* ── Search bar — center ── */}
+          <div className="flex-1 flex justify-center px-2" data-nav-search>
+            <NavSearch />
+          </div>
+
+          {/* Right side controls */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Mobile search */}
+            <MobileSearch />
 
             <ThemeCycler />
 
@@ -199,7 +701,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
                     {menuOpen && (
                       <div className="absolute right-0 mt-2 w-56 rounded-xl border border-border bg-background/95 backdrop-blur shadow-xl overflow-hidden">
-                        <div className="sm:hidden border-b border-border/60 pb-2 mb-1 px-2 pt-2">
+                        {/* Mobile primary links */}
+                        <div className="lg:hidden border-b border-border/60 pb-2 mb-1 px-2 pt-2">
                           {PRIMARY_LINKS.map((l) => (
                             <Link
                               key={l.href}
@@ -268,7 +771,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <div className="flex items-center gap-2">
                   <Link
                     href="/signin"
-                    className="px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                    className="px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden sm:inline"
                   >
                     Sign In
                   </Link>
@@ -281,7 +784,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               )
             )}
-          </nav>
+          </div>
         </div>
       </header>
 
