@@ -1,9 +1,17 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Zap } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
 
 export function SignIn() {
   const [showPassword, setShowPassword] = useState(false);
+  const { loginAsDemo } = useAuth();
+  const [, navigate] = useLocation();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    loginAsDemo();
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
@@ -19,10 +27,7 @@ export function SignIn() {
             backgroundPosition: "center",
           }}
         >
-          {/* Darkening overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/80" />
-
-          {/* Logo */}
           <div className="relative z-10">
             <Link href="/">
               <span className="font-['Playfair_Display'] text-white text-2xl font-semibold tracking-tight cursor-pointer">
@@ -30,8 +35,6 @@ export function SignIn() {
               </span>
             </Link>
           </div>
-
-          {/* Welcome text */}
           <div className="relative z-10 space-y-3">
             <h2 className="font-['Playfair_Display'] text-white text-4xl font-semibold leading-tight">
               Welcome back<br />to the craft.
@@ -44,8 +47,6 @@ export function SignIn() {
 
         {/* Right panel — form */}
         <div className="flex-1 bg-[#111111] flex flex-col justify-center px-10 py-12">
-
-          {/* Mobile logo */}
           <div className="md:hidden mb-8">
             <Link href="/">
               <span className="font-['Playfair_Display'] text-white text-2xl font-semibold tracking-tight cursor-pointer">
@@ -55,6 +56,25 @@ export function SignIn() {
           </div>
 
           <div className="w-full max-w-sm mx-auto space-y-8">
+            {/* Demo CTA banner */}
+            <button
+              onClick={loginAsDemo}
+              className="w-full flex items-center gap-3 bg-white text-black rounded-xl px-5 py-4 hover:bg-white/90 active:bg-white/80 transition-all group"
+            >
+              <Zap className="w-5 h-5 shrink-0 text-black/70 group-hover:text-black transition-colors" />
+              <div className="text-left">
+                <p className="font-semibold text-sm leading-tight">Enter as Demo</p>
+                <p className="text-xs text-black/50 leading-tight mt-0.5">Explore the full site instantly — no account needed</p>
+              </div>
+              <div className="ml-auto text-black/30 text-lg">→</div>
+            </button>
+
+            <div className="relative flex items-center gap-4">
+              <div className="flex-1 h-px bg-white/[0.07]" />
+              <span className="text-white/25 text-xs">or sign in with email</span>
+              <div className="flex-1 h-px bg-white/[0.07]" />
+            </div>
+
             <div className="space-y-1">
               <h1 className="text-white text-2xl font-semibold tracking-tight">Sign in</h1>
               <p className="text-white/40 text-sm">
@@ -67,7 +87,7 @@ export function SignIn() {
               </p>
             </div>
 
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+            <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-1.5">
                 <label className="text-white/50 text-xs uppercase tracking-widest font-medium">
                   Email
@@ -110,7 +130,7 @@ export function SignIn() {
 
               <button
                 type="submit"
-                className="w-full bg-white text-black font-medium text-sm rounded-lg py-3 hover:bg-white/90 active:bg-white/80 transition-colors mt-2"
+                className="w-full bg-white/10 text-white font-medium text-sm rounded-lg py-3 hover:bg-white/20 active:bg-white/15 transition-colors mt-2 border border-white/10"
               >
                 Sign in
               </button>

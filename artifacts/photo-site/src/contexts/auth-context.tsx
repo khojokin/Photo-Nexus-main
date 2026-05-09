@@ -21,8 +21,19 @@ interface AuthContextValue {
   refetch: () => Promise<void>;
   logout: () => Promise<void>;
   login: () => void;
+  loginAsDemo: () => void;
   authFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 }
+
+const DEMO_KEY = "affuaa_demo_session";
+
+const DEMO_USER: AuthUser = {
+  id: "demo-user",
+  email: "demo@affuaa.com",
+  firstName: "Demo",
+  lastName: "Photographer",
+  profileImageUrl: null,
+};
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -33,6 +44,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUser = useCallback(async () => {
     setIsLoading(true);
     try {
+      // Check for demo session first
+      if (localStorage.getItem(DEMO_KEY) === "1") {
+        setUser(DEMO_USER);
+        setIsLoading(false);
+        return;
+      }
       const res = await fetch("/api/auth/user", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
@@ -61,13 +78,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const loginAsDemo = useCallback(() => {
+    localStorage.setItem(DEMO_KEY, "1");
+    setUser(DEMO_USER);
+    window.location.href = "/";
+  }, []);
+
   const login = useCallback(() => {
     const base = import.meta.env.BASE_URL.replace(/\/+$/, "") || "/";
     window.location.href = `/login?returnTo=${encodeURIComponent(base)}`;
   }, []);
 
   const logout = useCallback(async () => {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    localStorage.removeItem(DEMO_KEY);
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
     setUser(null);
     window.location.href = "/";
   }, []);
@@ -81,6 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refetch: fetchUser,
         logout,
         login,
+        loginAsDemo,
         authFetch,
       }}
     >

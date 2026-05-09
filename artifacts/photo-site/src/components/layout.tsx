@@ -8,7 +8,6 @@ import { useAuth } from "@/contexts/auth-context";
 const PRIMARY_LINKS = [
   { href: "/photos", label: "Explore" },
   { href: "/collections", label: "Collections" },
-  { href: "/challenges", label: "Challenges" },
 ];
 
 const MENU_LINKS = [
