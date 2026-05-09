@@ -106,6 +106,72 @@
   --radius: 0rem;
 }
 
+/* ── Light theme ──────────────────────────────────────────────────────────── */
+html.theme-light {
+  --background: 0 0% 97%;
+  --foreground: 0 0% 8%;
+  --border: 0 0% 85%;
+  --input: 0 0% 85%;
+  --ring: 0 0% 8%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 8%;
+  --card-border: 0 0% 85%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 8%;
+  --popover-border: 0 0% 85%;
+  --primary: 0 0% 8%;
+  --primary-foreground: 0 0% 97%;
+  --secondary: 0 0% 92%;
+  --secondary-foreground: 0 0% 8%;
+  --muted: 0 0% 93%;
+  --muted-foreground: 0 0% 40%;
+  --accent: 0 0% 93%;
+  --accent-foreground: 0 0% 8%;
+  --destructive: 0 84% 50%;
+  --destructive-foreground: 0 0% 97%;
+  --sidebar: 0 0% 97%;
+  --sidebar-foreground: 0 0% 8%;
+  --sidebar-border: 0 0% 85%;
+  --sidebar-primary: 0 0% 8%;
+  --sidebar-primary-foreground: 0 0% 97%;
+  --sidebar-accent: 0 0% 92%;
+  --sidebar-accent-foreground: 0 0% 8%;
+  --sidebar-ring: 0 0% 8%;
+}
+
+/* ── Sepia theme ──────────────────────────────────────────────────────────── */
+html.theme-sepia {
+  --background: 35 25% 12%;
+  --foreground: 40 30% 90%;
+  --border: 35 20% 22%;
+  --input: 35 20% 22%;
+  --ring: 40 30% 90%;
+  --card: 35 22% 14%;
+  --card-foreground: 40 30% 90%;
+  --card-border: 35 20% 22%;
+  --popover: 35 22% 14%;
+  --popover-foreground: 40 30% 90%;
+  --popover-border: 35 20% 22%;
+  --primary: 40 30% 90%;
+  --primary-foreground: 35 25% 12%;
+  --secondary: 35 20% 22%;
+  --secondary-foreground: 40 30% 90%;
+  --muted: 35 20% 20%;
+  --muted-foreground: 38 20% 60%;
+  --accent: 35 20% 22%;
+  --accent-foreground: 40 30% 90%;
+  --destructive: 0 75% 50%;
+  --destructive-foreground: 40 30% 90%;
+  --sidebar: 35 25% 12%;
+  --sidebar-foreground: 40 30% 90%;
+  --sidebar-border: 35 20% 22%;
+  --sidebar-primary: 40 30% 90%;
+  --sidebar-primary-foreground: 35 25% 12%;
+  --sidebar-accent: 35 20% 22%;
+  --sidebar-accent-foreground: 40 30% 90%;
+  --sidebar-ring: 40 30% 90%;
+}
+
 @layer base {
   * {
     @apply border-border;

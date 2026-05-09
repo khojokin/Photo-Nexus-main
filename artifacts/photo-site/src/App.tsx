@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/auth-context";
+import { ThemeProvider } from "@/components/layout";
 import { TasteProfileProvider } from "@/contexts/taste-profile-context";
 import NotFound from "@/pages/not-found";
 
@@ -31,6 +32,7 @@ import { SeriesDetail } from "@/pages/series-detail";
 import { Admin } from "@/pages/admin";
 import { EmbedPhoto } from "@/pages/embed";
 import { Monetise } from "@/pages/monetise";
+import { Discover } from "@/pages/discover";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,6 +72,7 @@ function Router() {
       <Route path="/admin" component={Admin} />
       <Route path="/embed/:id" component={EmbedPhoto} />
       <Route path="/monetise" component={Monetise} />
+      <Route path="/discover" component={Discover} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -80,11 +83,13 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <TasteProfileProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
-          </TasteProfileProvider>
+          <ThemeProvider>
+            <TasteProfileProvider>
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <Router />
+              </WouterRouter>
+            </TasteProfileProvider>
+          </ThemeProvider>
         </AuthProvider>
         <Toaster />
       </TooltipProvider>

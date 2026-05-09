@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { PhotoCard } from "@/components/photo-card";
@@ -8,10 +8,78 @@ import { useListPhotos, useListTags, ListPhotosSort } from "@workspace/api-clien
 import type { Photo } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Search, LayoutGrid, Rows, X, Shuffle } from "lucide-react";
+import {
+  Search, LayoutGrid, Rows, X, Shuffle, Clock, History,
+  RectangleVertical, RectangleHorizontal, Square, Layers,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 12;
+const HISTORY_KEY = "affuaa_search_history";
+const MAX_HISTORY = 8;
+
+function saveSearchHistory(term: string) {
+  if (!term.trim()) return;
+  try {
+    const prev: string[] = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]");
+    const next = [term, ...prev.filter(t => t !== term)].slice(0, MAX_HISTORY);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+  } catch {}
+}
+
+function loadSearchHistory(): string[] {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]"); }
+  catch { return []; }
+}
+
+function clearSearchHistory() {
+  localStorage.removeItem(HISTORY_KEY);
+}
+
+type AspectRatio = "all" | "portrait" | "landscape" | "square";
+type SeasonFilter = "all" | "spring" | "summer" | "autumn" | "winter";
+type TimeFilter = "all" | "golden-hour" | "blue-hour" | "night" | "midday";
+
+const SEASON_TAGS: Record<Exclude<SeasonFilter, "all">, string[]> = {
+  spring: ["spring", "blossom", "flowers", "green", "rain"],
+  summer: ["summer", "beach", "sun", "golden", "desert"],
+  autumn: ["autumn", "fall", "leaves", "amber", "forest"],
+  winter: ["winter", "snow", "frost", "ice", "cold"],
+};
+
+const TIME_TAGS: Record<Exclude<TimeFilter, "all">, string[]> = {
+  "golden-hour": ["golden hour", "golden", "sunset", "sunrise", "warm light"],
+  "blue-hour": ["blue hour", "dusk", "twilight", "evening", "blue"],
+  "night": ["night", "stars", "long exposure", "city lights", "dark"],
+  "midday": ["midday", "bright", "harsh light", "noon"],
+};
+
+const ASPECT_KEYWORDS: Record<Exclude<AspectRatio, "all">, string[]> = {
+  portrait: ["portrait", "people", "person", "face", "vertical"],
+  landscape: ["landscape", "nature", "mountains", "ocean", "city", "architecture"],
+  square: ["square", "symmetry", "minimal"],
+};
+
+function matchesAspect(photo: Photo, ratio: AspectRatio): boolean {
+  if (ratio === "all") return true;
+  const tags = photo.tags ?? [];
+  const keywords = ASPECT_KEYWORDS[ratio] ?? [];
+  return tags.some(t => keywords.some(k => t.toLowerCase().includes(k)));
+}
+
+function matchesSeason(photo: Photo, season: SeasonFilter): boolean {
+  if (season === "all") return true;
+  const tags = photo.tags ?? [];
+  const keywords = SEASON_TAGS[season] ?? [];
+  return tags.some(t => keywords.some(k => t.toLowerCase().includes(k)));
+}
+
+function matchesTime(photo: Photo, time: TimeFilter): boolean {
+  if (time === "all") return true;
+  const tags = photo.tags ?? [];
+  const keywords = TIME_TAGS[time] ?? [];
+  return tags.some(t => keywords.some(k => t.toLowerCase().includes(k)));
+}
 
 export function Explore() {
   const [match, params] = useRoute("/tags/:tag");
@@ -21,6 +89,16 @@ export function Explore() {
   const [activeMood, setActiveMood] = useState<string | null>(null);
   const [moodPhotos, setMoodPhotos] = useState<Photo[]>([]);
   const [loadingMood, setLoadingMood] = useState(false);
+
+  // New filters
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("all");
+  const [season, setSeason] = useState<SeasonFilter>("all");
+  const [timeOfDay, setTimeOfDay] = useState<TimeFilter>("all");
+
+  // Search history
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => loadSearchHistory());
+  const [showHistory, setShowHistory] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!activeMood) { setMoodPhotos([]); return; }
@@ -57,7 +135,18 @@ export function Explore() {
   function handleSearchChange(value: string) {
     setInputValue(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => { setSearch(value); }, 300);
+    debounceRef.current = setTimeout(() => {
+      setSearch(value);
+      if (value.trim()) { saveSearchHistory(value.trim()); setSearchHistory(loadSearchHistory()); }
+    }, 300);
+    setShowHistory(false);
+  }
+
+  function applyHistoryTerm(term: string) {
+    setInputValue(term);
+    setSearch(term);
+    setShowHistory(false);
+    saveSearchHistory(term);
   }
 
   function clearSearch() {
@@ -68,6 +157,17 @@ export function Explore() {
 
   useEffect(() => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, []);
+
+  // Close history on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowHistory(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
   const filterKey = `${search}|${sort}|${activeTag ?? ""}`;
@@ -104,17 +204,37 @@ export function Explore() {
     }
   }, [photosResponse, page]);
 
+  // Apply client-side filters
+  const filteredPhotos = allPhotos.filter(p =>
+    matchesAspect(p, aspectRatio) &&
+    matchesSeason(p, season) &&
+    matchesTime(p, timeOfDay)
+  );
+
   const totalPhotos = photosResponse?.total ?? 0;
   const hasMore = allPhotos.length < totalPhotos;
 
   function handleLoadMore() { setPage((p) => p + 1); }
 
   function openLightbox(photo: Photo) {
-    const idx = allPhotos.findIndex((p) => p.id === photo.id);
+    const idx = filteredPhotos.findIndex((p) => p.id === photo.id);
     if (idx !== -1) setLightboxIndex(idx);
   }
 
+  // Keyboard navigation
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (lightboxIndex === null) return;
+      if (e.key === "ArrowRight") setLightboxIndex(i => i !== null ? Math.min(i + 1, filteredPhotos.length - 1) : null);
+      if (e.key === "ArrowLeft") setLightboxIndex(i => i !== null ? Math.max(i - 1, 0) : null);
+      if (e.key === "Escape") setLightboxIndex(null);
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [lightboxIndex, filteredPhotos.length]);
+
   const isFirstLoad = loadingPhotos && page === 1;
+  const hasActiveClientFilter = aspectRatio !== "all" || season !== "all" || timeOfDay !== "all";
 
   return (
     <Layout>
@@ -125,12 +245,14 @@ export function Explore() {
           </h1>
 
           <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
-            <div className="relative w-full md:w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            {/* Search with history */}
+            <div className="relative w-full md:w-96" ref={searchContainerRef}>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
               <Input
                 placeholder="Search by title, photographer, or tag…"
                 value={inputValue}
                 onChange={(e) => handleSearchChange(e.target.value)}
+                onFocus={() => !inputValue && setShowHistory(true)}
                 className="pl-10 pr-8 bg-transparent border-muted rounded-none focus-visible:ring-1 focus-visible:ring-primary"
                 data-testid="input-search-photos"
               />
@@ -143,9 +265,31 @@ export function Explore() {
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
+              {/* Search history dropdown */}
+              {showHistory && searchHistory.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border shadow-xl z-50">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1.5"><History className="w-3 h-3" /> Recent searches</span>
+                    <button
+                      onClick={() => { clearSearchHistory(); setSearchHistory([]); setShowHistory(false); }}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >Clear</button>
+                  </div>
+                  {searchHistory.map(term => (
+                    <button
+                      key={term}
+                      onClick={() => applyHistoryTerm(term)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors text-left"
+                    >
+                      <Clock className="w-3 h-3 flex-shrink-0" />
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6 flex-wrap">
               <div className="flex items-center gap-4">
                 <span className="text-sm text-muted-foreground">Sort:</span>
                 <div className="flex gap-2">
@@ -182,9 +326,7 @@ export function Explore() {
                   onClick={() => setViewMode("masonry")}
                   className={cn(
                     "p-1.5 transition-colors",
-                    viewMode === "masonry"
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:text-foreground"
+                    viewMode === "masonry" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
                   )}
                   title="Masonry layout"
                 >
@@ -194,9 +336,7 @@ export function Explore() {
                   onClick={() => setViewMode("grid")}
                   className={cn(
                     "p-1.5 transition-colors",
-                    viewMode === "grid"
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:text-foreground"
+                    viewMode === "grid" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
                   )}
                   title="Grid layout"
                 >
@@ -205,6 +345,84 @@ export function Explore() {
               </div>
             </div>
           </div>
+
+          {/* ── Client-side filter row ── */}
+          {!activeTag && (
+            <div className="mt-5 flex flex-wrap gap-4 items-center">
+              {/* Aspect ratio */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground mr-1">Shape:</span>
+                {(["all", "portrait", "landscape", "square"] as AspectRatio[]).map(r => {
+                  const icons: Record<AspectRatio, React.ElementType> = {
+                    all: Layers, portrait: RectangleVertical, landscape: RectangleHorizontal, square: Square,
+                  };
+                  const Icon = icons[r];
+                  return (
+                    <button
+                      key={r}
+                      onClick={() => setAspectRatio(r)}
+                      className={cn(
+                        "flex items-center gap-1 px-2.5 py-1 text-xs border transition-colors",
+                        aspectRatio === r
+                          ? "border-foreground text-foreground bg-foreground/5"
+                          : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
+                      )}
+                    >
+                      <Icon className="w-3 h-3" />
+                      {r === "all" ? "All" : r.charAt(0).toUpperCase() + r.slice(1)}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Season */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground mr-1">Season:</span>
+                {(["all", "spring", "summer", "autumn", "winter"] as SeasonFilter[]).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setSeason(s)}
+                    className={cn(
+                      "px-2.5 py-1 text-xs border transition-colors",
+                      season === s
+                        ? "border-foreground text-foreground bg-foreground/5"
+                        : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
+                    )}
+                  >
+                    {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Time of day */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground mr-1">Time:</span>
+                {(["all", "golden-hour", "blue-hour", "night", "midday"] as TimeFilter[]).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setTimeOfDay(t)}
+                    className={cn(
+                      "px-2.5 py-1 text-xs border transition-colors",
+                      timeOfDay === t
+                        ? "border-foreground text-foreground bg-foreground/5"
+                        : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
+                    )}
+                  >
+                    {t === "all" ? "All" : t.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ")}
+                  </button>
+                ))}
+              </div>
+
+              {hasActiveClientFilter && (
+                <button
+                  onClick={() => { setAspectRatio("all"); setSeason("all"); setTimeOfDay("all"); }}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs border border-border/50 text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                >
+                  <X className="w-3 h-3" /> Reset filters
+                </button>
+              )}
+            </div>
+          )}
 
           {!activeTag && (
             <MoodFilter activeMood={activeMood} onMoodChange={(mood) => { setActiveMood(mood); setPage(1); }} />
@@ -227,24 +445,21 @@ export function Explore() {
 
           {activeTag && (
             <div className="mt-8">
-              <Link
-                href="/photos"
-                className="text-sm text-muted-foreground hover:text-foreground border-b border-muted pb-1"
-              >
+              <Link href="/photos" className="text-sm text-muted-foreground hover:text-foreground border-b border-muted pb-1">
                 &larr; Clear tag filter
               </Link>
             </div>
           )}
 
-          {!isFirstLoad && !activeMood && totalPhotos > 0 && (
+          {!isFirstLoad && !activeMood && (
             <p className="mt-6 text-sm text-muted-foreground">
-              Showing {allPhotos.length} of {totalPhotos} photographs
+              {hasActiveClientFilter
+                ? `${filteredPhotos.length} of ${allPhotos.length} loaded photographs match your filters`
+                : totalPhotos > 0 ? `Showing ${allPhotos.length} of ${totalPhotos} photographs` : ""}
             </p>
           )}
           {activeMood && !loadingMood && (
-            <p className="mt-6 text-sm text-muted-foreground">
-              {moodPhotos.length} photographs in this mood
-            </p>
+            <p className="mt-6 text-sm text-muted-foreground">{moodPhotos.length} photographs in this mood</p>
           )}
         </div>
 
@@ -264,7 +479,7 @@ export function Explore() {
             <div className="masonry-grid">
               {moodPhotos.map((photo) => (
                 <div key={photo.id} className="masonry-item">
-                  <PhotoCard photo={photo} onOpen={(p) => setLightboxIndex(allPhotos.findIndex((x) => x.id === p.id))} />
+                  <PhotoCard photo={photo} onOpen={(p) => { const idx = moodPhotos.findIndex(x => x.id === p.id); setLightboxIndex(idx); }} />
                 </div>
               ))}
             </div>
@@ -277,16 +492,20 @@ export function Explore() {
               </div>
             ))}
           </div>
-        ) : allPhotos.length === 0 ? (
+        ) : filteredPhotos.length === 0 ? (
           <div className="py-32 text-center text-muted-foreground">
-            <p className="font-serif text-xl">No photographs found.</p>
-            <p className="text-sm mt-2">Try a different search or filter.</p>
+            <p className="font-serif text-xl">No photographs match your current filters.</p>
+            <p className="text-sm mt-2">
+              {hasActiveClientFilter
+                ? <button onClick={() => { setAspectRatio("all"); setSeason("all"); setTimeOfDay("all"); }} className="underline hover:text-foreground transition-colors">Clear filters</button>
+                : "Try a different search."}
+            </p>
           </div>
         ) : (
           <>
             {viewMode === "masonry" ? (
               <div className="masonry-grid">
-                {allPhotos.map((photo) => (
+                {filteredPhotos.map((photo) => (
                   <div key={photo.id} className="masonry-item">
                     <PhotoCard photo={photo} onOpen={openLightbox} />
                   </div>
@@ -294,7 +513,7 @@ export function Explore() {
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {allPhotos.map((photo) => (
+                {filteredPhotos.map((photo) => (
                   <div key={photo.id} className="aspect-square overflow-hidden">
                     <PhotoCard photo={photo} className="h-full w-full" onOpen={openLightbox} />
                   </div>
@@ -326,7 +545,7 @@ export function Explore() {
 
       {lightboxIndex !== null && (
         <Lightbox
-          photos={allPhotos}
+          photos={activeMood ? moodPhotos : filteredPhotos}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
         />

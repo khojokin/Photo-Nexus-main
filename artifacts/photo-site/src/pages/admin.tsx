@@ -129,6 +129,133 @@ const MOCK_ERRORS = [
 const BANNED_WORDS = ["spam", "click here", "free money", "buy followers", "discount code"];
 const FEATURED_TAG = { tag: "golden hour", since: "May 6, 2026" };
 
+// ─── Admin PIN / session helpers ──────────────────────────────────────────────
+const PIN_KEY = "affuaa_admin_pin";
+const SESSION_KEY = "affuaa_admin_session";
+const ROLE_KEY = "affuaa_admin_role";
+const DEFAULT_PIN = "0000";
+
+function getStoredPin() { return localStorage.getItem(PIN_KEY) ?? DEFAULT_PIN; }
+function hasAdminSession() { return sessionStorage.getItem(SESSION_KEY) === "1"; }
+function grantAdminSession() {
+  sessionStorage.setItem(SESSION_KEY, "1");
+  localStorage.setItem(ROLE_KEY, "admin");
+}
+function revokeAdminSession() {
+  sessionStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(ROLE_KEY);
+}
+export function isAdminUser() { return localStorage.getItem(ROLE_KEY) === "admin"; }
+
+// ─── PIN Gate ─────────────────────────────────────────────────────────────────
+function PinGate({ onAuth }: { onAuth: () => void }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function submit() {
+    if (pin === getStoredPin()) {
+      grantAdminSession();
+      onAuth();
+    } else {
+      setError(true);
+      setShake(true);
+      setPin("");
+      setTimeout(() => setShake(false), 600);
+      inputRef.current?.focus();
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className={cn("w-72 space-y-6 transition-transform", shake && "animate-[shake_0.5s_ease]")}>
+        <div className="text-center space-y-2">
+          <Shield className="w-8 h-8 mx-auto text-muted-foreground mb-4" />
+          <h1 className="font-serif text-2xl">Admin Access</h1>
+          <p className="text-sm text-muted-foreground">This area is restricted. Enter your admin passcode to continue.</p>
+        </div>
+        <div className="space-y-3">
+          <input
+            ref={inputRef}
+            type="password"
+            value={pin}
+            onChange={(e) => { setPin(e.target.value); setError(false); }}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+            maxLength={20}
+            placeholder="Enter passcode"
+            autoFocus
+            className={cn(
+              "w-full bg-transparent border px-4 py-3 text-sm text-center tracking-[0.3em] focus:outline-none transition-colors",
+              error ? "border-red-500/60 text-red-400" : "border-border focus:border-foreground/50"
+            )}
+          />
+          {error && <p className="text-xs text-red-400 text-center">Incorrect passcode. Try again.</p>}
+          <button
+            onClick={submit}
+            disabled={!pin}
+            className="w-full bg-foreground text-background py-3 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
+            Enter Admin Panel
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground text-center">
+          Default passcode: <span className="font-mono">0000</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Confirm Dialog ───────────────────────────────────────────────────────────
+interface ConfirmAction {
+  title: string;
+  desc: string;
+  onConfirm: () => void;
+  dangerous?: boolean;
+  confirmLabel?: string;
+}
+
+function ConfirmDialog({ action, onCancel }: { action: ConfirmAction; onCancel: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-[300]">
+      <div className="w-80 border border-border bg-card p-6 shadow-2xl">
+        <div className="flex items-start gap-3 mb-4">
+          {action.dangerous
+            ? <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            : <Shield className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />}
+          <div>
+            <p className="font-medium text-sm">{action.title}</p>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{action.desc}</p>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground border border-border/50 bg-muted/20 px-3 py-2 mb-5">
+          This action is logged in the audit trail.
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { action.onConfirm(); onCancel(); }}
+            className={cn(
+              "flex-1 py-2.5 text-sm font-medium transition-colors",
+              action.dangerous
+                ? "border border-red-500/40 text-red-400 hover:bg-red-500/10"
+                : "bg-foreground text-background hover:opacity-90"
+            )}
+          >
+            {action.confirmLabel ?? "Confirm"}
+          </button>
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 text-sm border border-border text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatCard({ icon: Icon, label, value, sub, accent }: {
   icon: React.ElementType; label: string; value: string | number | undefined; sub?: string; accent?: string;
 }) {
@@ -223,6 +350,8 @@ function MiniBar({ value, max, color = "bg-foreground/40" }: { value: number; ma
 
 export function Admin() {
   const { user, loginAsDemo } = useAuth();
+  const [authed, setAuthed] = useState(() => hasAdminSession());
+  const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
   const [section, setSection] = useState<Section>("dashboard");
   const [reports, setReports] = useState<RealReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(true);
@@ -375,7 +504,7 @@ export function Admin() {
         <div className="text-center">
           <Shield className="w-12 h-12 mx-auto mb-4 opacity-20" />
           <p className="font-serif text-2xl mb-2">Admin access required</p>
-          <p className="text-muted-foreground text-sm mb-6">Sign in to access the admin panel.</p>
+          <p className="text-muted-foreground text-sm mb-6">You must be signed in to access the admin panel.</p>
           <div className="flex items-center gap-3 justify-center">
             <button onClick={() => loginAsDemo()}
               className="px-4 py-2 bg-foreground text-background text-sm hover:opacity-90 transition-opacity">
@@ -386,6 +515,10 @@ export function Admin() {
         </div>
       </div>
     );
+  }
+
+  if (!authed) {
+    return <PinGate onAuth={() => setAuthed(true)} />;
   }
 
   const pending = reports.filter(r => r.status === "pending");
@@ -408,6 +541,8 @@ export function Admin() {
 
   return (
     <div className="min-h-screen bg-background flex">
+      {confirm && <ConfirmDialog action={confirm} onCancel={() => setConfirm(null)} />}
+
       {/* Sidebar */}
       <aside className="w-56 border-r border-border flex flex-col flex-shrink-0 sticky top-0 h-screen overflow-y-auto">
         <div className="px-5 py-5 border-b border-border">
@@ -439,12 +574,20 @@ export function Admin() {
             );
           })}
         </nav>
-        <div className="px-5 py-4 border-t border-border">
-          <p className="text-xs text-muted-foreground">Signed in as</p>
-          <p className="text-sm font-medium mt-0.5 truncate">{user.firstName} {user.lastName}</p>
-          <Link href="/" className="text-xs text-muted-foreground hover:text-foreground mt-1 flex items-center gap-1">
-            <ExternalLink className="w-3 h-3" /> View site
-          </Link>
+        <div className="px-5 py-4 border-t border-border space-y-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Signed in as</p>
+            <p className="text-sm font-medium mt-0.5 truncate">{user.firstName} {user.lastName}</p>
+            <Link href="/" className="text-xs text-muted-foreground hover:text-foreground mt-1 flex items-center gap-1">
+              <ExternalLink className="w-3 h-3" /> View site
+            </Link>
+          </div>
+          <button
+            onClick={() => { revokeAdminSession(); setAuthed(false); }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground border border-border/50 hover:text-foreground hover:border-foreground/30 transition-colors"
+          >
+            <Shield className="w-3.5 h-3.5" /> Lock Panel
+          </button>
         </div>
       </aside>
 
@@ -680,11 +823,11 @@ export function Admin() {
                 {selectedList.length > 0 && (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">{selectedList.length} selected</span>
-                    <button onClick={() => void bulkFeature(selectedList, true)}
+                    <button onClick={() => setConfirm({ title: `Feature ${selectedList.length} photos?`, desc: "These photos will appear in the featured section on the homepage.", onConfirm: () => void bulkFeature(selectedList, true), confirmLabel: "Feature all" })}
                       className="text-xs px-3 py-1.5 border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors flex items-center gap-1.5">
                       <Star className="w-3 h-3" /> Feature all
                     </button>
-                    <button onClick={() => void bulkFeature(selectedList, false)}
+                    <button onClick={() => setConfirm({ title: `Unfeature ${selectedList.length} photos?`, desc: "These photos will be removed from the featured section.", onConfirm: () => void bulkFeature(selectedList, false), confirmLabel: "Unfeature all" })}
                       className="text-xs px-3 py-1.5 border border-border text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5">
                       <StarOff className="w-3 h-3" /> Unfeature all
                     </button>
@@ -739,7 +882,7 @@ export function Admin() {
                           <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">{p.likes.toLocaleString()}</td>
                           <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">{p.downloads.toLocaleString()}</td>
                           <td className="px-4 py-2.5 text-center">
-                            <button onClick={() => void toggleFeature(p.id)} disabled={isUpdating}
+                            <button onClick={() => setConfirm({ title: isFeatured ? "Unfeature this photo?" : "Feature this photo?", desc: isFeatured ? "This will remove it from the featured section." : "This will add it to the featured section on the homepage.", onConfirm: () => void toggleFeature(p.id) })} disabled={isUpdating}
                               className={cn("transition-all", isUpdating && "opacity-40")}>
                               {isFeatured
                                 ? <Star className="w-4 h-4 text-amber-400 fill-amber-400 mx-auto" />
@@ -886,7 +1029,17 @@ export function Admin() {
                         </td>
                         <td className="px-4 py-3 text-muted-foreground text-xs">{u.joined}</td>
                         <td className="px-4 py-3 flex items-center gap-2">
-                          <button onClick={() => toggleSuspend(u.id)} title={u.status === "suspended" ? "Reinstate" : "Suspend"}
+                          <button
+                            onClick={() => setConfirm({
+                              title: u.status === "suspended" ? `Reinstate ${u.name}?` : `Suspend ${u.name}?`,
+                              desc: u.status === "suspended"
+                                ? "This will restore their access to upload and comment."
+                                : "This will prevent them from uploading photos or posting comments.",
+                              dangerous: u.status !== "suspended",
+                              onConfirm: () => toggleSuspend(u.id),
+                              confirmLabel: u.status === "suspended" ? "Reinstate" : "Suspend",
+                            })}
+                            title={u.status === "suspended" ? "Reinstate" : "Suspend"}
                             className="text-muted-foreground hover:text-foreground transition-colors">
                             {u.status === "suspended" ? <UserCheck className="w-3.5 h-3.5" /> : <UserX className="w-3.5 h-3.5" />}
                           </button>
