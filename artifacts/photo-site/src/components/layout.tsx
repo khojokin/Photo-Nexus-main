@@ -143,18 +143,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </>
               ) : (
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={login}
+                  <Link
+                    href="/signin"
                     className="px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Sign In
-                  </button>
-                  <button
-                    onClick={login}
+                  </Link>
+                  <Link
+                    href="/signup"
                     className="px-4 py-1.5 text-sm font-medium bg-foreground text-background hover:opacity-90 transition-opacity rounded-md"
                   >
                     Sign Up
-                  </button>
+                  </Link>
                 </div>
               )
             )}
