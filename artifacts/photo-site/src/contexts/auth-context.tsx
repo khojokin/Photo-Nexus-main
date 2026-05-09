@@ -5,6 +5,8 @@ import {
   useEffect,
   useState,
 } from "react";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 export interface AuthUser {
   id: string;
@@ -25,32 +27,41 @@ interface AuthContextValue {
   authFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 }
 
-const DEMO_KEY = "affuaa_demo_session";
-
-const DEMO_USER: AuthUser = {
-  id: "demo-user",
-  email: "demo@affuaa.com",
-  firstName: "Demo",
-  lastName: "Photographer",
-  profileImageUrl: null,
-};
-
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const { isLoaded, isSignedIn, getToken, signOut } = useClerkAuth();
+
+  useEffect(() => {
+    setAuthTokenGetter(async () => (await getToken()) ?? null);
+    return () => {
+      setAuthTokenGetter(null);
+    };
+  }, [getToken]);
 
   const fetchUser = useCallback(async () => {
+    if (!isLoaded) {
+      return;
+    }
+
+    if (!isSignedIn) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Check for demo session first
-      if (localStorage.getItem(DEMO_KEY) === "1") {
-        setUser(DEMO_USER);
-        setIsLoading(false);
-        return;
-      }
-      const res = await fetch("/api/auth/user", { credentials: "include" });
+      const token = await getToken();
+      const headers = new Headers();
+      if (token) headers.set("authorization", `Bearer ${token}`);
+
+      const res = await fetch("/api/auth/user", {
+        credentials: "include",
+        headers,
+      });
       if (res.ok) {
         const data = await res.json();
         setUser(data.user ?? null);
@@ -62,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [getToken, isLoaded, isSignedIn]);
 
   useEffect(() => {
     void fetchUser();
@@ -70,31 +81,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const authFetch = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {
+      const token = await getToken();
+      const headers = new Headers(init?.headers);
+      if (token && !headers.has("authorization")) {
+        headers.set("authorization", `Bearer ${token}`);
+      }
+
       return fetch(input, {
         ...init,
+        headers,
         credentials: init?.credentials ?? "include",
       });
     },
-    [],
+    [getToken],
   );
 
   const loginAsDemo = useCallback(() => {
-    localStorage.setItem(DEMO_KEY, "1");
-    setUser(DEMO_USER);
-    window.location.href = "/";
+    window.location.href = "/signin";
   }, []);
 
   const login = useCallback(() => {
-    const base = import.meta.env.BASE_URL.replace(/\/+$/, "") || "/";
-    window.location.href = `/login?returnTo=${encodeURIComponent(base)}`;
+    window.location.href = "/signin";
   }, []);
 
   const logout = useCallback(async () => {
-    localStorage.removeItem(DEMO_KEY);
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+    await signOut({ redirectUrl: "/signin" });
     setUser(null);
-    window.location.href = "/";
-  }, []);
+  }, [signOut]);
 
   return (
     <AuthContext.Provider

@@ -1,23 +1,10 @@
-import { Link, useLocation } from "wouter";
-import { useState } from "react";
-import { Eye, EyeOff, Zap } from "lucide-react";
-import { useAuth } from "@/contexts/auth-context";
+import { Link } from "wouter";
+import { SignIn as ClerkSignIn } from "@clerk/clerk-react";
 
 export function SignIn() {
-  const [showPassword, setShowPassword] = useState(false);
-  const { loginAsDemo } = useAuth();
-  const [, navigate] = useLocation();
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    loginAsDemo();
-  }
-
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
       <div className="w-full max-w-5xl rounded-2xl overflow-hidden flex shadow-2xl border border-white/[0.06]">
-
-        {/* Left panel — image + welcome text */}
         <div
           className="hidden md:flex flex-col justify-between w-1/2 relative p-10"
           style={{
@@ -37,15 +24,16 @@ export function SignIn() {
           </div>
           <div className="relative z-10 space-y-3">
             <h2 className="font-['Playfair_Display'] text-white text-4xl font-semibold leading-tight">
-              Welcome back<br />to the craft.
+              Welcome back
+              <br />
+              to the craft.
             </h2>
             <p className="text-white/60 text-sm leading-relaxed max-w-xs">
-              Sign in to explore gallery-quality photography, curated for those who care about the image.
+              Sign in to explore gallery-quality photography curated for those who care about the image.
             </p>
           </div>
         </div>
 
-        {/* Right panel — form */}
         <div className="flex-1 bg-[#111111] flex flex-col justify-center px-10 py-12">
           <div className="md:hidden mb-8">
             <Link href="/">
@@ -55,107 +43,20 @@ export function SignIn() {
             </Link>
           </div>
 
-          <div className="w-full max-w-sm mx-auto space-y-8">
-            {/* Demo CTA banner */}
-            <button
-              onClick={loginAsDemo}
-              className="w-full flex items-center gap-3 bg-white text-black rounded-xl px-5 py-4 hover:bg-white/90 active:bg-white/80 transition-all group"
-            >
-              <Zap className="w-5 h-5 shrink-0 text-black/70 group-hover:text-black transition-colors" />
-              <div className="text-left">
-                <p className="font-semibold text-sm leading-tight">Enter as Demo</p>
-                <p className="text-xs text-black/50 leading-tight mt-0.5">Explore the full site instantly — no account needed</p>
-              </div>
-              <div className="ml-auto text-black/30 text-lg">→</div>
-            </button>
-
-            <div className="relative flex items-center gap-4">
-              <div className="flex-1 h-px bg-white/[0.07]" />
-              <span className="text-white/25 text-xs">or sign in with email</span>
-              <div className="flex-1 h-px bg-white/[0.07]" />
-            </div>
-
-            <div className="space-y-1">
-              <h1 className="text-white text-2xl font-semibold tracking-tight">Sign in</h1>
-              <p className="text-white/40 text-sm">
-                Don't have an account?{" "}
-                <Link href="/signup">
-                  <span className="text-white/70 hover:text-white underline underline-offset-2 transition-colors cursor-pointer">
-                    Sign up
-                  </span>
-                </Link>
-              </p>
-            </div>
-
-            <form className="space-y-4" onSubmit={handleSubmit}>
-              <div className="space-y-1.5">
-                <label className="text-white/50 text-xs uppercase tracking-widest font-medium">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  className="w-full bg-white/[0.05] border border-white/[0.10] rounded-lg px-4 py-3 text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-white/30 focus:bg-white/[0.07] transition-all"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-white/50 text-xs uppercase tracking-widest font-medium">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    className="w-full bg-white/[0.05] border border-white/[0.10] rounded-lg px-4 py-3 pr-10 text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-white/30 focus:bg-white/[0.07] transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <a href="#" className="text-xs text-white/40 hover:text-white/70 transition-colors">
-                  Forgot password?
-                </a>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-white/10 text-white font-medium text-sm rounded-lg py-3 hover:bg-white/20 active:bg-white/15 transition-colors mt-2 border border-white/10"
-              >
-                Sign in
-              </button>
-            </form>
-
-            <div className="relative flex items-center gap-4">
-              <div className="flex-1 h-px bg-white/[0.07]" />
-              <span className="text-white/25 text-xs">or</span>
-              <div className="flex-1 h-px bg-white/[0.07]" />
-            </div>
-
-            <button
-              type="button"
-              className="w-full flex items-center justify-center gap-3 border border-white/[0.10] rounded-lg py-3 text-white/60 text-sm hover:bg-white/[0.05] hover:text-white/80 transition-all"
-              onClick={() => {
-                const base = import.meta.env.BASE_URL.replace(/\/+$/, "") || "/";
-                window.location.href = `/api/login?returnTo=${encodeURIComponent(base)}`;
+          <div className="w-full max-w-sm mx-auto">
+            <ClerkSignIn
+              path="/signin"
+              routing="path"
+              signUpUrl="/signup"
+              forceRedirectUrl="/"
+              appearance={{
+                elements: {
+                  card: "shadow-none border-0 bg-transparent p-0",
+                  header: "hidden",
+                  footer: "hidden",
+                },
               }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" fill="currentColor" opacity=".15"/>
-                <path d="M15.5 8.5h-7M12 8.5v7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              Continue with Replit
-            </button>
+            />
           </div>
         </div>
       </div>
