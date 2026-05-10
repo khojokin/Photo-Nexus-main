@@ -12,7 +12,6 @@ import followsRouter from "./follows";
 import uploadRouter from "./upload";
 import reactionsRouter from "./reactions";
 import reportsRouter from "./reports";
-import challengesRouter from "./challenges";
 import seriesRouter from "./series";
 import leaderboardRouter from "./leaderboard";
 import activityRouter from "./activity";
@@ -23,6 +22,7 @@ import analyticsRouter from "./analytics";
 import subscriptionRouter from "./subscription";
 import payoutsRouter from "./payouts";
 import supportChatRouter from "./support-chat";
+import locksRouter from "./locks";
 
 const router: IRouter = Router();
 
@@ -40,7 +40,6 @@ router.use(followsRouter);
 router.use(uploadRouter);
 router.use(reactionsRouter);
 router.use(reportsRouter);
-router.use(challengesRouter);
 router.use(seriesRouter);
 router.use(leaderboardRouter);
 router.use(activityRouter);
@@ -50,5 +49,6 @@ router.use(analyticsRouter);
 router.use(subscriptionRouter);
 router.use(payoutsRouter);
 router.use(supportChatRouter);
+router.use(locksRouter);
 
 export default router;

@@ -565,7 +565,6 @@ const MENU_LINKS = [
   { href: "/upload", label: "Upload", icon: Upload },
   { href: "/moodboard", label: "Mood Board", icon: LayoutIcon },
   { href: "/series", label: "Series", icon: BookOpen },
-  { href: "/challenges", label: "Challenges", icon: Telescope },
   { href: "/photo-of-the-day", label: "Photo of the Day", icon: Sun },
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/profile", label: "Profile", icon: User },

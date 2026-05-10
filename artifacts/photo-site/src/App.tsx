@@ -23,8 +23,6 @@ import { Messages } from "@/pages/messages";
 import { Notifications } from "@/pages/notifications";
 import { Leaderboard } from "@/pages/leaderboard";
 import { Activity } from "@/pages/activity";
-import { Challenges } from "@/pages/challenges";
-import { ChallengeDetail } from "@/pages/challenge-detail";
 import { PhotoOfTheDay } from "@/pages/photo-of-the-day";
 import { Moodboard } from "@/pages/moodboard";
 import { SeriesList } from "@/pages/series";
@@ -67,8 +65,6 @@ function Router() {
       <Route path="/notifications" component={Notifications} />
       <Route path="/leaderboard" component={Leaderboard} />
       <Route path="/activity" component={Activity} />
-      <Route path="/challenges" component={Challenges} />
-      <Route path="/challenges/:id" component={ChallengeDetail} />
       <Route path="/photo-of-the-day" component={PhotoOfTheDay} />
       <Route path="/moodboard" component={Moodboard} />
       <Route path="/series" component={SeriesList} />

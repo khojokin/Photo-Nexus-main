@@ -24,7 +24,7 @@ function AppleIcon() {
 const PERKS = [
   "Upload and showcase your photography",
   "Create and share curated collections",
-  "Join photo challenges and earn recognition",
+  "Monetise your work with prints, licenses and tips",
   "Connect with photographers worldwide",
 ];
 

@@ -23,7 +23,7 @@ interface Settings {
   notifyLikes: boolean;
   notifyMessages: boolean;
   notifyFollows: boolean;
-  notifyChallenges: boolean;
+  notifyPayouts: boolean;
   compactView: boolean;
   autoplayVideos: boolean;
   accentColor: string;
@@ -46,7 +46,7 @@ const defaultSettings: Settings = {
   notifyLikes: true,
   notifyMessages: true,
   notifyFollows: true,
-  notifyChallenges: true,
+  notifyPayouts: true,
   compactView: false,
   autoplayVideos: false,
   accentColor: "#ffffff",
@@ -405,10 +405,10 @@ export function Settings() {
                     onChange={(v) => update("notifyFollows", v)}
                   />
                   <ToggleRow
-                    label="Challenges"
-                    desc="New photo challenges and contest results"
-                    checked={settings.notifyChallenges}
-                    onChange={(v) => update("notifyChallenges", v)}
+                    label="Payouts"
+                    desc="When your payout request is approved or processed"
+                    checked={settings.notifyPayouts}
+                    onChange={(v) => update("notifyPayouts", v)}
                   />
                 </>
               )}

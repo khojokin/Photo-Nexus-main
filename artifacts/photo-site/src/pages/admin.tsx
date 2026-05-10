@@ -22,7 +22,7 @@ import {
 
 type Section =
   | "dashboard" | "analytics" | "photos" | "users" | "collections"
-  | "moderation" | "tags" | "monetisation" | "livechat" | "settings" | "comms" | "system";
+  | "moderation" | "tags" | "monetisation" | "locks" | "livechat" | "settings" | "comms" | "system";
 
 interface DailyStat {
   label: string;
@@ -60,6 +60,7 @@ const NAV: { id: Section; label: string; icon: React.ElementType; badge?: string
   { id: "moderation", label: "Moderation", icon: Shield },
   { id: "tags", label: "Tags", icon: Tag },
   { id: "monetisation", label: "Monetisation", icon: DollarSign },
+  { id: "locks", label: "Locks", icon: Lock },
   { id: "livechat", label: "Live Chat", icon: MessageSquare },
   { id: "settings", label: "Site Settings", icon: Settings },
   { id: "comms", label: "Communications", icon: Mail },
@@ -304,12 +305,16 @@ export function Admin() {
   interface Payout {
     id: number; payoutId: string; photographerName: string; email: string | null;
     type: string; description: string; amount: string; status: string;
-    notes: string | null; requestedAt: string; processedAt: string | null;
+    paymentMethod: string; paypalEmail: string | null; bankName: string | null;
+    bankAccountHolder: string | null; bankAccountLast4: string | null; bankRoutingLast4: string | null;
+    notes: string | null; adminNotes: string | null; requestedAt: string; processedAt: string | null;
   }
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [payoutsLoading, setPayoutsLoading] = useState(true);
   const [newPayout, setNewPayout] = useState({ photographerName: "", email: "", type: "commission", description: "", amount: "" });
   const [addingPayout, setAddingPayout] = useState(false);
+  const [payoutNoteId, setPayoutNoteId] = useState<number | null>(null);
+  const [payoutNote, setPayoutNote] = useState("");
 
   useEffect(() => {
     fetch("/api/payouts").then(r => r.json())
@@ -318,15 +323,8 @@ export function Admin() {
       .finally(() => setPayoutsLoading(false));
   }, []);
 
-  async function approvePayout(id: number) {
-    const [updated] = await Promise.all([
-      fetch(`/api/payouts/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "paid" }) }).then(r => r.json() as Promise<Payout>)
-    ]);
-    setPayouts(prev => prev.map(p => p.id === id ? updated : p));
-  }
-
-  async function rejectPayout(id: number) {
-    const updated = await fetch(`/api/payouts/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "rejected" }) }).then(r => r.json() as Promise<Payout>);
+  async function patchPayout(id: number, body: object) {
+    const updated = await fetch(`/api/payouts/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json() as Promise<Payout>);
     setPayouts(prev => prev.map(p => p.id === id ? updated : p));
   }
 
@@ -338,6 +336,44 @@ export function Admin() {
       setPayouts(prev => [p, ...prev]);
       setNewPayout({ photographerName: "", email: "", type: "commission", description: "", amount: "" });
     } catch { /* ignore */ } finally { setAddingPayout(false); }
+  }
+
+  // ── Locks ────────────────────────────────────────────────────────────────
+  interface Lock {
+    id: number; lockType: string; targetId: string; targetLabel: string;
+    reason: string | null; lockedBy: string; isActive: boolean; lockedAt: string; unlockedAt: string | null;
+  }
+  const [locks, setLocks] = useState<Lock[]>([]);
+  const [locksLoading, setLocksLoading] = useState(true);
+  const [newLock, setNewLock] = useState({ lockType: "user", targetId: "", targetLabel: "", reason: "" });
+  const [addingLock, setAddingLock] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/locks").then(r => r.json())
+      .then((d: { locks: Lock[] }) => setLocks(d.locks ?? []))
+      .catch(() => {})
+      .finally(() => setLocksLoading(false));
+  }, []);
+
+  async function createLock() {
+    if (!newLock.targetId || !newLock.reason) return;
+    setAddingLock(true);
+    try {
+      const body = { ...newLock, targetLabel: newLock.targetLabel || newLock.targetId, lockedBy: "admin" };
+      const l = await fetch("/api/locks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json() as Promise<Lock>);
+      setLocks(prev => [l, ...prev]);
+      setNewLock({ lockType: "user", targetId: "", targetLabel: "", reason: "" });
+    } catch { /* ignore */ } finally { setAddingLock(false); }
+  }
+
+  async function toggleLock(id: number, isActive: boolean) {
+    const updated = await fetch(`/api/locks/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive }) }).then(r => r.json() as Promise<Lock>);
+    setLocks(prev => prev.map(l => l.id === id ? updated : l));
+  }
+
+  async function deleteLock(id: number) {
+    await fetch(`/api/locks/${id}`, { method: "DELETE" });
+    setLocks(prev => prev.filter(l => l.id !== id));
   }
 
   // ── PIN Config ─────────────────────────────────────────────────────────────
@@ -1401,12 +1437,21 @@ export function Admin() {
                       </thead>
                       <tbody>
                         {payouts.map(p => (
+                          <>
                           <tr key={p.id} className="border-b border-border last:border-0 hover:bg-card/40 transition-colors">
                             <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.payoutId}</td>
                             <td className="px-4 py-3">
                               <div>
                                 <span className="font-medium text-sm">{p.photographerName}</span>
                                 {p.email && <p className="text-xs text-muted-foreground">{p.email}</p>}
+                                <p className="text-xs text-muted-foreground capitalize mt-0.5">
+                                  {p.paymentMethod?.replace("_", " ")}
+                                  {p.paypalEmail && ` · ${p.paypalEmail}`}
+                                  {p.bankAccountHolder && ` · ${p.bankAccountHolder}`}
+                                  {p.bankName && ` · ${p.bankName}`}
+                                  {p.bankAccountLast4 && ` · ****${p.bankAccountLast4}`}
+                                  {p.bankRoutingLast4 && ` · routing ****${p.bankRoutingLast4}`}
+                                </p>
                               </div>
                             </td>
                             <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell max-w-xs truncate">{p.description}</td>
@@ -1415,7 +1460,7 @@ export function Admin() {
                             </td>
                             <td className="px-4 py-3 text-right font-medium tabular-nums">${parseFloat(p.amount).toFixed(2)}</td>
                             <td className="px-4 py-3 text-center">
-                              <Badge color={p.status === "paid" ? "border-green-500/30 text-green-400 bg-green-500/5" : p.status === "rejected" ? "border-red-500/30 text-red-400 bg-red-500/5" : "border-amber-500/30 text-amber-400"}>
+                              <Badge color={p.status === "paid" ? "border-green-500/30 text-green-400 bg-green-500/5" : p.status === "approved" ? "border-blue-500/30 text-blue-400 bg-blue-500/5" : p.status === "rejected" ? "border-red-500/30 text-red-400 bg-red-500/5" : "border-amber-500/30 text-amber-400"}>
                                 {p.status}
                               </Badge>
                             </td>
@@ -1423,25 +1468,56 @@ export function Admin() {
                               {new Date(p.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                             </td>
                             <td className="px-4 py-3">
-                              {p.status === "pending" && (
-                                <div className="flex gap-1.5">
-                                  <button onClick={() => void approvePayout(p.id)}
-                                    className="flex items-center gap-1 text-xs px-2.5 py-1 border border-green-500/30 text-green-400 hover:bg-green-500/10 transition-colors">
-                                    <Check className="w-3 h-3" /> Pay
-                                  </button>
-                                  <button onClick={() => void rejectPayout(p.id)}
-                                    className="flex items-center gap-1 text-xs px-2.5 py-1 border border-border text-muted-foreground hover:text-foreground transition-colors">
-                                    <X className="w-3 h-3" /> Reject
-                                  </button>
-                                </div>
-                              )}
-                              {p.status !== "pending" && p.processedAt && (
-                                <span className="text-xs text-muted-foreground">
-                                  {new Date(p.processedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                                </span>
-                              )}
+                              <div className="flex flex-col gap-1.5">
+                                {(p.status === "pending" || p.status === "approved") && (
+                                  <div className="flex gap-1.5 flex-wrap">
+                                    {p.status === "pending" && (
+                                      <button onClick={() => void patchPayout(p.id, { status: "approved" })}
+                                        className="flex items-center gap-1 text-xs px-2.5 py-1 border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-colors">
+                                        <Check className="w-3 h-3" /> Approve
+                                      </button>
+                                    )}
+                                    {p.status === "approved" && (
+                                      <button onClick={() => void patchPayout(p.id, { status: "paid" })}
+                                        className="flex items-center gap-1 text-xs px-2.5 py-1 border border-green-500/30 text-green-400 hover:bg-green-500/10 transition-colors">
+                                        <Check className="w-3 h-3" /> Mark Paid
+                                      </button>
+                                    )}
+                                    <button onClick={() => { setPayoutNoteId(p.id); setPayoutNote(p.adminNotes ?? ""); }}
+                                      className="flex items-center gap-1 text-xs px-2.5 py-1 border border-border text-muted-foreground hover:text-foreground transition-colors">
+                                      <Edit3 className="w-3 h-3" /> Note
+                                    </button>
+                                    <button onClick={() => void patchPayout(p.id, { status: "rejected" })}
+                                      className="flex items-center gap-1 text-xs px-2.5 py-1 border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">
+                                      <X className="w-3 h-3" /> Reject
+                                    </button>
+                                  </div>
+                                )}
+                                {p.adminNotes && <p className="text-xs text-muted-foreground italic">Note: {p.adminNotes}</p>}
+                                {p.processedAt && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(p.processedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                           </tr>
+                          {payoutNoteId === p.id && (
+                            <tr key={`note-${p.id}`} className="border-b border-border bg-muted/20">
+                              <td colSpan={8} className="px-4 py-3">
+                                <div className="flex gap-2 items-center">
+                                  <input value={payoutNote} onChange={e => setPayoutNote(e.target.value)}
+                                    placeholder="Admin note for photographer…"
+                                    className="flex-1 bg-background border border-border px-3 py-1.5 text-xs focus:outline-none focus:border-foreground/30" />
+                                  <button onClick={() => { void patchPayout(p.id, { adminNotes: payoutNote }); setPayoutNoteId(null); }}
+                                    className="px-3 py-1.5 bg-foreground text-background text-xs hover:opacity-90 transition-opacity">Save</button>
+                                  <button onClick={() => setPayoutNoteId(null)}
+                                    className="px-3 py-1.5 border border-border text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </>
                         ))}
                       </tbody>
                     </table>
@@ -1512,6 +1588,107 @@ export function Admin() {
             </div>
             );
           })()}
+
+          {/* ── LOCKS ── */}
+          {section === "locks" && (
+            <div>
+              <SectionTitle sub="Lock users, photos, or collections from being accessed or displayed">Locks</SectionTitle>
+
+              {/* Create lock form */}
+              <div className="border border-border bg-card p-5 mb-6">
+                <h3 className="text-sm font-medium mb-4 flex items-center gap-2"><Lock className="w-4 h-4 text-muted-foreground" /> Create New Lock</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                  <select value={newLock.lockType} onChange={e => setNewLock(l => ({ ...l, lockType: e.target.value }))}
+                    className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30">
+                    <option value="user">User</option>
+                    <option value="photo">Photo</option>
+                    <option value="collection">Collection</option>
+                    <option value="account">Account</option>
+                  </select>
+                  <input value={newLock.targetId} onChange={e => setNewLock(l => ({ ...l, targetId: e.target.value }))}
+                    placeholder="Target ID / username *" className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30" />
+                  <input value={newLock.targetLabel} onChange={e => setNewLock(l => ({ ...l, targetLabel: e.target.value }))}
+                    placeholder="Display label (optional)" className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30" />
+                  <input value={newLock.reason} onChange={e => setNewLock(l => ({ ...l, reason: e.target.value }))}
+                    placeholder="Reason for lock *" className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30" />
+                </div>
+                <button onClick={() => void createLock()} disabled={addingLock || !newLock.targetId || !newLock.reason}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-foreground text-background text-xs hover:opacity-90 transition-opacity disabled:opacity-40">
+                  {addingLock ? <><span className="w-3 h-3 border border-background/40 border-t-background rounded-full animate-spin inline-block" /> Creating…</> : <><Lock className="w-3 h-3" /> Create Lock</>}
+                </button>
+              </div>
+
+              {/* Lock stats */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <StatCard icon={Lock} label="Total Locks" value={String(locks.length)} sub="all time" />
+                <StatCard icon={Shield} label="Active Locks" value={String(locks.filter(l => l.isActive).length)} sub="currently enforced" accent="text-red-400" />
+                <StatCard icon={Users} label="User Locks" value={String(locks.filter(l => l.lockType === "user" && l.isActive).length)} sub="locked users" />
+                <StatCard icon={Image} label="Content Locks" value={String(locks.filter(l => l.lockType !== "user" && l.isActive).length)} sub="photos / collections" />
+              </div>
+
+              {/* Lock list */}
+              <div className="border border-border overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-card/50">
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Type</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Target</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal hidden sm:table-cell">Reason</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal hidden md:table-cell">Locked By</th>
+                      <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Status</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal hidden lg:table-cell">Date</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {locksLoading ? (
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground text-sm">Loading…</td></tr>
+                    ) : locks.length === 0 ? (
+                      <tr><td colSpan={7} className="px-4 py-12 text-center">
+                        <Lock className="w-8 h-8 mx-auto mb-3 opacity-20" />
+                        <p className="text-sm text-muted-foreground">No locks created yet.</p>
+                      </td></tr>
+                    ) : locks.map(l => (
+                      <tr key={l.id} className="border-b border-border last:border-0 hover:bg-card/40 transition-colors">
+                        <td className="px-4 py-3">
+                          <Badge color={l.lockType === "user" ? "border-purple-500/30 text-purple-400" : l.lockType === "photo" ? "border-blue-500/30 text-blue-400" : "border-amber-500/30 text-amber-400"}>
+                            {l.lockType}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="font-medium text-sm">{l.targetLabel || l.targetId}</span>
+                          <p className="text-xs text-muted-foreground font-mono">{l.targetId}</p>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell max-w-xs truncate">{l.reason}</td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">{l.lockedBy}</td>
+                        <td className="px-4 py-3 text-center">
+                          <Badge color={l.isActive ? "border-red-500/30 text-red-400 bg-red-500/5" : "border-green-500/30 text-green-400 bg-green-500/5"}>
+                            {l.isActive ? "Locked" : "Unlocked"}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell">
+                          {new Date(l.lockedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1.5">
+                            <button onClick={() => void toggleLock(l.id, !l.isActive)}
+                              className={cn("flex items-center gap-1 text-xs px-2.5 py-1 border transition-colors",
+                                l.isActive ? "border-green-500/30 text-green-400 hover:bg-green-500/10" : "border-red-500/30 text-red-400 hover:bg-red-500/10")}>
+                              <Lock className="w-3 h-3" /> {l.isActive ? "Unlock" : "Re-lock"}
+                            </button>
+                            <button onClick={() => void deleteLock(l.id)}
+                              className="flex items-center gap-1 text-xs px-2.5 py-1 border border-border text-muted-foreground hover:text-red-400 hover:border-red-500/30 transition-colors">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* ── LIVE CHAT ── */}
           {section === "livechat" && (

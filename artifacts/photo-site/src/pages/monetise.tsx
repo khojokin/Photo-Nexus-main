@@ -514,62 +514,210 @@ export function Monetise() {
         )}
 
         {/* ── Payouts ── */}
-        {tab === "payouts" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <StatCard label="Available Balance" value="$94.50" icon={DollarSign} accent />
-              <StatCard label="Lifetime Paid Out" value="$429.50" icon={CreditCard} />
+        {tab === "payouts" && <PayoutsTab displayName={displayName} user={user} />}
+      </div>
+    </Layout>
+  );
+}
+
+// ─── Payouts Tab (live) ───────────────────────────────────────────────────────
+interface PayoutRecord {
+  id: number; payoutId: string; photographerName: string; email: string | null;
+  type: string; description: string; amount: string; status: string;
+  paymentMethod: string; paypalEmail: string | null; bankName: string | null;
+  bankAccountHolder: string | null; bankAccountLast4: string | null;
+  notes: string | null; adminNotes: string | null;
+  requestedAt: string; processedAt: string | null;
+}
+
+function PayoutsTab({ displayName, user }: { displayName: string; user: { firstName?: string | null; email?: string | null } | null }) {
+  const [payoutMethod, setPayoutMethod] = useState<"paypal" | "bank_transfer">("paypal");
+  const [paypalEmail, setPaypalEmail] = useState("");
+  const [bankHolder, setBankHolder] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [bankAccount, setBankAccount] = useState("");
+  const [bankRouting, setBankRouting] = useState("");
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<PayoutRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/payouts/my")
+      .then(r => r.json())
+      .then((d: { payouts: PayoutRecord[] }) => setHistory(d.payouts ?? []))
+      .catch(() => {})
+      .finally(() => setHistoryLoading(false));
+  }, [submitted]);
+
+  async function submitRequest() {
+    setError(null);
+    if (!amount || parseFloat(amount) < 20) { setError("Minimum payout is $20.00"); return; }
+    if (payoutMethod === "paypal" && !paypalEmail) { setError("Please enter your PayPal email."); return; }
+    if (payoutMethod === "bank_transfer" && (!bankHolder || !bankAccount || !bankAccount)) { setError("Please complete all bank details."); return; }
+    setSubmitting(true);
+    try {
+      const acct = bankAccount.replace(/\s/g, "");
+      const routing = bankRouting.replace(/\s/g, "");
+      const body = {
+        photographerName: displayName || user?.firstName || "Photographer",
+        email: user?.email ?? undefined,
+        type: "withdrawal",
+        description: description || "Earnings withdrawal",
+        amount: parseFloat(amount),
+        paymentMethod,
+        paypalEmail: payoutMethod === "paypal" ? paypalEmail : undefined,
+        bankName: payoutMethod === "bank_transfer" ? bankName : undefined,
+        bankAccountHolder: payoutMethod === "bank_transfer" ? bankHolder : undefined,
+        bankAccountLast4: payoutMethod === "bank_transfer" ? acct.slice(-4) : undefined,
+        bankRoutingLast4: payoutMethod === "bank_transfer" ? routing.slice(-4) : undefined,
+      };
+      const res = await fetch("/api/payouts/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Request failed");
+      setSubmitted(v => !v);
+      setAmount(""); setDescription(""); setPaypalEmail(""); setBankHolder(""); setBankName(""); setBankAccount(""); setBankRouting("");
+    } catch { setError("Failed to submit request. Please try again."); }
+    finally { setSubmitting(false); }
+  }
+
+  const statusColor = (s: string) =>
+    s === "paid" ? "border-green-500/30 text-green-400 bg-green-500/5" :
+    s === "approved" ? "border-blue-500/30 text-blue-400 bg-blue-500/5" :
+    s === "rejected" ? "border-red-500/30 text-red-400 bg-red-500/5" :
+    "border-amber-500/30 text-amber-400";
+
+  return (
+    <div className="space-y-8">
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <StatCard label="Pending" value={`$${history.filter(p=>p.status==="pending"||p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount),0).toFixed(2)}`} icon={CreditCard} />
+        <StatCard label="Paid Out" value={`$${history.filter(p=>p.status==="paid").reduce((s,p)=>s+parseFloat(p.amount),0).toFixed(2)}`} icon={DollarSign} accent />
+        <StatCard label="Requests" value={String(history.length)} icon={TrendingUp} />
+      </div>
+
+      {/* Connect Account */}
+      <div className="border border-border bg-card p-6">
+        <h3 className="text-sm font-medium mb-1">Connect Payment Account</h3>
+        <p className="text-xs text-muted-foreground mb-5">Your payment details are sent securely with your payout request and reviewed by the Affuaa team before funds are released.</p>
+
+        <div className="flex gap-3 mb-5">
+          {([["paypal", "PayPal"], ["bank_transfer", "Bank Transfer"]] as const).map(([m, label]) => (
+            <button key={m} onClick={() => setPayoutMethod(m)}
+              className={cn("px-4 py-2 text-sm border transition-colors",
+                payoutMethod === m ? "border-foreground text-foreground bg-foreground/5" : "border-border text-muted-foreground hover:text-foreground")}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-3 mb-5">
+          {payoutMethod === "paypal" ? (
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">PayPal Email Address</label>
+              <input type="email" value={paypalEmail} onChange={e => setPaypalEmail(e.target.value)}
+                placeholder="your@paypal.com"
+                className="w-full bg-transparent border border-border px-4 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors" />
             </div>
-            <div className="border border-border bg-card p-6">
-              <h3 className="text-sm font-medium mb-5">Payout Method</h3>
-              <div className="flex gap-3 mb-5">
-                {["bank", "paypal", "stripe"].map(m => (
-                  <button
-                    key={m}
-                    onClick={() => setPayoutMethod(m)}
-                    className={cn("px-4 py-2 text-sm border transition-colors capitalize",
-                      payoutMethod === m ? "border-foreground text-foreground" : "border-border text-muted-foreground hover:text-foreground")}
-                  >
-                    {m === "bank" ? "Bank Transfer" : m === "paypal" ? "PayPal" : "Stripe"}
-                  </button>
-                ))}
-              </div>
-              <div className="space-y-3">
-                <input type="text" placeholder={payoutMethod === "paypal" ? "PayPal email address" : payoutMethod === "stripe" ? "Stripe account ID" : "Account holder name"}
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Account Holder Name</label>
+                <input type="text" value={bankHolder} onChange={e => setBankHolder(e.target.value)}
+                  placeholder="Full legal name"
                   className="w-full bg-transparent border border-border px-4 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors" />
-                {payoutMethod === "bank" && (
-                  <>
-                    <input type="text" placeholder="IBAN / Account number" className="w-full bg-transparent border border-border px-4 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors" />
-                    <input type="text" placeholder="Sort code / Routing number" className="w-full bg-transparent border border-border px-4 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors" />
-                  </>
-                )}
               </div>
-              <div className="flex items-center gap-3 mt-5">
-                <button className="px-5 py-2.5 bg-foreground text-background text-sm hover:opacity-90 transition-opacity">Save Payout Details</button>
-                <button className="px-5 py-2.5 border border-border text-sm text-muted-foreground hover:text-foreground transition-colors">Request Payout ($94.50)</button>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Bank Name</label>
+                <input type="text" value={bankName} onChange={e => setBankName(e.target.value)}
+                  placeholder="e.g. Chase, Barclays"
+                  className="w-full bg-transparent border border-border px-4 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Account Number</label>
+                <input type="text" value={bankAccount} onChange={e => setBankAccount(e.target.value)}
+                  placeholder="Account number"
+                  className="w-full bg-transparent border border-border px-4 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Routing / Sort Code</label>
+                <input type="text" value={bankRouting} onChange={e => setBankRouting(e.target.value)}
+                  placeholder="Routing number"
+                  className="w-full bg-transparent border border-border px-4 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors" />
               </div>
             </div>
-            <div className="border border-border">
-              <div className="px-5 py-4 border-b border-border"><h3 className="text-sm font-medium">Payout History</h3></div>
-              <div className="divide-y divide-border">
-                {[
-                  { date: "Apr 15, 2026", amount: 189.50, method: "Bank Transfer", status: "paid" },
-                  { date: "Mar 15, 2026", amount: 140.00, method: "Bank Transfer", status: "paid" },
-                  { date: "Feb 15, 2026", amount: 100.00, method: "PayPal", status: "paid" },
-                ].map((p, i) => (
-                  <div key={i} className="px-5 py-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm">{p.date} · {p.method}</p>
-                      <p className="text-xs text-green-400">{p.status}</p>
-                    </div>
-                    <span className="text-sm font-medium">-${p.amount.toFixed(2)}</span>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Amount to Withdraw ($)</label>
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                placeholder="Min. $20.00" min="20" step="0.01"
+                className="w-full bg-transparent border border-border px-4 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Note (optional)</label>
+              <input type="text" value={description} onChange={e => setDescription(e.target.value)}
+                placeholder="e.g. May earnings"
+                className="w-full bg-transparent border border-border px-4 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors" />
+            </div>
+          </div>
+        </div>
+
+        {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
+
+        <div className="flex items-center gap-3">
+          <button onClick={() => void submitRequest()} disabled={submitting}
+            className="px-5 py-2.5 bg-foreground text-background text-sm hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-2">
+            {submitting && <span className="w-3 h-3 border border-background/40 border-t-background rounded-full animate-spin" />}
+            {submitting ? "Submitting…" : "Submit Payout Request"}
+          </button>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-border/50 flex items-start gap-2">
+          <Shield className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Your payment details are reviewed by the Affuaa admin team. Funds are released manually after verification — typically within 1–3 business days. Minimum withdrawal is $20.00.
+          </p>
+        </div>
+      </div>
+
+      {/* History */}
+      <div className="border border-border">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <h3 className="text-sm font-medium">Payout History</h3>
+          {historyLoading && <span className="w-3.5 h-3.5 border border-muted border-t-foreground rounded-full animate-spin" />}
+        </div>
+        {!historyLoading && history.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground">
+            <CreditCard className="w-8 h-8 mx-auto mb-3 opacity-20" />
+            <p className="text-sm">No payout requests yet.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {history.map(p => (
+              <div key={p.id} className="px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className={cn("text-xs px-2 py-0.5 border", statusColor(p.status))}>{p.status}</span>
+                    <span className="text-xs text-muted-foreground font-mono">{p.payoutId}</span>
+                    <span className="text-xs text-muted-foreground capitalize">{p.paymentMethod.replace("_", " ")}</span>
                   </div>
-                ))}
+                  <p className="text-sm">{p.description}</p>
+                  {p.adminNotes && <p className="text-xs text-muted-foreground italic mt-0.5">Admin note: {p.adminNotes}</p>}
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Requested {new Date(p.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    {p.processedAt && ` · Processed ${new Date(p.processedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
+                  </p>
+                </div>
+                <span className="text-sm font-medium tabular-nums">${parseFloat(p.amount).toFixed(2)}</span>
               </div>
-            </div>
+            ))}
           </div>
         )}
       </div>
-    </Layout>
+    </div>
   );
 }

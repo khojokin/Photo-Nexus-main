@@ -115,7 +115,7 @@ function OverviewTab({ user, summary, trending }: {
 
   const QUICK_ACTIONS = [
     { href: "/upload",      icon: Upload,       label: "Upload Photo",   desc: "Add to your portfolio" },
-    { href: "/challenges",  icon: Zap,          label: "Join Challenge", desc: "Weekly community prompts" },
+    { href: "/monetise",    icon: Zap,          label: "Monetise",       desc: "Earnings & payouts" },
     { href: "/collections", icon: LayoutGrid,   label: "Collections",    desc: "Browse curated sets" },
     { href: "/photos",      icon: Camera,       label: "Explore",        desc: "Discover new work" },
   ];
