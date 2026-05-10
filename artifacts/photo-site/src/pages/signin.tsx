@@ -1,10 +1,30 @@
-import { useEffect } from "react";
-import { Link } from "wouter";
+import { useState } from "react";
+import { Link, useLocation } from "wouter";
 
 export function SignIn() {
-  useEffect(() => {
-    window.location.href = "/api/login";
-  }, []);
+  const [, navigate] = useLocation();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSignIn() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/demo-login", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (res.ok) {
+        window.location.href = "/";
+      } else {
+        setError("Sign in failed. Please try again.");
+        setLoading(false);
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
@@ -49,10 +69,39 @@ export function SignIn() {
 
           <div className="w-full max-w-sm mx-auto border border-white/10 bg-black/20 p-5 sign-in-fade-up sign-in-delay-2">
             <h1 className="font-['Playfair_Display'] text-2xl text-white mb-1">Sign in</h1>
-            <p className="text-xs text-white/60 mb-4">Redirecting you to sign in…</p>
-            <div className="flex items-center justify-center py-4">
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            </div>
+            <p className="text-xs text-white/60 mb-6">Access your profile, collections, and premium tools.</p>
+
+            {error && (
+              <p className="text-xs text-red-300 mb-4">{error}</p>
+            )}
+
+            <button
+              type="button"
+              onClick={() => void handleSignIn()}
+              disabled={loading}
+              className="w-full h-11 bg-white text-black text-sm font-medium hover:bg-white/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                  Signing in…
+                </>
+              ) : (
+                "Sign in"
+              )}
+            </button>
+
+            <p className="text-xs text-white/60 mt-4 text-center">
+              Don&apos;t have an account?{" "}
+              <Link href="/signup" className="text-white hover:underline underline-offset-2">Sign up</Link>
+            </p>
+
+            <p className="text-[10px] text-white/30 mt-4 text-center leading-relaxed">
+              By signing in, you agree to our{" "}
+              <Link href="/terms" className="underline hover:text-white/50 transition-colors">Terms of Service</Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="underline hover:text-white/50 transition-colors">Privacy Policy</Link>.
+            </p>
           </div>
         </div>
       </div>

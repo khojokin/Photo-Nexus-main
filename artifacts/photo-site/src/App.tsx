@@ -35,6 +35,8 @@ import { Monetise } from "@/pages/monetise";
 import { Discover } from "@/pages/discover";
 import PremiumPage from "@/pages/premium";
 import { CheckoutPage } from "@/pages/checkout";
+import { Terms } from "@/pages/terms";
+import { Privacy } from "@/pages/privacy";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -77,6 +79,8 @@ function Router() {
       <Route path="/premium" component={PremiumPage} />
       <Route path="/checkout" component={CheckoutPage} />
       <Route path="/discover" component={Discover} />
+      <Route path="/terms" component={Terms} />
+      <Route path="/privacy" component={Privacy} />
       <Route component={NotFound} />
     </Switch>
   );

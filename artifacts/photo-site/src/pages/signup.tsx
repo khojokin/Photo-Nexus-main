@@ -1,10 +1,29 @@
-import { useEffect } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 
 export function SignUp() {
-  useEffect(() => {
-    window.location.href = "/api/login";
-  }, []);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSignUp() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/demo-login", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (res.ok) {
+        window.location.href = "/";
+      } else {
+        setError("Sign up failed. Please try again.");
+        setLoading(false);
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
@@ -49,10 +68,39 @@ export function SignUp() {
 
           <div className="w-full max-w-sm mx-auto border border-white/10 bg-black/20 p-5">
             <h1 className="font-['Playfair_Display'] text-2xl text-white mb-1">Create account</h1>
-            <p className="text-xs text-white/60 mb-4">Redirecting you to sign up…</p>
-            <div className="flex items-center justify-center py-4">
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            </div>
+            <p className="text-xs text-white/60 mb-6">Set up your profile to start publishing your work.</p>
+
+            {error && (
+              <p className="text-xs text-red-300 mb-4">{error}</p>
+            )}
+
+            <button
+              type="button"
+              onClick={() => void handleSignUp()}
+              disabled={loading}
+              className="w-full h-11 bg-white text-black text-sm font-medium hover:bg-white/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                  Creating account…
+                </>
+              ) : (
+                "Create account"
+              )}
+            </button>
+
+            <p className="text-xs text-white/60 mt-4 text-center">
+              Already have an account?{" "}
+              <Link href="/signin" className="text-white hover:underline underline-offset-2">Sign in</Link>
+            </p>
+
+            <p className="text-[10px] text-white/30 mt-4 text-center leading-relaxed">
+              By creating an account, you agree to our{" "}
+              <Link href="/terms" className="underline hover:text-white/50 transition-colors">Terms of Service</Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="underline hover:text-white/50 transition-colors">Privacy Policy</Link>.
+            </p>
           </div>
         </div>
       </div>
