@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useAuth } from "@/contexts/auth-context";
 
 export function SignIn() {
   const [, navigate] = useLocation();
+  const { refetch } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,7 +17,8 @@ export function SignIn() {
         credentials: "include",
       });
       if (res.ok) {
-        window.location.href = "/";
+        await refetch();
+        navigate("/");
       } else {
         setError("Sign in failed. Please try again.");
         setLoading(false);

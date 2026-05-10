@@ -8,6 +8,7 @@ import { db, usersTable } from "@workspace/db";
 const router: IRouter = Router();
 
 router.get("/auth/user", (req: Request, res: Response) => {
+  res.set("Cache-Control", "no-store");
   res.json(
     GetCurrentAuthUserResponse.parse({
       user: req.authUser ?? null,

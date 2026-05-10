@@ -1,7 +1,10 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useAuth } from "@/contexts/auth-context";
 
 export function SignUp() {
+  const [, navigate] = useLocation();
+  const { refetch } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,7 +17,8 @@ export function SignUp() {
         credentials: "include",
       });
       if (res.ok) {
-        window.location.href = "/";
+        await refetch();
+        navigate("/");
       } else {
         setError("Sign up failed. Please try again.");
         setLoading(false);
