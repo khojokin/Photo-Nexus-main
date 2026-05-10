@@ -95,6 +95,13 @@ export async function setupReplitAuth(app: Express) {
 
   const registeredStrategies = new Set<string>();
 
+  // In development, the Vite proxy rewrites Host to localhost, so we must
+  // use REPLIT_DEV_DOMAIN (or X-Forwarded-Host) to get the real public domain.
+  const getPublicDomain = (req: import("express").Request): string =>
+    process.env.REPLIT_DEV_DOMAIN ||
+    (req.get("x-forwarded-host") as string | undefined) ||
+    req.hostname;
+
   const ensureStrategy = (domain: string) => {
     const strategyName = `replitauth:${domain}`;
     if (!registeredStrategies.has(strategyName)) {
@@ -116,36 +123,40 @@ export async function setupReplitAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/login", (req, res, next) => {
-    ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    const domain = getPublicDomain(req);
+    ensureStrategy(domain);
+    passport.authenticate(`replitauth:${domain}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
   });
 
   app.get("/api/login", (req, res, next) => {
-    ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    const domain = getPublicDomain(req);
+    ensureStrategy(domain);
+    passport.authenticate(`replitauth:${domain}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
   });
 
   app.get("/api/callback", (req, res, next) => {
-    ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    const domain = getPublicDomain(req);
+    ensureStrategy(domain);
+    passport.authenticate(`replitauth:${domain}`, {
       successReturnToOrRedirect: "/",
-      failureRedirect: "/",
+      failureRedirect: "/api/auth/error",
     })(req, res, next);
   });
 
   app.get("/api/logout", (req, res) => {
+    const domain = getPublicDomain(req);
     req.logout(() => {
       res.redirect(
         client
           .buildEndSessionUrl(config, {
             client_id: process.env.REPL_ID!,
-            post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
+            post_logout_redirect_uri: `https://${domain}`,
           })
           .href,
       );
@@ -153,12 +164,13 @@ export async function setupReplitAuth(app: Express) {
   });
 
   app.get("/logout", (req, res) => {
+    const domain = getPublicDomain(req);
     req.logout(() => {
       res.redirect(
         client
           .buildEndSessionUrl(config, {
             client_id: process.env.REPL_ID!,
-            post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
+            post_logout_redirect_uri: `https://${domain}`,
           })
           .href,
       );
