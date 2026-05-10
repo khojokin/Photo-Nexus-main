@@ -5,7 +5,7 @@ import pinoHttp from "pino-http";
 import path from "path";
 import router from "./routes";
 import { logger } from "./lib/logger";
-import { authMiddleware } from "./middlewares/authMiddleware";
+import { setupReplitAuth } from "./replitAuth";
 
 const app: Express = express();
 
@@ -34,7 +34,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(authMiddleware);
+await setupReplitAuth(app);
 
 app.use("/uploads", express.static(path.resolve(process.cwd(), "public", "uploads")));
 app.use("/api", router);
