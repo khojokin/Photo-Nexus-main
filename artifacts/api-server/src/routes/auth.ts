@@ -54,7 +54,16 @@ router.post("/auth/demo-login", (req: Request, res: Response) => {
         res.status(500).json({ error: "Login failed" });
         return;
       }
-      res.json({ success: true });
+      res.json({
+        success: true,
+        user: {
+          id: demoId,
+          email: demoEmail,
+          firstName: demoFirstName,
+          lastName: demoLastName,
+          profileImageUrl: null,
+        },
+      });
     });
   })();
 });

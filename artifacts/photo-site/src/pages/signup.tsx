@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
+import type { AuthUser } from "@/contexts/auth-context";
 
 export function SignUp() {
-  const [, navigate] = useLocation();
-  const { refetch } = useAuth();
+  const { loginWithUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,8 +17,9 @@ export function SignUp() {
         credentials: "include",
       });
       if (res.ok) {
-        await refetch();
-        navigate("/");
+        const data = await res.json() as { success: boolean; user: AuthUser };
+        loginWithUser(data.user);
+        window.location.href = "/";
       } else {
         setError("Sign up failed. Please try again.");
         setLoading(false);
