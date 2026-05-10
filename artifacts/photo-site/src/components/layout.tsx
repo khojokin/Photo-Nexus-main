@@ -3,7 +3,7 @@ import { Link, useLocation, useLocation as useNav } from "wouter";
 import {
   Menu, X, LayoutDashboard, MessageSquare, Upload, User, Settings, Bell,
   LogOut, Activity, BookOpen, Layout as LayoutIcon, Sun, Shield, DollarSign,
-  Moon, Sunset, Lock, Telescope, Search, Tag, ArrowRight, ImageIcon,
+  Crown, Lock, Telescope, Search, Tag, ArrowRight, ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./notifications";
@@ -21,14 +21,14 @@ function applyTheme(t: Theme) {
 }
 
 const ThemeContext = createContext<{ theme: Theme; setTheme: (t: Theme) => void }>({
-  theme: "dark",
+  theme: "light",
   setTheme: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     const stored = localStorage.getItem(THEME_KEY) as Theme | null;
-    return stored ?? "dark";
+    return stored ?? "light";
   });
 
   useEffect(() => { applyTheme(theme); }, [theme]);
@@ -43,26 +43,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useTheme() { return useContext(ThemeContext); }
-
-function ThemeCycler() {
-  const { theme, setTheme } = useTheme();
-  const order: Theme[] = ["dark", "light", "sepia"];
-  const next = order[(order.indexOf(theme) + 1) % order.length];
-  const icons: Record<Theme, React.ElementType> = { dark: Moon, light: Sun, sepia: Sunset };
-  const labels: Record<Theme, string> = { dark: "Dark", light: "Light", sepia: "Sepia" };
-  const Icon = icons[theme];
-  return (
-    <button
-      onClick={() => setTheme(next)}
-      title={`Switch to ${labels[next]} mode`}
-      aria-label={`Current theme: ${labels[theme]}. Switch to ${labels[next]}.`}
-      className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border border-transparent hover:border-border/50 rounded-sm"
-    >
-      <Icon className="w-3.5 h-3.5" />
-      <span className="hidden lg:inline">{labels[theme]}</span>
-    </button>
-  );
-}
 
 // ─── Monetise qualification hook ──────────────────────────────────────────────
 const FOLLOWER_THRESHOLD = 1000;
@@ -592,14 +572,16 @@ const MENU_LINKS = [
 ];
 
 const ADMIN_LINK = { href: "/admin", label: "Admin Panel", icon: Shield };
-const MONETISE_LINK = { href: "/monetise", label: "Monetise", icon: DollarSign };
+const PREMIUM_LINK = { href: "/premium", label: "Premium", icon: Crown };
+const MONETISE_LINK = { href: "/monetise", label: "Monetisation", icon: DollarSign };
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { user, isLoading, logout } = useAuth();
+  const { user, isAdmin, isLoading, logout } = useAuth();
 
   const displayName = (() => {
     try { return JSON.parse(localStorage.getItem("affuaa_settings") ?? "{}").displayName ?? ""; }
@@ -607,8 +589,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   })();
 
   const { isQualified } = useMonetiseQualification(user ? displayName : "");
-  const isAdmin = localStorage.getItem("affuaa_admin_role") === "admin";
-
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -633,14 +613,35 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  const analyticsIndex = MENU_LINKS.findIndex((l) => l.href === "/dashboard");
+  const withMonetisation = [...MENU_LINKS];
+  if ((isQualified || isAdmin) && analyticsIndex >= 0) {
+    withMonetisation.splice(analyticsIndex + 1, 0, MONETISE_LINK);
+  }
+
   const menuLinks = [
-    ...MENU_LINKS,
-    ...(isQualified || isAdmin ? [MONETISE_LINK] : []),
-    ...(isAdmin ? [ADMIN_LINK] : [{ ...ADMIN_LINK, label: "Admin (locked)", icon: Lock }]),
+    PREMIUM_LINK,
+    ...withMonetisation,
+    ...(isAdmin ? [ADMIN_LINK] : []),
   ];
+
+  function handleSignOut() {
+    setIsSigningOut(true);
+    setTimeout(() => {
+      void logout();
+    }, 420);
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
+      {isSigningOut && (
+        <div className="fixed inset-0 z-[400] bg-background/90 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
+          <div className="text-center">
+            <p className="font-serif text-3xl mb-2 animate-pulse">Affuaa.</p>
+            <p className="text-sm text-muted-foreground">Signing out...</p>
+          </div>
+        </div>
+      )}
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 h-16 flex items-center gap-4">
 
@@ -676,8 +677,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2 flex-shrink-0">
             {/* Mobile search */}
             <MobileSearch />
-
-            <ThemeCycler />
 
             {!isLoading && (
               user ? (
@@ -733,30 +732,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <div className="p-2">
                           {menuLinks.map((l) => {
                             const Icon = l.icon;
-                            const isLocked = l.label.includes("(locked)");
                             return (
                               <Link
                                 key={l.href}
                                 href={l.href}
                                 className={cn(
                                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
-                                  isLocked
-                                    ? "text-muted-foreground/50 hover:text-muted-foreground"
-                                    : location === l.href
+                                  location === l.href
                                     ? "text-foreground bg-accent"
                                     : "text-muted-foreground hover:text-foreground hover:bg-accent"
                                 )}
                               >
                                 <Icon className="w-4 h-4 shrink-0" />
-                                {isLocked ? "Admin Panel" : l.label}
-                                {isLocked && <Lock className="w-3 h-3 ml-auto opacity-40" />}
+                                {l.label}
                               </Link>
                             );
                           })}
                         </div>
                         <div className="border-t border-border/60 p-2">
                           <button
-                            onClick={() => void logout()}
+                            onClick={handleSignOut}
                             className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                           >
                             <LogOut className="w-4 h-4 shrink-0" />
@@ -798,13 +793,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="text-center sm:text-left">
               <p className="font-serif text-2xl mb-1">Affuaa.</p>
               <p className="text-muted-foreground text-sm">Curated photography. Respect the craft.</p>
+              <p className="text-muted-foreground/70 text-xs mt-1">© {new Date().getFullYear()} Affuaa. All rights reserved.</p>
             </div>
             <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
               <Link href="/photos" className="hover:text-foreground transition-colors">Explore</Link>
               <Link href="/collections" className="hover:text-foreground transition-colors">Collections</Link>
-              <Link href="/challenges" className="hover:text-foreground transition-colors">Challenges</Link>
-              <Link href="/leaderboard" className="hover:text-foreground transition-colors">Leaderboard</Link>
-              <Link href="/activity" className="hover:text-foreground transition-colors">Activity</Link>
+              <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
+              <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
             </div>
           </div>
         </div>

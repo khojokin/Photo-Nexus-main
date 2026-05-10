@@ -206,7 +206,7 @@ function QualificationGate({ followers, views }: { followers: number; views: num
 
 // ─── Main Monetise Page ───────────────────────────────────────────────────────
 export function Monetise() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [tab, setTab] = useState<Tab>("overview");
   const [printSizes, setPrintSizes] = useState(PRINT_SIZES);
   const [commissions, setCommissions] = useState(COMMISSION_REQUESTS);
@@ -226,8 +226,6 @@ export function Monetise() {
     try { return JSON.parse(localStorage.getItem("affuaa_settings") ?? "{}").displayName ?? ""; }
     catch { return ""; }
   })();
-
-  const isAdmin = localStorage.getItem("affuaa_admin_role") === "admin";
 
   useEffect(() => {
     if (!user || isAdmin) { setQualLoading(false); return; }

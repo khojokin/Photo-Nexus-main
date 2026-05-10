@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 const SETTINGS_KEY = "affuaa_settings";
 
 interface ProfileSettings {
+  profileImageDataUrl: string;
   displayName: string;
   bio: string;
   location: string;
@@ -31,6 +32,7 @@ function loadSettings(): ProfileSettings {
     if (raw) {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       return {
+        profileImageDataUrl: (parsed.profileImageDataUrl as string) ?? "",
         displayName: (parsed.displayName as string) ?? "",
         bio: (parsed.bio as string) ?? "",
         location: (parsed.location as string) ?? "",
@@ -40,7 +42,7 @@ function loadSettings(): ProfileSettings {
       };
     }
   } catch { /* ignore */ }
-  return { displayName: "", bio: "", location: "", website: "", instagram: "", twitter: "" };
+  return { profileImageDataUrl: "", displayName: "", bio: "", location: "", website: "", instagram: "", twitter: "" };
 }
 
 const VERIFIED_PHOTOGRAPHERS = [
@@ -464,8 +466,18 @@ export function Profile() {
         <div className="container mx-auto px-4 py-16 max-w-5xl">
           <div className="flex items-start gap-8">
             <div className="w-24 h-24 rounded-full flex items-center justify-center text-4xl font-serif flex-shrink-0 border-2 border-border relative overflow-hidden">
-              <div className={cn("absolute inset-0", avatarColor(displayName))} />
-              <span className="relative z-10 text-white drop-shadow">{initial}</span>
+              {isOwnProfile && settings.profileImageDataUrl ? (
+                <img
+                  src={settings.profileImageDataUrl}
+                  alt={`${displayName} profile`}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              ) : (
+                <>
+                  <div className={cn("absolute inset-0", avatarColor(displayName))} />
+                  <span className="relative z-10 text-white drop-shadow">{initial}</span>
+                </>
+              )}
             </div>
 
             <div className="flex-1 min-w-0">

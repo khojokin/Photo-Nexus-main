@@ -1,12 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
+import { useTheme } from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Check, User, Bell, Palette, Shield, ChevronRight, Instagram, Twitter, Download as DownloadIcon, Camera } from "lucide-react";
+import { Check, User, Bell, Palette, Shield, ChevronRight, Instagram, Twitter, Download as DownloadIcon, Camera, LifeBuoy, Mail, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SETTINGS_KEY = "affuaa_settings";
 
 interface Settings {
+  profileImageDataUrl: string;
   displayName: string;
   bio: string;
   location: string;
@@ -29,6 +31,7 @@ interface Settings {
 }
 
 const defaultSettings: Settings = {
+  profileImageDataUrl: "",
   displayName: "",
   bio: "",
   location: "",
@@ -62,13 +65,14 @@ function saveSettings(s: Settings) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
 }
 
-type Section = "profile" | "notifications" | "appearance" | "privacy";
+type Section = "profile" | "notifications" | "appearance" | "privacy" | "support";
 
 const sections: { id: Section; label: string; icon: React.ElementType; desc: string }[] = [
   { id: "profile", label: "Profile", icon: User, desc: "Your public display name, bio, and social links" },
   { id: "notifications", label: "Notifications", icon: Bell, desc: "What you get notified about" },
   { id: "appearance", label: "Appearance", icon: Palette, desc: "Display and layout preferences" },
   { id: "privacy", label: "Privacy", icon: Shield, desc: "Visibility and data controls" },
+  { id: "support", label: "Help & Support", icon: LifeBuoy, desc: "Get help, report issues, and contact support" },
 ];
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -96,6 +100,9 @@ export function Settings() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [active, setActive] = useState<Section>("profile");
   const [saved, setSaved] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { theme, setTheme } = useTheme();
 
   function update<K extends keyof Settings>(key: K, value: Settings[K]) {
     setSettings((s) => ({ ...s, [key]: value }));
@@ -106,6 +113,44 @@ export function Settings() {
     saveSettings(settings);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+  }
+
+  function handleChooseProfileImage() {
+    fileInputRef.current?.click();
+  }
+
+  function handleProfileImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadError(null);
+
+    if (!file.type.startsWith("image/")) {
+      setUploadError("Please select an image file.");
+      e.currentTarget.value = "";
+      return;
+    }
+
+    const maxBytes = 3 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setUploadError("Image is too large. Please use a file under 3MB.");
+      e.currentTarget.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      if (!result) {
+        setUploadError("Could not read image. Please try another file.");
+        return;
+      }
+      update("profileImageDataUrl", result);
+    };
+    reader.onerror = () => {
+      setUploadError("Could not read image. Please try another file.");
+    };
+    reader.readAsDataURL(file);
+    e.currentTarget.value = "";
   }
 
   useEffect(() => {
@@ -157,6 +202,47 @@ export function Settings() {
             <div className="p-6 space-y-6">
               {active === "profile" && (
                 <>
+                  <Field label="Profile Picture" hint="Upload a photo to use on your profile">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfileImageChange}
+                      className="hidden"
+                    />
+
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-full border border-border overflow-hidden bg-muted/40 flex items-center justify-center">
+                        {settings.profileImageDataUrl ? (
+                          <img
+                            src={settings.profileImageDataUrl}
+                            alt="Profile preview"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <User className="w-6 h-6 text-muted-foreground" />
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button type="button" variant="outline" onClick={handleChooseProfileImage}>
+                          Upload picture
+                        </Button>
+                        {settings.profileImageDataUrl && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => update("profileImageDataUrl", "")}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {uploadError && <p className="text-xs text-red-400 mt-2">{uploadError}</p>}
+                  </Field>
+
                   <Field label="Display Name" hint="Used in comments, messages, and your public profile URL">
                     <input
                       type="text"
@@ -329,6 +415,30 @@ export function Settings() {
 
               {active === "appearance" && (
                 <>
+                  <Field label="Theme" hint="Choose your viewing mode">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {([
+                        { key: "light", label: "Light", desc: "Clean daylight look" },
+                        { key: "dark", label: "Dark", desc: "Focused low-light look" },
+                        { key: "sepia", label: "Sepia", desc: "Warm editorial look" },
+                      ] as const).map((option) => (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => setTheme(option.key)}
+                          className={cn(
+                            "border px-3 py-3 text-left transition-colors",
+                            theme === option.key
+                              ? "border-foreground bg-muted"
+                              : "border-border hover:border-foreground/50"
+                          )}
+                        >
+                          <p className="text-sm font-medium">{option.label}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{option.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </Field>
                   <ToggleRow
                     label="Compact view"
                     desc="Show smaller photo cards in the gallery"
@@ -352,9 +462,6 @@ export function Settings() {
                       <span className="font-mono text-sm text-muted-foreground">{settings.accentColor.toUpperCase()}</span>
                     </div>
                   </Field>
-                  <div className="border border-border/50 bg-muted/20 px-5 py-4 text-sm text-muted-foreground">
-                    Affuaa uses a dark, cinema-inspired theme. Light mode coming soon.
-                  </div>
                 </>
               )}
 
@@ -396,6 +503,41 @@ export function Settings() {
                       <DownloadIcon className="w-4 h-4" />
                       Export my data
                     </button>
+                  </div>
+                </>
+              )}
+
+              {active === "support" && (
+                <>
+                  <div className="space-y-4 text-sm">
+                    <div className="border border-border px-5 py-4 space-y-2">
+                      <p className="font-medium">Need help quickly?</p>
+                      <p className="text-muted-foreground">Visit Notifications for account activity, message alerts, and recent updates.</p>
+                      <a
+                        href="/notifications"
+                        className="inline-flex items-center gap-2 text-sm text-foreground hover:opacity-80 transition-opacity"
+                      >
+                        Open Notifications
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+
+                    <div className="border border-border px-5 py-4 space-y-2">
+                      <p className="font-medium">Contact Support</p>
+                      <p className="text-muted-foreground">For account, billing, or upload issues, email us and we will respond as soon as possible.</p>
+                      <a
+                        href="mailto:support@affuaa.com?subject=Affuaa%20Support%20Request"
+                        className="inline-flex items-center gap-2 text-sm text-foreground hover:opacity-80 transition-opacity"
+                      >
+                        <Mail className="w-4 h-4" />
+                        support@affuaa.com
+                      </a>
+                    </div>
+
+                    <div className="border border-border px-5 py-4 space-y-1">
+                      <p className="font-medium">Report a bug</p>
+                      <p className="text-muted-foreground">Please include your browser, device, and what action caused the issue.</p>
+                    </div>
                   </div>
                 </>
               )}

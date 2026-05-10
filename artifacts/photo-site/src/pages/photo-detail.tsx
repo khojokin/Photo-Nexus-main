@@ -21,6 +21,7 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
+import { useSubscription } from "@/hooks/use-subscription";
 
 const REACTION_EMOJIS = ["❤️", "🔥", "✨", "😮", "🎉"];
 
@@ -593,6 +594,8 @@ export function PhotoDetail() {
   const [copied, setCopied] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const { isAdmin } = useAuth();
+  const { isPremium } = useSubscription();
 
   const { data: photo, isLoading } = useGetPhoto(photoId, {
     query: { enabled: !!photoId, queryKey: getGetPhotoQueryKey(photoId) }
@@ -617,6 +620,10 @@ export function PhotoDetail() {
 
   const handleDownload = () => {
     if (!photo) return;
+    if (!isPremium && !isAdmin) {
+      window.location.href = "/premium";
+      return;
+    }
     downloadMutation.mutate({ id: photo.id }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetPhotoQueryKey(photo.id) });
@@ -822,9 +829,10 @@ export function PhotoDetail() {
                 </Button>
                 <Button onClick={handleDownload} disabled={downloadMutation.isPending} className="rounded-none h-12 bg-transparent text-foreground border border-border hover:bg-accent transition-all">
                   <Download className="w-4 h-4 mr-2" />
-                  Download
+                  {isPremium || isAdmin ? "Download" : "Premium Download"}
                 </Button>
               </div>
+              {!isPremium && !isAdmin && <p className="text-xs text-muted-foreground mt-2">HD downloads are available on Premium.</p>}
 
               <div className="mt-3 space-y-2">
                 <SaveToCollectionButton photoId={photoId} />

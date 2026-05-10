@@ -5,12 +5,16 @@ import {
   useEffect,
   useState,
 } from "react";
-import { useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { useAuth as useClerkAuth, useUser as useClerkUser } from "@clerk/clerk-react";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
+
+const ADMIN_EMAILS = new Set(["kingsfordkojo7@gmail.com"]);
+const ADMIN_USERNAMES = new Set(["kingsfordkojo7", "kingsfordkojo"]);
 
 export interface AuthUser {
   id: string;
   email: string | null;
+  username?: string | null;
   firstName: string | null;
   lastName: string | null;
   profileImageUrl: string | null;
@@ -18,6 +22,7 @@ export interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null;
+  isAdmin: boolean;
   isLoading: boolean;
   isAuthenticated: boolean;
   refetch: () => Promise<void>;
@@ -31,8 +36,9 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const { isLoaded, isSignedIn, getToken, signOut } = useClerkAuth();
+  const { user: clerkUser } = useClerkUser();
 
   useEffect(() => {
     setAuthTokenGetter(async () => (await getToken()) ?? null);
@@ -43,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUser = useCallback(async () => {
     if (!isLoaded) {
+      setIsLoading(true);
       return;
     }
 
@@ -50,6 +57,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setIsLoading(false);
       return;
+    }
+
+    const fallbackUser: AuthUser | null = clerkUser
+      ? {
+          id: clerkUser.id,
+          email: clerkUser.primaryEmailAddress?.emailAddress ?? null,
+          username: clerkUser.username ?? null,
+          firstName: clerkUser.firstName ?? null,
+          lastName: clerkUser.lastName ?? null,
+          profileImageUrl: clerkUser.imageUrl ?? null,
+        }
+      : null;
+
+    if (fallbackUser) {
+      setUser(fallbackUser);
     }
 
     setIsLoading(true);
@@ -64,20 +86,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       if (res.ok) {
         const data = await res.json();
-        setUser(data.user ?? null);
+        const apiUser = (data.user ?? null) as Partial<AuthUser> | null;
+        if (apiUser) {
+          setUser({
+            id: apiUser.id ?? fallbackUser?.id ?? "",
+            email: apiUser.email ?? fallbackUser?.email ?? null,
+            username: apiUser.username ?? fallbackUser?.username ?? null,
+            firstName: apiUser.firstName ?? fallbackUser?.firstName ?? null,
+            lastName: apiUser.lastName ?? fallbackUser?.lastName ?? null,
+            profileImageUrl: apiUser.profileImageUrl ?? fallbackUser?.profileImageUrl ?? null,
+          });
+        } else {
+          setUser(fallbackUser);
+        }
       } else {
-        setUser(null);
+        setUser(fallbackUser);
       }
     } catch {
-      setUser(null);
+      setUser(fallbackUser);
     } finally {
       setIsLoading(false);
     }
-  }, [getToken, isLoaded, isSignedIn]);
+  }, [clerkUser, getToken, isLoaded, isSignedIn]);
+
+  const userEmail = user?.email?.toLowerCase() ?? "";
+  const userUsername = user?.username?.toLowerCase() ?? "";
+  const isAdmin = ADMIN_EMAILS.has(userEmail) || ADMIN_USERNAMES.has(userUsername);
 
   useEffect(() => {
     void fetchUser();
   }, [fetchUser]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      localStorage.setItem("affuaa_admin_role", "admin");
+      return;
+    }
+    localStorage.removeItem("affuaa_admin_role");
+  }, [isAdmin]);
 
   const authFetch = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -113,8 +159,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        isAdmin,
         isLoading,
-        isAuthenticated: user !== null,
+        isAuthenticated: (isLoaded && isSignedIn) === true,
         refetch: fetchUser,
         logout,
         login,

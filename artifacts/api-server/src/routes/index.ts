@@ -20,6 +20,7 @@ import userprofileRouter from "./userprofile";
 import photoofdayRouter from "./photoofday";
 import recommendationsRouter from "./recommendations";
 import analyticsRouter from "./analytics";
+import subscriptionRouter from "./subscription";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(activityRouter);
 router.use(userprofileRouter);
 router.use(photoofdayRouter);
 router.use(analyticsRouter);
+router.use(subscriptionRouter);
 
 export default router;

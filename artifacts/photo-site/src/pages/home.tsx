@@ -87,10 +87,10 @@ export function Home() {
 
         <div className="container relative z-10 mx-auto px-4 py-32 text-center max-w-4xl">
           <h1 className="text-5xl md:text-7xl font-serif mb-6 leading-tight">
-            The world's most <br /> <span className="italic text-white/80">curated</span> photography.
+            Exceptional photography <br /> for serious creatives.
           </h1>
           <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto font-light">
-            No algorithms. No noise. Just extraordinary images carefully selected for those who care about the craft.
+            A focused platform for high-quality visual storytelling, selected with editorial discipline for modern creators.
           </p>
           <div className="flex items-center justify-center gap-4">
             <Link

@@ -33,6 +33,8 @@ import { Admin } from "@/pages/admin";
 import { EmbedPhoto } from "@/pages/embed";
 import { Monetise } from "@/pages/monetise";
 import { Discover } from "@/pages/discover";
+import PremiumPage from "@/pages/premium";
+import { CheckoutPage } from "@/pages/checkout";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -72,6 +74,8 @@ function Router() {
       <Route path="/admin" component={Admin} />
       <Route path="/embed/:id" component={EmbedPhoto} />
       <Route path="/monetise" component={Monetise} />
+      <Route path="/premium" component={PremiumPage} />
+      <Route path="/checkout" component={CheckoutPage} />
       <Route path="/discover" component={Discover} />
       <Route component={NotFound} />
     </Switch>

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
+import { useSubscription } from "@/hooks/use-subscription";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -132,7 +133,9 @@ function xhrUpload(
 
 export function Upload() {
   const [, navigate] = useLocation();
-  const { authFetch } = useAuth();
+  const { authFetch, isAdmin } = useAuth();
+  const { isPremium } = useSubscription();
+  const hasPremiumAccess = isPremium || isAdmin;
   const defaultName = loadDefaultName();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -378,6 +381,7 @@ export function Upload() {
               <QueueCard
                 key={item.id}
                 item={item}
+                isPremium={hasPremiumAccess}
                 onUpdate={(patch) => updateItem(item.id, patch)}
                 onRemove={() => {
                   URL.revokeObjectURL(item.previewUrl);
@@ -398,13 +402,14 @@ export function Upload() {
 
 interface QueueCardProps {
   item: QueueItem;
+  isPremium: boolean;
   onUpdate: (patch: Partial<QueueItem>) => void;
   onRemove: () => void;
   onPublish: () => void;
   onRetry: () => void;
 }
 
-function QueueCard({ item, onUpdate, onRemove, onPublish, onRetry }: QueueCardProps) {
+function QueueCard({ item, isPremium, onUpdate, onRemove, onPublish, onRetry }: QueueCardProps) {
   const canPublish =
     item.status === "ready" &&
     item.title.trim() !== "" &&
@@ -722,7 +727,7 @@ function QueueCard({ item, onUpdate, onRemove, onPublish, onRetry }: QueueCardPr
                   type="checkbox"
                   checked={item.isFeatured}
                   onChange={(e) => onUpdate({ isFeatured: e.target.checked })}
-                  disabled={item.status === "publishing"}
+                  disabled={item.status === "publishing" || !isPremium}
                   className="w-3.5 h-3.5 accent-foreground"
                 />
                 Nominate for featured
@@ -738,6 +743,10 @@ function QueueCard({ item, onUpdate, onRemove, onPublish, onRetry }: QueueCardPr
                 Content warning
               </label>
             </div>
+
+            {!isPremium && (
+              <p className="text-xs text-muted-foreground">Featured nomination is available on Premium.</p>
+            )}
 
             <div className="flex items-center gap-3">
               {item.errorMsg && item.status === "ready" && (

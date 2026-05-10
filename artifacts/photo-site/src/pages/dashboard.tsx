@@ -2,6 +2,9 @@ import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { useGetSiteSummary, useGetTrendingPhotos, useListPhotos, useListTags } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { useSubscription } from "@/hooks/use-subscription";
+import { useAuth } from "@/contexts/auth-context";
 import { Heart, Download, Camera, LayoutGrid, TrendingUp, Tag, Clock, Award } from "lucide-react";
 import { format } from "date-fns";
 
@@ -23,6 +26,8 @@ function StatCard({ icon: Icon, label, value, sub }: { icon: React.ElementType; 
 }
 
 export function Dashboard() {
+  const { isAdmin } = useAuth();
+  const { isPremium, isLoading } = useSubscription();
   const { data: summary } = useGetSiteSummary();
   const { data: trending } = useGetTrendingPhotos();
   const { data: latest } = useListPhotos({ sort: "latest", limit: 5 });
@@ -53,6 +58,24 @@ export function Dashboard() {
   })();
 
   const maxTagCount = Array.isArray(tags) && tags.length > 0 ? tags[0].photoCount : 1;
+
+  if (!isLoading && !isPremium && !isAdmin) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-20 max-w-3xl">
+          <div className="border border-border bg-card p-8 sm:p-10">
+            <h1 className="text-3xl font-serif mb-3">Premium Analytics</h1>
+            <p className="text-sm text-muted-foreground mb-6">
+              Advanced insights are available on Premium. Upgrade to unlock trending intelligence, top creator rankings, and deeper platform metrics.
+            </p>
+            <Button asChild className="rounded-none">
+              <Link href="/premium">Upgrade to Premium</Link>
+            </Button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>

@@ -349,8 +349,14 @@ function MiniBar({ value, max, color = "bg-foreground/40" }: { value: number; ma
 }
 
 export function Admin() {
-  const { user, loginAsDemo } = useAuth();
+  const { user, isAdmin, isLoading, isAuthenticated, loginAsDemo } = useAuth();
   const [authed, setAuthed] = useState(() => hasAdminSession());
+    useEffect(() => {
+      if (isAdmin && !authed) {
+        setAuthed(true);
+      }
+    }, [authed, isAdmin]);
+
   const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
   const [section, setSection] = useState<Section>("dashboard");
   const [reports, setReports] = useState<RealReport[]>([]);
@@ -498,7 +504,18 @@ export function Admin() {
     }
   }
 
-  if (!user) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Shield className="w-10 h-10 mx-auto mb-4 opacity-20 animate-pulse" />
+          <p className="text-sm text-muted-foreground">Checking your session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -517,7 +534,20 @@ export function Admin() {
     );
   }
 
-  if (!authed) {
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md px-4">
+          <Shield className="w-12 h-12 mx-auto mb-4 opacity-20" />
+          <p className="font-serif text-2xl mb-2">Admin access required</p>
+          <p className="text-muted-foreground text-sm mb-6">Your account does not have admin privileges.</p>
+          <Link href="/" className="px-4 py-2 border border-border text-sm text-muted-foreground hover:text-foreground transition-colors">Go home</Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authed && !isAdmin) {
     return <PinGate onAuth={() => setAuthed(true)} />;
   }
 
@@ -577,7 +607,9 @@ export function Admin() {
         <div className="px-5 py-4 border-t border-border space-y-3">
           <div>
             <p className="text-xs text-muted-foreground">Signed in as</p>
-            <p className="text-sm font-medium mt-0.5 truncate">{user.firstName} {user.lastName}</p>
+            <p className="text-sm font-medium mt-0.5 truncate">
+              {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || "Admin"}
+            </p>
             <Link href="/" className="text-xs text-muted-foreground hover:text-foreground mt-1 flex items-center gap-1">
               <ExternalLink className="w-3 h-3" /> View site
             </Link>
