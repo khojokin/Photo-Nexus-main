@@ -12,8 +12,29 @@ import {
 } from "@workspace/api-client-react";
 import type { Photo } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sun, ArrowRight } from "lucide-react";
+import { Sun, ArrowRight, ArrowUpRight, Camera, Download, Heart, LayoutGrid } from "lucide-react";
 import { format } from "date-fns";
+
+function AnimatedNumber({ value }: { value: number | undefined }) {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    if (value === undefined) return;
+    const start = 0;
+    const end = value;
+    const duration = 1200;
+    const step = 16;
+    const increment = (end - start) / (duration / step);
+    let current = start;
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= end) { setDisplay(end); clearInterval(timer); }
+      else setDisplay(Math.floor(current));
+    }, step);
+    return () => clearInterval(timer);
+  }, [value]);
+  if (value === undefined) return <Skeleton className="h-10 w-20 inline-block" />;
+  return <span>{display.toLocaleString()}</span>;
+}
 
 function PhotoOfDayBanner() {
   const [photo, setPhoto] = useState<Photo | null>(null);
@@ -30,25 +51,53 @@ function PhotoOfDayBanner() {
   if (loading || !photo) return null;
 
   return (
-    <section className="border-y border-border/50 bg-muted/10 py-12">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center gap-3 mb-6">
-          <Sun className="w-4 h-4 text-yellow-400" />
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">Photo of the Day · {format(new Date(), "MMMM d, yyyy")}</p>
+    <section className="border-y border-border/50 bg-muted/5">
+      <div className="container mx-auto px-4 py-14">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            Photo of the Day &nbsp;·&nbsp; {format(new Date(), "MMMM d, yyyy")}
+          </p>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-          <Link href={`/photos/${photo.id}`} className="block overflow-hidden group">
-            <img src={photo.imageUrl} alt={photo.title} className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500" />
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-0 border border-border overflow-hidden">
+          <Link href={`/photos/${photo.id}`} className="block lg:col-span-3 overflow-hidden group relative">
+            <img
+              src={photo.imageUrl}
+              alt={photo.title}
+              className="w-full h-72 lg:h-full object-cover group-hover:scale-103 transition-transform duration-700"
+              style={{ minHeight: "320px" }}
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-500" />
           </Link>
-          <div>
-            <h2 className="text-3xl font-serif mb-3">{photo.title}</h2>
-            {photo.description && <p className="text-muted-foreground mb-4">{photo.description}</p>}
-            <Link href={`/profile/${encodeURIComponent(photo.photographerName)}`} className="text-sm text-muted-foreground hover:text-foreground transition-colors block mb-6">
-              {photo.photographerName}
-            </Link>
-            <Link href="/photo-of-the-day" className="inline-flex items-center gap-2 text-sm border-b border-primary pb-1 hover:opacity-70 transition-opacity">
-              Full story <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+          <div className="lg:col-span-2 flex flex-col justify-between p-8 bg-card border-l border-border">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4">Selected Work</p>
+              <h2 className="text-3xl font-serif mb-4 leading-snug">{photo.title}</h2>
+              {photo.description && (
+                <p className="text-sm text-muted-foreground leading-relaxed mb-6">{photo.description}</p>
+              )}
+              <Link
+                href={`/profile/${encodeURIComponent(photo.photographerName)}`}
+                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs">
+                  {photo.photographerName.charAt(0)}
+                </div>
+                {photo.photographerName}
+              </Link>
+            </div>
+            <div className="flex items-center justify-between pt-6 border-t border-border mt-6">
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5"><Heart className="w-3.5 h-3.5" />{photo.likes}</span>
+                <span className="flex items-center gap-1.5"><Download className="w-3.5 h-3.5" />{photo.downloads}</span>
+              </div>
+              <Link
+                href={`/photos/${photo.id}`}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors group"
+              >
+                View photo <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -64,6 +113,7 @@ export function Home() {
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const trendingPhotos: Photo[] = Array.isArray(trending) ? trending : [];
+  const featuredList: Photo[] = Array.isArray(featured) ? featured : [];
 
   function openLightbox(photo: Photo) {
     const idx = trendingPhotos.findIndex((p) => p.id === photo.id);
@@ -72,134 +122,185 @@ export function Home() {
 
   return (
     <Layout>
-      {/* Hero Section */}
-      <section className="relative min-h-[80vh] flex items-center justify-center overflow-hidden">
-        {Array.isArray(featured) && featured.length > 0 && (
+      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      <section className="relative min-h-[90vh] flex items-end overflow-hidden">
+        {/* Background image */}
+        {!loadingFeatured && featuredList.length > 0 ? (
           <div className="absolute inset-0 z-0">
             <img
-              src={featured[0].imageUrl}
+              src={featuredList[0].imageUrl}
               alt="Featured cover"
-              className="w-full h-full object-cover opacity-40 mix-blend-overlay"
+              className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-background/10 via-background/50 to-background" />
-          </div>
-        )}
-
-        <div className="container relative z-10 mx-auto px-4 py-32 text-center max-w-4xl">
-          <h1 className="text-5xl md:text-7xl font-serif mb-6 leading-tight">
-            Exceptional photography <br /> for serious creatives.
-          </h1>
-          <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto font-light">
-            A focused platform for high-quality visual storytelling, selected with editorial discipline for modern creators.
-          </p>
-          <div className="flex items-center justify-center gap-4">
-            <Link
-              href="/photos"
-              className="inline-flex h-12 items-center justify-center bg-primary px-8 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors rounded-none"
-              data-testid="link-hero-explore"
-            >
-              Explore Gallery
-            </Link>
-            <Link
-              href="/collections"
-              className="inline-flex h-12 items-center justify-center border border-input bg-transparent px-8 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors rounded-none"
-              data-testid="link-hero-collections"
-            >
-              View Collections
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Strip */}
-      <section className="border-y border-border/50 bg-muted/20 py-12">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            {loadingSummary ? (
-              Array(4).fill(0).map((_, i) => (
-                <div key={i} className="flex flex-col items-center space-y-2">
-                  <Skeleton className="h-10 w-24" />
-                  <Skeleton className="h-4 w-16" />
-                </div>
-              ))
-            ) : (
-              <>
-                <div>
-                  <p className="text-4xl font-serif mb-2">{summary?.totalPhotos}</p>
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest">Photographs</p>
-                </div>
-                <div>
-                  <p className="text-4xl font-serif mb-2">{summary?.totalCollections}</p>
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest">Collections</p>
-                </div>
-                <div>
-                  <p className="text-4xl font-serif mb-2">{summary?.totalLikes}</p>
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest">Appreciations</p>
-                </div>
-                <div>
-                  <p className="text-4xl font-serif mb-2">{summary?.totalDownloads}</p>
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest">Downloads</p>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Photo of the Day */}
-      <PhotoOfDayBanner />
-
-      {/* Trending Section */}
-      <section className="py-24 container mx-auto px-4">
-        <div className="flex items-end justify-between mb-12">
-          <div>
-            <h2 className="text-3xl font-serif mb-2">Trending Now</h2>
-            <p className="text-muted-foreground">The work resonating with our community today.</p>
-          </div>
-          <Link href="/photos" className="text-sm border-b border-primary pb-1 hover:text-muted-foreground transition-colors">
-            View all
-          </Link>
-        </div>
-
-        {loadingTrending ? (
-          <div className="masonry-grid">
-            {Array(6).fill(0).map((_, i) => (
-              <div key={i} className="masonry-item">
-                <Skeleton className="w-full h-[300px]" />
-              </div>
-            ))}
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/10" />
           </div>
         ) : (
-          <div className="masonry-grid">
-            {trendingPhotos.map((photo) => (
-              <div key={photo.id} className="masonry-item">
-                <PhotoCard photo={photo} onOpen={openLightbox} />
+          <div className="absolute inset-0 z-0 bg-gradient-to-br from-muted/30 via-background to-background" />
+        )}
+
+        {/* Hero content — bottom-aligned editorial style */}
+        <div className="container relative z-10 mx-auto px-4 pb-20 pt-48 max-w-6xl w-full">
+          <div className="max-w-3xl">
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-6">
+              Gallery-quality curation &nbsp;·&nbsp; Since 2024
+            </p>
+            <h1 className="text-5xl md:text-7xl font-serif mb-8 leading-[1.05] tracking-tight">
+              Photography
+              <br />
+              <span className="text-muted-foreground/70 italic">worth looking at.</span>
+            </h1>
+            <p className="text-base text-muted-foreground mb-10 max-w-xl font-light leading-relaxed">
+              Affuaa is a curated platform for photographers who take the craft seriously —
+              darkroom-inspired, editorial in spirit, uncompromising in quality.
+            </p>
+            <div className="flex items-center gap-4 flex-wrap">
+              <Link
+                href="/photos"
+                className="inline-flex h-12 items-center justify-center bg-foreground text-background px-8 text-sm font-medium hover:opacity-90 transition-opacity"
+                data-testid="link-hero-explore"
+              >
+                Explore Gallery
+              </Link>
+              <Link
+                href="/collections"
+                className="inline-flex h-12 items-center justify-center border border-border/60 bg-transparent px-8 text-sm font-medium hover:border-border transition-colors"
+                data-testid="link-hero-collections"
+              >
+                View Collections
+              </Link>
+            </div>
+          </div>
+
+          {/* Featured row — bottom right */}
+          {featuredList.length > 1 && (
+            <div className="hidden lg:flex items-end gap-2 absolute right-4 bottom-20">
+              {featuredList.slice(1, 4).map((photo, i) => (
+                <Link key={photo.id} href={`/photos/${photo.id}`} className="group relative overflow-hidden border border-border/30">
+                  <img
+                    src={photo.imageUrl}
+                    alt={photo.title}
+                    className="w-24 h-16 object-cover group-hover:scale-105 transition-transform duration-500 opacity-60 group-hover:opacity-100"
+                  />
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Stats Strip ──────────────────────────────────────────────────── */}
+      <section className="border-y border-border/40 bg-card/50">
+        <div className="container mx-auto px-4 py-10">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-border/40">
+            {[
+              { icon: Camera,      value: summary?.totalPhotos,      label: "Photographs" },
+              { icon: LayoutGrid,  value: summary?.totalCollections, label: "Collections" },
+              { icon: Heart,       value: summary?.totalLikes,        label: "Appreciations" },
+              { icon: Download,    value: summary?.totalDownloads,    label: "Downloads" },
+            ].map(({ icon: Icon, value, label }) => (
+              <div key={label} className="flex flex-col items-center py-4 px-6 gap-2 text-center">
+                <Icon className="w-4 h-4 text-muted-foreground/60 mb-1" />
+                <div className="text-3xl font-serif">
+                  {loadingSummary ? <Skeleton className="h-9 w-20" /> : <AnimatedNumber value={value} />}
+                </div>
+                <div className="text-xs text-muted-foreground uppercase tracking-widest">{label}</div>
               </div>
             ))}
           </div>
-        )}
+        </div>
       </section>
 
-      {/* Collections Preview */}
-      <section className="py-24 bg-muted/10 border-t border-border">
+      {/* ── Photo of the Day ─────────────────────────────────────────────── */}
+      <PhotoOfDayBanner />
+
+      {/* ── Trending ─────────────────────────────────────────────────────── */}
+      <section className="py-24">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-serif mb-4">Curated Collections</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">
-              Thematic explorations of light, subject, and form.
-            </p>
+          <div className="flex items-end justify-between mb-12">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">Community Picks</p>
+              <h2 className="text-4xl font-serif">Trending Now</h2>
+            </div>
+            <Link
+              href="/photos"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group mb-1"
+            >
+              View all <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {loadingCollections ? (
-              Array(3).fill(0).map((_, i) => (
-                <Skeleton key={i} className="h-[400px] w-full" />
-              ))
-            ) : (
-              Array.isArray(collections) &&
-              collections.slice(0, 3).map((collection) => (
+          {loadingTrending ? (
+            <div className="masonry-grid">
+              {Array(6).fill(0).map((_, i) => (
+                <div key={i} className="masonry-item">
+                  <Skeleton className="w-full h-[300px]" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="masonry-grid">
+              {trendingPhotos.map((photo) => (
+                <div key={photo.id} className="masonry-item">
+                  <PhotoCard photo={photo} onOpen={openLightbox} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Editorial strip ──────────────────────────────────────────────── */}
+      <section className="border-y border-border/40 bg-muted/5 py-16">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-border/30">
+            {[
+              {
+                heading: "Curated, not crowded.",
+                body: "Every photo on Affuaa passes an editorial review. We prioritise quality over volume — fewer, better images.",
+              },
+              {
+                heading: "Darkroom aesthetic.",
+                body: "Built for photographers who grew up in the darkroom or wish they had. Minimal UI, maximum focus on the image.",
+              },
+              {
+                heading: "Your work, your terms.",
+                body: "Set your own license, sell prints, accept commissions. Affuaa gives you the tools without taking over your creative voice.",
+              },
+            ].map(({ heading, body }) => (
+              <div key={heading} className="bg-background p-8">
+                <h3 className="font-serif text-xl mb-3">{heading}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Collections Preview ──────────────────────────────────────────── */}
+      <section className="py-24">
+        <div className="container mx-auto px-4">
+          <div className="flex items-end justify-between mb-12">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">Thematic Galleries</p>
+              <h2 className="text-4xl font-serif">Curated Collections</h2>
+            </div>
+            <Link
+              href="/collections"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group mb-1"
+            >
+              All collections <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+          </div>
+
+          {loadingCollections ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-[400px] w-full" />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {Array.isArray(collections) && collections.slice(0, 3).map((collection, i) => (
                 <Link key={collection.id} href={`/collections/${collection.id}`} className="group block">
-                  <div className="relative h-[400px] mb-4 overflow-hidden bg-muted">
+                  <div className={`relative overflow-hidden bg-muted mb-4 ${i === 1 ? "h-[480px]" : "h-[380px]"}`}>
                     {collection.coverImageUrl && (
                       <img
                         src={collection.coverImageUrl}
@@ -207,28 +308,52 @@ export function Home() {
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                       />
                     )}
-                    <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors duration-500" />
+                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/5 transition-colors duration-500" />
+                    <div className="absolute bottom-4 left-4">
+                      <span className="text-xs text-white/70 uppercase tracking-widest bg-black/30 px-2 py-1">
+                        {collection.photoCount} photographs
+                      </span>
+                    </div>
                   </div>
-                  <h3 className="text-xl font-serif group-hover:text-primary/80 transition-colors">{collection.name}</h3>
-                  <p className="text-sm text-muted-foreground mt-2">{collection.photoCount} photographs</p>
+                  <h3 className="text-lg font-serif group-hover:text-muted-foreground transition-colors">{collection.name}</h3>
                 </Link>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
-          <div className="mt-16 text-center">
+      {/* ── For You ──────────────────────────────────────────────────────── */}
+      <div className="border-t border-border/40">
+        <ForYouSection />
+      </div>
+
+      {/* ── CTA ──────────────────────────────────────────────────────────── */}
+      <section className="py-24 border-t border-border/40">
+        <div className="container mx-auto px-4 text-center max-w-2xl">
+          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-6">Join the community</p>
+          <h2 className="text-4xl font-serif mb-6 leading-snug">
+            Your best work<br />deserves a proper home.
+          </h2>
+          <p className="text-sm text-muted-foreground mb-10 leading-relaxed max-w-lg mx-auto">
+            Upload your photography, reach an audience that cares, and — when you're ready — turn your craft into income.
+          </p>
+          <div className="flex items-center justify-center gap-4">
             <Link
-              href="/collections"
-              className="inline-flex items-center justify-center border border-input bg-transparent px-8 py-3 text-sm font-medium hover:bg-accent transition-colors rounded-none"
+              href="/signup"
+              className="inline-flex h-12 items-center justify-center bg-foreground text-background px-10 text-sm font-medium hover:opacity-90 transition-opacity"
             >
-              Explore All Collections
+              Start for free
+            </Link>
+            <Link
+              href="/photos"
+              className="inline-flex h-12 items-center justify-center border border-border px-10 text-sm font-medium hover:border-foreground/40 transition-colors"
+            >
+              Browse gallery
             </Link>
           </div>
         </div>
       </section>
-
-      {/* For You Section */}
-      <ForYouSection />
 
       {lightboxIndex !== null && trendingPhotos.length > 0 && (
         <Lightbox

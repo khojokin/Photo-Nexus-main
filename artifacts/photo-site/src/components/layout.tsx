@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, createContext, useContext, useCallback } f
 import { Link, useLocation, useLocation as useNav } from "wouter";
 import {
   Menu, X, LayoutDashboard, MessageSquare, Upload, User, Settings, Bell,
-  LogOut, Activity, BookOpen, Layout as LayoutIcon, Sun, Shield, DollarSign,
+  LogOut, Activity, BookOpen, Layout as LayoutIcon, Sun, Shield,
   Crown, Lock, Telescope, Search, Tag, ArrowRight, ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -559,7 +559,7 @@ const PRIMARY_LINKS = [
 
 const MENU_LINKS = [
   { href: "/notifications", label: "Notifications", icon: Bell },
-  { href: "/dashboard", label: "Analytics", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/messages", label: "Messages", icon: MessageSquare },
   { href: "/upload", label: "Upload", icon: Upload },
   { href: "/moodboard", label: "Mood Board", icon: LayoutIcon },
@@ -573,7 +573,6 @@ const MENU_LINKS = [
 
 const ADMIN_LINK = { href: "/admin", label: "Admin Panel", icon: Shield };
 const PREMIUM_LINK = { href: "/premium", label: "Premium", icon: Crown };
-const MONETISE_LINK = { href: "/monetise", label: "Monetisation", icon: DollarSign };
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -613,15 +612,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  const analyticsIndex = MENU_LINKS.findIndex((l) => l.href === "/dashboard");
-  const withMonetisation = [...MENU_LINKS];
-  if ((isQualified || isAdmin) && analyticsIndex >= 0) {
-    withMonetisation.splice(analyticsIndex + 1, 0, MONETISE_LINK);
-  }
-
   const menuLinks = [
     PREMIUM_LINK,
-    ...withMonetisation,
+    ...MENU_LINKS,
     ...(isAdmin ? [ADMIN_LINK] : []),
   ];
 
