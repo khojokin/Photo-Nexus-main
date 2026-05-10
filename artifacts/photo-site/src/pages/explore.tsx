@@ -121,8 +121,12 @@ export function Explore() {
     } finally { setSurprisingMe(false); }
   }
 
-  const [inputValue, setInputValue] = useState("");
-  const [search, setSearch] = useState("");
+  const [inputValue, setInputValue] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("search") ?? ""; } catch { return ""; }
+  });
+  const [search, setSearch] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("search") ?? ""; } catch { return ""; }
+  });
   const [sort, setSort] = useState<ListPhotosSort>(ListPhotosSort.latest);
   const [page, setPage] = useState(1);
   const [allPhotos, setAllPhotos] = useState<Photo[]>([]);

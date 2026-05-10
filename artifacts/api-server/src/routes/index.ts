@@ -23,6 +23,8 @@ import subscriptionRouter from "./subscription";
 import payoutsRouter from "./payouts";
 import supportChatRouter from "./support-chat";
 import locksRouter from "./locks";
+import verificationRequestsRouter from "./verification-requests";
+import adminSubscriptionsRouter from "./admin-subscriptions";
 
 const router: IRouter = Router();
 
@@ -50,5 +52,7 @@ router.use(subscriptionRouter);
 router.use(payoutsRouter);
 router.use(supportChatRouter);
 router.use(locksRouter);
+router.use(verificationRequestsRouter);
+router.use(adminSubscriptionsRouter);
 
 export default router;

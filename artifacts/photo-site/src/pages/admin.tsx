@@ -17,12 +17,13 @@ import {
   Plus, CreditCard, ArrowUpRight, Wifi, WifiOff, ChevronRight,
   Globe, Monitor, Smartphone, Tablet, Search, Filter,
   Calendar, Clock, ChevronDown, Edit3, Trash2, Copy, ExternalLink as LinkIcon,
-  Layers, GitBranch, Package, AlertCircle, Menu, MessageSquare, KeyRound, Lock,
+  Layers, GitBranch, Package, AlertCircle, Menu, MessageSquare, KeyRound, Lock, Crown,
 } from "lucide-react";
 
 type Section =
   | "dashboard" | "analytics" | "photos" | "users" | "collections"
-  | "moderation" | "tags" | "monetisation" | "locks" | "livechat" | "settings" | "comms" | "system";
+  | "moderation" | "tags" | "monetisation" | "locks" | "livechat" | "settings" | "comms" | "system"
+  | "verifications" | "subscriptions";
 
 interface DailyStat {
   label: string;
@@ -60,6 +61,8 @@ const NAV: { id: Section; label: string; icon: React.ElementType; badge?: string
   { id: "moderation", label: "Moderation", icon: Shield },
   { id: "tags", label: "Tags", icon: Tag },
   { id: "monetisation", label: "Monetisation", icon: DollarSign },
+  { id: "verifications", label: "Verifications", icon: BadgeCheck },
+  { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
   { id: "locks", label: "Locks", icon: Lock },
   { id: "livechat", label: "Live Chat", icon: MessageSquare },
   { id: "settings", label: "Site Settings", icon: Settings },
@@ -297,6 +300,10 @@ export function Admin() {
   const [pingLoading, setPingLoading] = useState(false);
   const [editingPhotoId, setEditingPhotoId] = useState<number | null>(null);
   const [spotlightIdx, setSpotlightIdx] = useState(0);
+  const [featuredThisMonth, setFeaturedThisMonth] = useState<number | null>(() => {
+    try { const v = localStorage.getItem("affuaa_featured_spotlight"); return v ? parseInt(v, 10) : null; } catch { return null; }
+  });
+  const [spotlightMsg, setSpotlightMsg] = useState<string | null>(null);
   const [rateLimit, setRateLimit] = useState(120);
   const [seoSettings, setSeoSettings] = useState({ title: "Affuaa — Gallery-quality photography", desc: "Discover extraordinary images carefully selected for those who care about the craft.", ogImage: "" });
   const [socialLinks, setSocialLinks] = useState({ instagram: "@affuaa", twitter: "@affuaa_photos", facebook: "", pinterest: "affuaa" });
@@ -337,6 +344,57 @@ export function Admin() {
       setNewPayout({ photographerName: "", email: "", type: "commission", description: "", amount: "" });
     } catch { /* ignore */ } finally { setAddingPayout(false); }
   }
+
+  // ── Verification Requests ─────────────────────────────────────────────────
+  interface VerificationRequest {
+    id: number; userId: string; photographerName: string; email: string | null;
+    portfolioUrl: string | null; instagramUrl: string | null; website: string | null;
+    bio: string | null; photoCount: number | null; followerCount: number | null;
+    reason: string | null; status: string; adminNotes: string | null;
+    reviewedBy: string | null; submittedAt: string; reviewedAt: string | null;
+  }
+  const [verifications, setVerifications] = useState<VerificationRequest[]>([]);
+  const [verificationsLoading, setVerificationsLoading] = useState(true);
+  const [verificationNoteId, setVerificationNoteId] = useState<number | null>(null);
+  const [verificationNote, setVerificationNote] = useState("");
+
+  useEffect(() => {
+    if (section === "verifications") {
+      setVerificationsLoading(true);
+      fetch("/api/verification-requests", { credentials: "include" })
+        .then(r => r.json())
+        .then((d: { requests: VerificationRequest[] }) => setVerifications(d.requests ?? []))
+        .catch(() => {})
+        .finally(() => setVerificationsLoading(false));
+    }
+  }, [section]);
+
+  async function reviewVerification(id: number, status: "approved" | "rejected", adminNotes?: string) {
+    const updated = await fetch(`/api/verification-requests/${id}`, {
+      method: "PATCH", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, adminNotes }),
+    }).then(r => r.json() as Promise<{ request: VerificationRequest }>);
+    setVerifications(prev => prev.map(v => v.id === id ? updated.request : v));
+    setVerificationNoteId(null);
+    setVerificationNote("");
+  }
+
+  // ── Subscriptions ─────────────────────────────────────────────────────────
+  interface SubUser { id: string; email: string | null; firstName: string | null; lastName: string | null; subscriptionStatus: string; stripeSubscriptionId: string | null; subscriptionCurrentPeriodEnd: string | null; createdAt: string; }
+  const [subUsers, setSubUsers] = useState<SubUser[]>([]);
+  const [subUsersLoading, setSubUsersLoading] = useState(true);
+
+  useEffect(() => {
+    if (section === "subscriptions") {
+      setSubUsersLoading(true);
+      fetch("/api/admin/subscriptions", { credentials: "include" })
+        .then(r => r.json())
+        .then((d: { users: SubUser[] }) => setSubUsers(d.users ?? []))
+        .catch(() => {})
+        .finally(() => setSubUsersLoading(false));
+    }
+  }, [section]);
 
   // ── Locks ────────────────────────────────────────────────────────────────
   interface Lock {
@@ -1076,6 +1134,9 @@ export function Admin() {
                     <button onClick={() => setSpotlightIdx(i => i + 1)} className="text-xs px-2 py-1 border border-border text-muted-foreground hover:text-foreground">→</button>
                   </div>
                 </div>
+                {spotlightMsg && (
+                  <p className="text-xs text-green-400 mb-3 flex items-center gap-1"><Check className="w-3 h-3" />{spotlightMsg}</p>
+                )}
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-gradient-to-br from-purple-900/60 to-blue-900/60 flex items-center justify-center text-xl font-serif border border-border">
                     {spotlightUser?.name.charAt(0)}
@@ -1089,7 +1150,16 @@ export function Admin() {
                     <p className="text-xs text-green-400 mt-0.5">Earnings: {spotlightUser?.earnings}</p>
                   </div>
                   <div className="flex gap-2">
-                    <button className="text-xs px-3 py-1.5 bg-foreground text-background hover:opacity-90 transition-opacity">Feature this month</button>
+                    <button onClick={() => {
+                      if (!spotlightUser) return;
+                      const id = spotlightUser.id;
+                      localStorage.setItem("affuaa_featured_spotlight", String(id));
+                      setFeaturedThisMonth(id);
+                      setSpotlightMsg(`${spotlightUser.name} is now featured this month.`);
+                      setTimeout(() => setSpotlightMsg(null), 3000);
+                    }} className={cn("text-xs px-3 py-1.5 hover:opacity-90 transition-opacity", featuredThisMonth === spotlightUser?.id ? "bg-green-600 text-white" : "bg-foreground text-background")}>
+                      {featuredThisMonth === spotlightUser?.id ? "✓ Featured" : "Feature this month"}
+                    </button>
                     <Link href={`/profile/${encodeURIComponent(spotlightUser?.name ?? "")}`} className="text-xs px-3 py-1.5 border border-border text-muted-foreground hover:text-foreground flex items-center gap-1">
                       <ExternalLink className="w-3 h-3" /> View profile
                     </Link>
@@ -1588,6 +1658,156 @@ export function Admin() {
             </div>
             );
           })()}
+
+          {/* ── VERIFICATIONS ── */}
+          {section === "verifications" && (
+            <div>
+              <SectionTitle sub="Review and approve photographer verified badge requests">Verification Requests</SectionTitle>
+              {verificationsLoading ? (
+                <div className="space-y-3">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>
+              ) : verifications.length === 0 ? (
+                <div className="py-16 text-center border border-dashed border-border text-muted-foreground">
+                  <BadgeCheck className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No verification requests yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {verifications.map(v => (
+                    <div key={v.id} className="border border-border bg-card p-5">
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-medium truncate">{v.photographerName}</p>
+                            <Badge color={
+                              v.status === "approved" ? "border-green-500/30 text-green-400 bg-green-500/5" :
+                              v.status === "rejected" ? "border-red-500/30 text-red-400 bg-red-500/5" :
+                              "border-amber-500/30 text-amber-400 bg-amber-500/5"
+                            }>{v.status}</Badge>
+                          </div>
+                          {v.email && <p className="text-xs text-muted-foreground mb-1">{v.email}</p>}
+                          <p className="text-xs text-muted-foreground">
+                            Submitted {new Date(v.submittedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                            {v.reviewedAt && ` · Reviewed ${new Date(v.reviewedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`}
+                          </p>
+                        </div>
+                        {v.status === "pending" && (
+                          <div className="flex gap-2 flex-shrink-0">
+                            <button onClick={() => void reviewVerification(v.id, "approved", verificationNoteId === v.id ? verificationNote : undefined)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-green-500/30 text-green-400 hover:bg-green-500/10 transition-colors">
+                              <Check className="w-3 h-3" /> Approve
+                            </button>
+                            <button onClick={() => void reviewVerification(v.id, "rejected", verificationNoteId === v.id ? verificationNote : undefined)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">
+                              <X className="w-3 h-3" /> Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 text-xs">
+                        {v.photoCount != null && <div className="border border-border px-3 py-2"><p className="text-muted-foreground mb-0.5">Photos</p><p className="font-medium">{v.photoCount}</p></div>}
+                        {v.followerCount != null && <div className="border border-border px-3 py-2"><p className="text-muted-foreground mb-0.5">Followers</p><p className="font-medium">{v.followerCount}</p></div>}
+                        {v.portfolioUrl && <div className="border border-border px-3 py-2 col-span-2"><p className="text-muted-foreground mb-0.5">Portfolio</p><a href={v.portfolioUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline truncate block">{v.portfolioUrl}</a></div>}
+                        {v.instagramUrl && <div className="border border-border px-3 py-2"><p className="text-muted-foreground mb-0.5">Instagram</p><p className="truncate">{v.instagramUrl}</p></div>}
+                        {v.website && <div className="border border-border px-3 py-2"><p className="text-muted-foreground mb-0.5">Website</p><a href={v.website} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline truncate block">{v.website}</a></div>}
+                      </div>
+
+                      {v.reason && (
+                        <div className="bg-background border border-border px-4 py-3 mb-3">
+                          <p className="text-xs text-muted-foreground mb-1 uppercase tracking-widest">Application Statement</p>
+                          <p className="text-sm">{v.reason}</p>
+                        </div>
+                      )}
+
+                      {v.status === "pending" && (
+                        <div className="mt-2">
+                          <button onClick={() => { setVerificationNoteId(verificationNoteId === v.id ? null : v.id); setVerificationNote(v.adminNotes ?? ""); }}
+                            className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                            <Edit3 className="w-3 h-3" /> {verificationNoteId === v.id ? "Hide note" : "Add admin note"}
+                          </button>
+                          {verificationNoteId === v.id && (
+                            <textarea value={verificationNote} onChange={e => setVerificationNote(e.target.value)}
+                              rows={2} placeholder="Internal note (visible only to admins)…"
+                              className="mt-2 w-full bg-background border border-border px-3 py-2 text-xs focus:outline-none focus:border-foreground/30 resize-none" />
+                          )}
+                        </div>
+                      )}
+
+                      {v.adminNotes && v.status !== "pending" && (
+                        <div className="mt-2 text-xs text-muted-foreground italic border-t border-border pt-2">
+                          Admin note: {v.adminNotes}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── SUBSCRIPTIONS ── */}
+          {section === "subscriptions" && (
+            <div>
+              <SectionTitle sub="All user subscription statuses across the platform">Subscriptions</SectionTitle>
+              {(() => {
+                const premium = subUsers.filter(u => u.subscriptionStatus === "active" || u.subscriptionStatus === "trialing");
+                const total = subUsers.length;
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+                    <StatCard icon={CreditCard} label="Total Users" value={String(total)} sub="in database" />
+                    <StatCard icon={Crown} label="Premium" value={String(premium.length)} sub="active/trialing" accent="text-amber-400" />
+                    <StatCard icon={TrendingUp} label="Conversion" value={total ? `${((premium.length / total) * 100).toFixed(1)}%` : "0%"} sub="premium rate" />
+                    <StatCard icon={DollarSign} label="Free" value={String(total - premium.length)} sub="on free plan" />
+                  </div>
+                );
+              })()}
+
+              {subUsersLoading ? (
+                <div className="space-y-2">{Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+              ) : subUsers.length === 0 ? (
+                <div className="py-12 text-center border border-dashed border-border text-muted-foreground">
+                  <CreditCard className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No subscription data yet. Configure Stripe to activate subscriptions.</p>
+                </div>
+              ) : (
+                <div className="border border-border overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-card/50">
+                        <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">User</th>
+                        <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Email</th>
+                        <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Status</th>
+                        <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Period End</th>
+                        <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Joined</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subUsers.map(u => (
+                        <tr key={u.id} className="border-b border-border hover:bg-card/40 transition-colors">
+                          <td className="px-4 py-3 font-medium">{[u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}</td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">{u.email ?? "—"}</td>
+                          <td className="px-4 py-3 text-center">
+                            <Badge color={
+                              u.subscriptionStatus === "active" ? "border-green-500/30 text-green-400 bg-green-500/5" :
+                              u.subscriptionStatus === "trialing" ? "border-blue-500/30 text-blue-400 bg-blue-500/5" :
+                              u.subscriptionStatus === "past_due" ? "border-amber-500/30 text-amber-400 bg-amber-500/5" :
+                              "border-border text-muted-foreground"
+                            }>{u.subscriptionStatus}</Badge>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">
+                            {u.subscriptionCurrentPeriodEnd ? new Date(u.subscriptionCurrentPeriodEnd).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">
+                            {new Date(u.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── LOCKS ── */}
           {section === "locks" && (

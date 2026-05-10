@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { useTheme } from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Check, User, Bell, Palette, Shield, ChevronRight, Instagram, Twitter, Download as DownloadIcon, Camera, LifeBuoy, Mail, ExternalLink } from "lucide-react";
+import { Check, User, Bell, Palette, Shield, ChevronRight, Instagram, Twitter, Download as DownloadIcon, Camera, LifeBuoy, Mail, ExternalLink, BadgeCheck, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 const SETTINGS_KEY = "affuaa_settings";
 
@@ -103,6 +104,59 @@ export function Settings() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { theme, setTheme } = useTheme();
+  const { user, authFetch } = useAuth();
+
+  const [verificationForm, setVerificationForm] = useState({ portfolioUrl: "", instagramUrl: "", website: "", reason: "" });
+  const [verificationStatus, setVerificationStatus] = useState<{ type: "idle" | "loading" | "success" | "error" | "pending"; message?: string }>({ type: "idle" });
+
+  useEffect(() => {
+    if (!user) return;
+    authFetch("/api/verification-requests/my")
+      .then(r => r.json())
+      .then((d: { requests: Array<{ status: string; submittedAt: string }> }) => {
+        const latest = d.requests?.[0];
+        if (latest) {
+          setVerificationStatus({ type: "pending", message: `${latest.status} · submitted ${new Date(latest.submittedAt).toLocaleDateString()}` });
+        }
+      })
+      .catch(() => {});
+  }, [user]);
+
+  async function submitVerification() {
+    if (!user) return;
+    if (!verificationForm.reason.trim()) {
+      setVerificationStatus({ type: "error", message: "Please explain why you should be verified." });
+      return;
+    }
+    setVerificationStatus({ type: "loading" });
+    try {
+      const res = await authFetch("/api/verification-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          photographerName: settings.displayName || user.email || "Photographer",
+          email: user.email,
+          portfolioUrl: verificationForm.portfolioUrl || undefined,
+          instagramUrl: verificationForm.instagramUrl || undefined,
+          website: verificationForm.website || undefined,
+          reason: verificationForm.reason,
+        }),
+      });
+      if (res.status === 409) {
+        setVerificationStatus({ type: "error", message: "You already have a pending verification request." });
+        return;
+      }
+      if (!res.ok) {
+        const d = await res.json() as { error?: string };
+        setVerificationStatus({ type: "error", message: d.error ?? "Something went wrong." });
+        return;
+      }
+      setVerificationStatus({ type: "success", message: "Application submitted! Our team will review it shortly." });
+      setVerificationForm({ portfolioUrl: "", instagramUrl: "", website: "", reason: "" });
+    } catch {
+      setVerificationStatus({ type: "error", message: "Network error. Please try again." });
+    }
+  }
 
   function update<K extends keyof Settings>(key: K, value: Settings[K]) {
     setSettings((s) => ({ ...s, [key]: value }));
@@ -487,6 +541,74 @@ export function Settings() {
                       <p className="text-muted-foreground">Anyone with your display name can send you a message. Manage messages from the Messages page.</p>
                     </div>
                   </div>
+
+                  {/* Verified Badge Application */}
+                  <div className="border-t border-border/40 pt-5">
+                    <div className="flex items-center gap-2 mb-1">
+                      <BadgeCheck className="w-4 h-4 text-blue-400" />
+                      <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Apply for Verified Badge</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-4">The verified badge signals to viewers that your work has been reviewed and approved by the Affuaa team.</p>
+
+                    {verificationStatus.type === "success" ? (
+                      <div className="flex items-start gap-2 border border-green-500/30 bg-green-500/5 px-4 py-3 text-green-400 text-sm">
+                        <Check className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <span>{verificationStatus.message}</span>
+                      </div>
+                    ) : verificationStatus.type === "pending" ? (
+                      <div className="flex items-start gap-2 border border-blue-500/30 bg-blue-500/5 px-4 py-3 text-blue-400 text-sm">
+                        <BadgeCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <span>Verification request: <span className="capitalize">{verificationStatus.message}</span></span>
+                      </div>
+                    ) : !user ? (
+                      <div className="border border-border px-4 py-3 text-sm text-muted-foreground">Sign in to apply for a verified badge.</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {verificationStatus.type === "error" && (
+                          <div className="flex items-start gap-2 border border-red-500/30 bg-red-500/5 px-4 py-3 text-red-400 text-sm">
+                            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                            <span>{verificationStatus.message}</span>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground block mb-1">Portfolio URL</label>
+                            <input value={verificationForm.portfolioUrl} onChange={e => setVerificationForm(f => ({ ...f, portfolioUrl: e.target.value }))}
+                              placeholder="https://yourportfolio.com"
+                              className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground block mb-1">Instagram handle</label>
+                            <input value={verificationForm.instagramUrl} onChange={e => setVerificationForm(f => ({ ...f, instagramUrl: e.target.value }))}
+                              placeholder="@yourhandle"
+                              className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30" />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="text-xs text-muted-foreground block mb-1">Website</label>
+                            <input value={verificationForm.website} onChange={e => setVerificationForm(f => ({ ...f, website: e.target.value }))}
+                              placeholder="https://yourwebsite.com"
+                              className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30" />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="text-xs text-muted-foreground block mb-1">Why should you be verified? <span className="text-red-400">*</span></label>
+                            <textarea value={verificationForm.reason} onChange={e => setVerificationForm(f => ({ ...f, reason: e.target.value }))}
+                              rows={3} placeholder="Describe your work, style, experience, and why you'd like a verified badge…"
+                              className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30 resize-none" />
+                          </div>
+                        </div>
+                        <Button onClick={() => void submitVerification()}
+                          disabled={verificationStatus.type === "loading" || !verificationForm.reason.trim()}
+                          className="rounded-none h-9 px-5 text-sm">
+                          {verificationStatus.type === "loading" ? (
+                            <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> Submitting…</>
+                          ) : (
+                            <><BadgeCheck className="w-3.5 h-3.5 mr-2" /> Submit Application</>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="border-t border-border/40 pt-5">
                     <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">Data</p>
                     <button

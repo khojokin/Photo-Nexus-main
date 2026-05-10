@@ -12,3 +12,4 @@ export * from "./series";
 export * from "./payouts";
 export * from "./support_chat";
 export * from "./locks";
+export * from "./verification_requests";

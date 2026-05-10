@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Crown, Loader2, CheckCircle2 } from "lucide-react";
+import { Crown, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useAuth } from "@/contexts/auth-context";
 import { useSubscription } from "@/hooks/use-subscription";
@@ -12,16 +12,26 @@ export function CheckoutPage() {
   const { user, authFetch } = useAuth();
   const { isPremium } = useSubscription();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   async function startCheckout() {
     if (!user || isPremium) return;
     setIsSubmitting(true);
+    setCheckoutError(null);
     try {
       const res = await authFetch("/api/subscription/checkout", { method: "POST" });
-      const data = (await res.json()) as { url?: string };
+      const data = (await res.json()) as { url?: string; error?: string };
       if (data?.url) {
         window.location.href = data.url;
+      } else if (!res.ok) {
+        if (res.status === 500 && (data?.error?.includes("STRIPE") || data?.error?.includes("Missing"))) {
+          setCheckoutError("Payments are not yet configured. Please check back soon or contact support.");
+        } else {
+          setCheckoutError(data?.error ?? "Something went wrong. Please try again.");
+        }
       }
+    } catch {
+      setCheckoutError("Network error. Please check your connection and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -56,6 +66,13 @@ export function CheckoutPage() {
                 <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" />Featured nomination on uploads</li>
               </ul>
             </div>
+
+            {checkoutError && (
+              <div className="mt-6 flex items-start gap-2 border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-amber-400 text-sm">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{checkoutError}</span>
+              </div>
+            )}
 
             <div className="mt-6 flex flex-wrap gap-3">
               {!user && (

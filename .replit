@@ -79,3 +79,8 @@ externalPort = 8081
 [[ports]]
 localPort = 24544
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+APP_URL = "https://02ce8757-d86a-4a32-b611-5e4756453c1d-00-3kappoerlou8j.spock.replit.dev"
