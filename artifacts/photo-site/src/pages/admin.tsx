@@ -17,7 +17,7 @@ import {
   Plus, CreditCard, ArrowUpRight, Wifi, WifiOff, ChevronRight,
   Globe, Monitor, Smartphone, Tablet, Search, Filter,
   Calendar, Clock, ChevronDown, Edit3, Trash2, Copy, ExternalLink as LinkIcon,
-  Layers, GitBranch, Package, AlertCircle,
+  Layers, GitBranch, Package, AlertCircle, Menu,
 } from "lucide-react";
 
 type Section =
@@ -128,84 +128,6 @@ const MOCK_ERRORS = [
 
 const BANNED_WORDS = ["spam", "click here", "free money", "buy followers", "discount code"];
 const FEATURED_TAG = { tag: "golden hour", since: "May 6, 2026" };
-
-// ─── Admin PIN / session helpers ──────────────────────────────────────────────
-const PIN_KEY = "affuaa_admin_pin";
-const SESSION_KEY = "affuaa_admin_session";
-const ROLE_KEY = "affuaa_admin_role";
-const DEFAULT_PIN = "0000";
-
-function getStoredPin() { return localStorage.getItem(PIN_KEY) ?? DEFAULT_PIN; }
-function hasAdminSession() { return sessionStorage.getItem(SESSION_KEY) === "1"; }
-function grantAdminSession() {
-  sessionStorage.setItem(SESSION_KEY, "1");
-  localStorage.setItem(ROLE_KEY, "admin");
-}
-function revokeAdminSession() {
-  sessionStorage.removeItem(SESSION_KEY);
-  localStorage.removeItem(ROLE_KEY);
-}
-export function isAdminUser() { return localStorage.getItem(ROLE_KEY) === "admin"; }
-
-// ─── PIN Gate ─────────────────────────────────────────────────────────────────
-function PinGate({ onAuth }: { onAuth: () => void }) {
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState(false);
-  const [shake, setShake] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  function submit() {
-    if (pin === getStoredPin()) {
-      grantAdminSession();
-      onAuth();
-    } else {
-      setError(true);
-      setShake(true);
-      setPin("");
-      setTimeout(() => setShake(false), 600);
-      inputRef.current?.focus();
-    }
-  }
-
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className={cn("w-72 space-y-6 transition-transform", shake && "animate-[shake_0.5s_ease]")}>
-        <div className="text-center space-y-2">
-          <Shield className="w-8 h-8 mx-auto text-muted-foreground mb-4" />
-          <h1 className="font-serif text-2xl">Admin Access</h1>
-          <p className="text-sm text-muted-foreground">This area is restricted. Enter your admin passcode to continue.</p>
-        </div>
-        <div className="space-y-3">
-          <input
-            ref={inputRef}
-            type="password"
-            value={pin}
-            onChange={(e) => { setPin(e.target.value); setError(false); }}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
-            maxLength={20}
-            placeholder="Enter passcode"
-            autoFocus
-            className={cn(
-              "w-full bg-transparent border px-4 py-3 text-sm text-center tracking-[0.3em] focus:outline-none transition-colors",
-              error ? "border-red-500/60 text-red-400" : "border-border focus:border-foreground/50"
-            )}
-          />
-          {error && <p className="text-xs text-red-400 text-center">Incorrect passcode. Try again.</p>}
-          <button
-            onClick={submit}
-            disabled={!pin}
-            className="w-full bg-foreground text-background py-3 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
-          >
-            Enter Admin Panel
-          </button>
-        </div>
-        <p className="text-xs text-muted-foreground text-center">
-          Default passcode: <span className="font-mono">0000</span>
-        </p>
-      </div>
-    </div>
-  );
-}
 
 // ─── Confirm Dialog ───────────────────────────────────────────────────────────
 interface ConfirmAction {
@@ -349,13 +271,8 @@ function MiniBar({ value, max, color = "bg-foreground/40" }: { value: number; ma
 }
 
 export function Admin() {
-  const { user, isAdmin, isLoading, isAuthenticated, loginAsDemo } = useAuth();
-  const [authed, setAuthed] = useState(() => hasAdminSession());
-    useEffect(() => {
-      if (isAdmin && !authed) {
-        setAuthed(true);
-      }
-    }, [authed, isAdmin]);
+  const { user, isAdmin, isLoading, isAuthenticated } = useAuth();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
   const [section, setSection] = useState<Section>("dashboard");
@@ -517,18 +434,12 @@ export function Admin() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center max-w-sm">
           <Shield className="w-12 h-12 mx-auto mb-4 opacity-20" />
           <p className="font-serif text-2xl mb-2">Admin access required</p>
           <p className="text-muted-foreground text-sm mb-6">You must be signed in to access the admin panel.</p>
-          <div className="flex items-center gap-3 justify-center">
-            <button onClick={() => loginAsDemo()}
-              className="px-4 py-2 bg-foreground text-background text-sm hover:opacity-90 transition-opacity">
-              Enter as Demo
-            </button>
-            <Link href="/signin" className="px-4 py-2 border border-border text-sm text-muted-foreground hover:text-foreground transition-colors">Sign in</Link>
-          </div>
+          <Link href="/signin" className="inline-block px-6 py-2.5 bg-foreground text-background text-sm hover:opacity-90 transition-opacity">Sign in</Link>
         </div>
       </div>
     );
@@ -536,19 +447,15 @@ export function Admin() {
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center max-w-md px-4">
           <Shield className="w-12 h-12 mx-auto mb-4 opacity-20" />
-          <p className="font-serif text-2xl mb-2">Admin access required</p>
-          <p className="text-muted-foreground text-sm mb-6">Your account does not have admin privileges.</p>
-          <Link href="/" className="px-4 py-2 border border-border text-sm text-muted-foreground hover:text-foreground transition-colors">Go home</Link>
+          <p className="font-serif text-2xl mb-2">Access denied</p>
+          <p className="text-muted-foreground text-sm mb-6">Your account does not have admin privileges. Contact the site administrator.</p>
+          <Link href="/" className="inline-block px-6 py-2.5 border border-border text-sm text-muted-foreground hover:text-foreground transition-colors">Go home</Link>
         </div>
       </div>
     );
-  }
-
-  if (!authed && !isAdmin) {
-    return <PinGate onAuth={() => setAuthed(true)} />;
   }
 
   const pending = reports.filter(r => r.status === "pending");
@@ -569,63 +476,98 @@ export function Admin() {
   const maxPhotographerScore = photographerStats.reduce((m, p) => Math.max(m, p.total_likes + p.total_downloads), 1);
   const spotlightUser = MOCK_USERS.filter(u => u.status === "active" && u.verified)[spotlightIdx % MOCK_USERS.filter(u => u.status === "active" && u.verified).length];
 
+  const SidebarContent = (
+    <>
+      <div className="px-5 py-5 border-b border-border flex items-center justify-between">
+        <div>
+          <Link href="/" className="text-lg font-serif tracking-tight">Affuaa.</Link>
+          <p className="text-xs text-muted-foreground mt-0.5">Admin Panel</p>
+        </div>
+        <button className="lg:hidden p-1 text-muted-foreground hover:text-foreground transition-colors" onClick={() => setMobileSidebarOpen(false)}>
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <nav className="flex-1 py-3 overflow-y-auto">
+        {NAV.map(item => {
+          const Icon = item.icon;
+          const active = section === item.id;
+          const badgeVal = item.id === "moderation" ? pending.length : undefined;
+          return (
+            <button key={item.id} onClick={() => { setSection(item.id); setMobileSidebarOpen(false); }}
+              className={cn(
+                "w-full flex items-center justify-between px-5 py-2.5 text-sm transition-colors text-left",
+                active ? "text-foreground bg-foreground/5" : "text-muted-foreground hover:text-foreground"
+              )}>
+              <span className="flex items-center gap-2.5">
+                <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                {item.label}
+              </span>
+              {badgeVal !== undefined && badgeVal > 0 && (
+                <span className="text-xs px-1.5 py-0.5 min-w-[20px] text-center bg-amber-500/20 text-amber-400">{badgeVal}</span>
+              )}
+              {item.badge && badgeVal === undefined && (
+                <span className="text-xs px-1.5 py-0.5 min-w-[20px] text-center bg-foreground/10 text-muted-foreground">{item.badge}</span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+      <div className="px-5 py-4 border-t border-border space-y-3">
+        <div>
+          <p className="text-xs text-muted-foreground">Signed in as</p>
+          <p className="text-sm font-medium mt-0.5 truncate">
+            {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || "Admin"}
+          </p>
+          <Link href="/" className="text-xs text-muted-foreground hover:text-foreground mt-1 flex items-center gap-1">
+            <ExternalLink className="w-3 h-3" /> View site
+          </Link>
+        </div>
+        <Link href="/api/logout"
+          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground border border-border/50 hover:text-foreground hover:border-foreground/30 transition-colors"
+        >
+          <Shield className="w-3.5 h-3.5" /> Sign Out
+        </Link>
+      </div>
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-background flex">
       {confirm && <ConfirmDialog action={confirm} onCancel={() => setConfirm(null)} />}
 
-      {/* Sidebar */}
-      <aside className="w-56 border-r border-border flex flex-col flex-shrink-0 sticky top-0 h-screen overflow-y-auto">
-        <div className="px-5 py-5 border-b border-border">
-          <Link href="/" className="text-lg font-serif tracking-tight">Affuaa.</Link>
-          <p className="text-xs text-muted-foreground mt-0.5">Admin Panel</p>
-        </div>
-        <nav className="flex-1 py-3">
-          {NAV.map(item => {
-            const Icon = item.icon;
-            const active = section === item.id;
-            const badgeVal = item.id === "moderation" ? pending.length : undefined;
-            return (
-              <button key={item.id} onClick={() => setSection(item.id)}
-                className={cn(
-                  "w-full flex items-center justify-between px-5 py-2.5 text-sm transition-colors text-left",
-                  active ? "text-foreground bg-foreground/5" : "text-muted-foreground hover:text-foreground"
-                )}>
-                <span className="flex items-center gap-2.5">
-                  <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-                  {item.label}
-                </span>
-                {badgeVal !== undefined && badgeVal > 0 && (
-                  <span className="text-xs px-1.5 py-0.5 min-w-[20px] text-center bg-amber-500/20 text-amber-400">{badgeVal}</span>
-                )}
-                {item.badge && badgeVal === undefined && (
-                  <span className="text-xs px-1.5 py-0.5 min-w-[20px] text-center bg-foreground/10 text-muted-foreground">{item.badge}</span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-        <div className="px-5 py-4 border-t border-border space-y-3">
-          <div>
-            <p className="text-xs text-muted-foreground">Signed in as</p>
-            <p className="text-sm font-medium mt-0.5 truncate">
-              {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || "Admin"}
-            </p>
-            <Link href="/" className="text-xs text-muted-foreground hover:text-foreground mt-1 flex items-center gap-1">
-              <ExternalLink className="w-3 h-3" /> View site
-            </Link>
-          </div>
-          <button
-            onClick={() => { revokeAdminSession(); setAuthed(false); }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground border border-border/50 hover:text-foreground hover:border-foreground/30 transition-colors"
-          >
-            <Shield className="w-3.5 h-3.5" /> Lock Panel
-          </button>
-        </div>
+      {/* Mobile sidebar overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar — desktop always visible, mobile slide-in */}
+      <aside className={cn(
+        "fixed lg:static inset-y-0 left-0 z-50 w-56 border-r border-border flex flex-col flex-shrink-0 bg-background h-screen overflow-y-auto transition-transform duration-200",
+        "lg:translate-x-0",
+        mobileSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}>
+        {SidebarContent}
       </aside>
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto min-w-0">
-        <div className="max-w-6xl mx-auto px-8 py-10">
+        {/* Mobile top bar */}
+        <div className="lg:hidden sticky top-0 z-30 flex items-center gap-3 px-4 py-3 border-b border-border bg-background/95 backdrop-blur">
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            className="p-1.5 border border-border text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Open admin menu"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+          <span className="font-serif text-sm">Admin Panel</span>
+          <span className="text-xs text-muted-foreground ml-auto capitalize">{section}</span>
+        </div>
+
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-10">
 
           {/* ── DASHBOARD ── */}
           {section === "dashboard" && (

@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
+import { requireAdmin } from "../middlewares/adminMiddleware";
 
 const router = Router();
 
-router.get("/stats/analytics", async (_req, res): Promise<void> => {
+router.get("/stats/analytics", requireAdmin, async (_req, res): Promise<void> => {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const cutoff = thirtyDaysAgo.toISOString();

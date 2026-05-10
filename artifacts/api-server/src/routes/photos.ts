@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, ilike, sql, or, and } from "drizzle-orm";
 import { db, photosTable, notificationsTable } from "@workspace/db";
+import { requireAdmin } from "../middlewares/adminMiddleware";
 import {
   ListPhotosQueryParams,
   ListPhotosResponse,
@@ -144,7 +145,13 @@ router.patch("/photos/:id", async (req, res): Promise<void> => {
   }
 
   const userId = req.authUser?.id ?? null;
-  if (existing.uploadedBy && existing.uploadedBy !== userId) {
+  const userEmail = (req.authUser?.email ?? "").toLowerCase();
+  const adminEmails = new Set(
+    (process.env.ADMIN_EMAILS ?? "kingsfordkojo7@gmail.com")
+      .split(",").map(e => e.trim().toLowerCase()).filter(Boolean)
+  );
+  const isAdmin = adminEmails.has(userEmail);
+  if (!isAdmin && existing.uploadedBy && existing.uploadedBy !== userId) {
     res.status(403).json({ error: "You don't have permission to edit this photo" });
     return;
   }
@@ -176,7 +183,13 @@ router.delete("/photos/:id", async (req, res): Promise<void> => {
   }
 
   const userId = req.authUser?.id ?? null;
-  if (existing.uploadedBy && existing.uploadedBy !== userId) {
+  const userEmail2 = (req.authUser?.email ?? "").toLowerCase();
+  const adminEmails2 = new Set(
+    (process.env.ADMIN_EMAILS ?? "kingsfordkojo7@gmail.com")
+      .split(",").map(e => e.trim().toLowerCase()).filter(Boolean)
+  );
+  const isAdmin2 = adminEmails2.has(userEmail2);
+  if (!isAdmin2 && existing.uploadedBy && existing.uploadedBy !== userId) {
     res.status(403).json({ error: "You don't have permission to delete this photo" });
     return;
   }

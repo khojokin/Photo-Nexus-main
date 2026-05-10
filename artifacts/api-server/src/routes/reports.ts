@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, reportsTable } from "@workspace/db";
+import { requireAdmin } from "../middlewares/adminMiddleware";
 
 const router = Router();
 
@@ -15,12 +16,12 @@ router.post("/photos/:id/report", async (req, res): Promise<void> => {
   res.status(201).json(report);
 });
 
-router.get("/admin/reports", async (_req, res): Promise<void> => {
+router.get("/admin/reports", requireAdmin, async (_req, res): Promise<void> => {
   const reports = await db.select().from(reportsTable).orderBy(desc(reportsTable.createdAt));
   res.json({ reports });
 });
 
-router.put("/admin/reports/:id", async (req, res): Promise<void> => {
+router.put("/admin/reports/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
