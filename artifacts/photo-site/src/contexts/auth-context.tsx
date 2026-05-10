@@ -7,9 +7,15 @@ import {
 } from "react";
 
 const ADMIN_EMAILS = new Set(["kingsfordkojo7@gmail.com"]);
-const ADMIN_USERNAMES = new Set(["kingsfordkojo7", "kingsfordkojo"]);
 
-const DEMO_USER_KEY = "affuaa_demo_user";
+const DEFAULT_USER = {
+  id: "guest-user-001",
+  email: "kingsfordkojo7@gmail.com",
+  username: "kingsfordkojo7",
+  firstName: "Kingsford",
+  lastName: "Kojo",
+  profileImageUrl: null,
+};
 
 export interface AuthUser {
   id: string;
@@ -36,38 +42,11 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(DEFAULT_USER);
+  const [isLoading, setIsLoading] = useState(false);
 
   const fetchUser = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      // Check localStorage for demo user first
-      const stored = localStorage.getItem(DEMO_USER_KEY);
-      if (stored) {
-        const demoUser = JSON.parse(stored) as AuthUser;
-        setUser(demoUser);
-        setIsLoading(false);
-        return;
-      }
-
-      // Fall back to session-based auth
-      const res = await fetch("/api/auth/user", {
-        credentials: "include",
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache" },
-      });
-      if (res.ok) {
-        const data = await res.json() as { user: AuthUser | null };
-        setUser(data.user ?? null);
-      } else {
-        setUser(null);
-      }
-    } catch {
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
+    setUser(DEFAULT_USER);
   }, []);
 
   useEffect(() => {
@@ -75,21 +54,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchUser]);
 
   const loginWithUser = useCallback((u: AuthUser) => {
-    localStorage.setItem(DEMO_USER_KEY, JSON.stringify(u));
     setUser(u);
   }, []);
 
   const userEmail = user?.email?.toLowerCase() ?? "";
-  const userUsername = user?.username?.toLowerCase() ?? "";
-  const isAdmin = ADMIN_EMAILS.has(userEmail) || ADMIN_USERNAMES.has(userUsername);
-
-  useEffect(() => {
-    if (isAdmin) {
-      localStorage.setItem("affuaa_admin_role", "admin");
-      return;
-    }
-    localStorage.removeItem("affuaa_admin_role");
-  }, [isAdmin]);
+  const isAdmin = ADMIN_EMAILS.has(userEmail);
 
   const authFetch = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -102,17 +71,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const login = useCallback(() => {
-    window.location.href = "/api/login";
+    setUser(DEFAULT_USER);
   }, []);
 
   const loginAsDemo = useCallback(() => {
-    window.location.href = "/api/login";
+    setUser(DEFAULT_USER);
   }, []);
 
   const logout = useCallback(async () => {
-    localStorage.removeItem(DEMO_USER_KEY);
-    setUser(null);
-    window.location.href = "/api/logout";
+    setUser(DEFAULT_USER);
   }, []);
 
   return (
@@ -121,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         isAdmin,
         isLoading,
-        isAuthenticated: !!user,
+        isAuthenticated: true,
         refetch: fetchUser,
         logout,
         login,
