@@ -21,6 +21,8 @@ import photoofdayRouter from "./photoofday";
 import recommendationsRouter from "./recommendations";
 import analyticsRouter from "./analytics";
 import subscriptionRouter from "./subscription";
+import payoutsRouter from "./payouts";
+import supportChatRouter from "./support-chat";
 
 const router: IRouter = Router();
 
@@ -46,5 +48,7 @@ router.use(userprofileRouter);
 router.use(photoofdayRouter);
 router.use(analyticsRouter);
 router.use(subscriptionRouter);
+router.use(payoutsRouter);
+router.use(supportChatRouter);
 
 export default router;

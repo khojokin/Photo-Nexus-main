@@ -10,3 +10,5 @@ export * from "./reactions";
 export * from "./reports";
 export * from "./challenges";
 export * from "./series";
+export * from "./payouts";
+export * from "./support_chat";

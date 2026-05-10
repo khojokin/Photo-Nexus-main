@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -17,12 +17,12 @@ import {
   Plus, CreditCard, ArrowUpRight, Wifi, WifiOff, ChevronRight,
   Globe, Monitor, Smartphone, Tablet, Search, Filter,
   Calendar, Clock, ChevronDown, Edit3, Trash2, Copy, ExternalLink as LinkIcon,
-  Layers, GitBranch, Package, AlertCircle, Menu,
+  Layers, GitBranch, Package, AlertCircle, Menu, MessageSquare, KeyRound, Lock,
 } from "lucide-react";
 
 type Section =
   | "dashboard" | "analytics" | "photos" | "users" | "collections"
-  | "moderation" | "tags" | "monetisation" | "settings" | "comms" | "system";
+  | "moderation" | "tags" | "monetisation" | "livechat" | "settings" | "comms" | "system";
 
 interface DailyStat {
   label: string;
@@ -60,6 +60,7 @@ const NAV: { id: Section; label: string; icon: React.ElementType; badge?: string
   { id: "moderation", label: "Moderation", icon: Shield },
   { id: "tags", label: "Tags", icon: Tag },
   { id: "monetisation", label: "Monetisation", icon: DollarSign },
+  { id: "livechat", label: "Live Chat", icon: MessageSquare },
   { id: "settings", label: "Site Settings", icon: Settings },
   { id: "comms", label: "Communications", icon: Mail },
   { id: "system", label: "System", icon: Server },
@@ -298,6 +299,119 @@ export function Admin() {
   const [rateLimit, setRateLimit] = useState(120);
   const [seoSettings, setSeoSettings] = useState({ title: "Affuaa — Gallery-quality photography", desc: "Discover extraordinary images carefully selected for those who care about the craft.", ogImage: "" });
   const [socialLinks, setSocialLinks] = useState({ instagram: "@affuaa", twitter: "@affuaa_photos", facebook: "", pinterest: "affuaa" });
+
+  // ── Payouts ────────────────────────────────────────────────────────────────
+  interface Payout {
+    id: number; payoutId: string; photographerName: string; email: string | null;
+    type: string; description: string; amount: string; status: string;
+    notes: string | null; requestedAt: string; processedAt: string | null;
+  }
+  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [payoutsLoading, setPayoutsLoading] = useState(true);
+  const [newPayout, setNewPayout] = useState({ photographerName: "", email: "", type: "commission", description: "", amount: "" });
+  const [addingPayout, setAddingPayout] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/payouts").then(r => r.json())
+      .then((d: { payouts: Payout[] }) => setPayouts(d.payouts ?? []))
+      .catch(() => {})
+      .finally(() => setPayoutsLoading(false));
+  }, []);
+
+  async function approvePayout(id: number) {
+    const [updated] = await Promise.all([
+      fetch(`/api/payouts/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "paid" }) }).then(r => r.json() as Promise<Payout>)
+    ]);
+    setPayouts(prev => prev.map(p => p.id === id ? updated : p));
+  }
+
+  async function rejectPayout(id: number) {
+    const updated = await fetch(`/api/payouts/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "rejected" }) }).then(r => r.json() as Promise<Payout>);
+    setPayouts(prev => prev.map(p => p.id === id ? updated : p));
+  }
+
+  async function createPayout() {
+    if (!newPayout.photographerName || !newPayout.description || !newPayout.amount) return;
+    setAddingPayout(true);
+    try {
+      const p = await fetch("/api/payouts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...newPayout, amount: parseFloat(newPayout.amount) }) }).then(r => r.json() as Promise<Payout>);
+      setPayouts(prev => [p, ...prev]);
+      setNewPayout({ photographerName: "", email: "", type: "commission", description: "", amount: "" });
+    } catch { /* ignore */ } finally { setAddingPayout(false); }
+  }
+
+  // ── PIN Config ─────────────────────────────────────────────────────────────
+  const PIN_STORE = "affuaa_admin_pin_v2";
+  const [currentPin, setCurrentPin] = useState(() => localStorage.getItem(PIN_STORE) ?? "");
+  const [pinForm, setPinForm] = useState({ current: "", next: "", confirm: "" });
+  const [pinMsg, setPinMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  function changePin() {
+    const stored = localStorage.getItem(PIN_STORE) ?? "";
+    if (stored && pinForm.current !== stored) { setPinMsg({ ok: false, text: "Current PIN is incorrect." }); return; }
+    if (pinForm.next.length < 4) { setPinMsg({ ok: false, text: "PIN must be at least 4 characters." }); return; }
+    if (pinForm.next !== pinForm.confirm) { setPinMsg({ ok: false, text: "New PINs do not match." }); return; }
+    localStorage.setItem(PIN_STORE, pinForm.next);
+    setCurrentPin(pinForm.next);
+    setPinForm({ current: "", next: "", confirm: "" });
+    setPinMsg({ ok: true, text: "PIN updated successfully." });
+    setTimeout(() => setPinMsg(null), 3000);
+  }
+
+  // ── Live Chat (admin side) ──────────────────────────────────────────────────
+  interface ChatSession { sessionId: string; customerName: string; lastMessage: string; lastAt: string; unread: number; messageCount: number; }
+  interface ChatMsg { id: number; sessionId: string; senderName: string; senderRole: string; message: string; read: boolean; createdAt: string; }
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [chatSessionsLoading, setChatSessionsLoading] = useState(true);
+  const [activeChatSession, setActiveChatSession] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [chatReply, setChatReply] = useState("");
+  const [chatSending, setChatSending] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  const fetchChatSessions = useCallback(async () => {
+    try {
+      const d = await fetch("/api/support-chat/sessions").then(r => r.json()) as { sessions: ChatSession[] };
+      setChatSessions(d.sessions ?? []);
+    } catch { /* ignore */ } finally { setChatSessionsLoading(false); }
+  }, []);
+
+  const fetchChatMessages = useCallback(async (sid: string) => {
+    try {
+      const d = await fetch(`/api/support-chat/${sid}`).then(r => r.json()) as { messages: ChatMsg[] };
+      setChatMessages(d.messages ?? []);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (section === "livechat") {
+      void fetchChatSessions();
+      const iv = setInterval(() => { void fetchChatSessions(); }, 5000);
+      return () => clearInterval(iv);
+    }
+  }, [section, fetchChatSessions]);
+
+  useEffect(() => {
+    if (activeChatSession) {
+      void fetchChatMessages(activeChatSession);
+      const iv = setInterval(() => { void fetchChatMessages(activeChatSession); }, 3000);
+      return () => clearInterval(iv);
+    }
+  }, [activeChatSession, fetchChatMessages]);
+
+  useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages]);
+
+  async function sendChatReply() {
+    if (!chatReply.trim() || !activeChatSession || chatSending) return;
+    setChatSending(true);
+    const text = chatReply.trim();
+    setChatReply("");
+    try {
+      await fetch("/api/support-chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: activeChatSession, senderName: "Affuaa Support", senderRole: "support", message: text }) });
+      await fetchChatMessages(activeChatSession);
+      await fetchChatSessions();
+    } catch { /* ignore */ } finally { setChatSending(false); }
+  }
   const [flags, setFlags] = useState({
     demo_mode: true, uploads_open: true, collections_public: true,
     comments_enabled: true, tips_enabled: true, licensing_enabled: true,
@@ -1220,68 +1334,141 @@ export function Admin() {
           )}
 
           {/* ── MONETISATION ── */}
-          {section === "monetisation" && (
+          {section === "monetisation" && (() => {
+            const totalPaid = payouts.filter(p => p.status === "paid").reduce((s, p) => s + parseFloat(p.amount), 0);
+            const totalPending = payouts.filter(p => p.status === "pending").reduce((s, p) => s + parseFloat(p.amount), 0);
+            const pendingCount = payouts.filter(p => p.status === "pending").length;
+            return (
             <div>
               <SectionTitle sub="Platform revenue, payouts, and creator earnings">Monetisation</SectionTitle>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <StatCard icon={DollarSign} label="Total Revenue" value="$663" sub="all time" accent="text-green-400" />
-                <StatCard icon={CreditCard} label="This Month" value="$189" sub="May 2026" />
-                <StatCard icon={ArrowUpRight} label="Pending Payouts" value="$368" sub="3 transactions" accent="text-amber-400" />
-                <StatCard icon={TrendingUp} label="Avg per Creator" value="$82" sub="monthly" />
+                <StatCard icon={DollarSign} label="Total Paid Out" value={`$${totalPaid.toFixed(2)}`} sub="all time" accent="text-green-400" />
+                <StatCard icon={CreditCard} label="Total Payouts" value={String(payouts.length)} sub="records" />
+                <StatCard icon={ArrowUpRight} label="Pending" value={`$${totalPending.toFixed(2)}`} sub={`${pendingCount} transaction${pendingCount !== 1 ? "s" : ""}`} accent="text-amber-400" />
+                <StatCard icon={TrendingUp} label="Avg Payout" value={payouts.length ? `$${(payouts.reduce((s,p) => s + parseFloat(p.amount),0) / payouts.length).toFixed(2)}` : "$0"} sub="per record" />
               </div>
 
-              <div className="mb-6">
-                <h3 className="text-sm font-medium mb-4">Payout Approval Queue</h3>
-                <div className="border border-border">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-card/50">
-                        <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Photographer</th>
-                        <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Description</th>
-                        <th className="text-right px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Amount</th>
-                        <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Date</th>
-                        <th className="px-4 py-3" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {MOCK_TRANSACTIONS.filter(t => t.status === "pending").map(t => (
-                        <tr key={t.id} className="border-b border-border hover:bg-card/40 transition-colors">
-                          <td className="px-4 py-3 font-medium">{t.photographer}</td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">{t.desc}</td>
-                          <td className="px-4 py-3 text-right font-medium">${t.amount.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">{t.date}</td>
-                          <td className="px-4 py-3 flex gap-2">
-                            <button className="flex items-center gap-1 text-xs px-2.5 py-1 border border-green-500/30 text-green-400 hover:bg-green-500/10 transition-colors">
-                              <Check className="w-3 h-3" /> Approve
-                            </button>
-                            <button className="flex items-center gap-1 text-xs px-2.5 py-1 border border-border text-muted-foreground hover:text-foreground transition-colors">
-                              <X className="w-3 h-3" /> Reject
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {/* Add Payout Form */}
+              <div className="border border-border bg-card p-5 mb-6">
+                <h3 className="text-sm font-medium mb-4 flex items-center gap-2"><Plus className="w-4 h-4 text-muted-foreground" /> Record New Payout</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+                  <input value={newPayout.photographerName} onChange={e => setNewPayout(p => ({ ...p, photographerName: e.target.value }))}
+                    placeholder="Photographer name *" className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30" />
+                  <input value={newPayout.email} onChange={e => setNewPayout(p => ({ ...p, email: e.target.value }))}
+                    placeholder="Email (optional)" className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30" />
+                  <select value={newPayout.type} onChange={e => setNewPayout(p => ({ ...p, type: e.target.value }))}
+                    className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30">
+                    <option value="commission">Commission</option>
+                    <option value="license">License</option>
+                    <option value="print">Print sale</option>
+                    <option value="tip">Tip</option>
+                  </select>
+                  <input value={newPayout.description} onChange={e => setNewPayout(p => ({ ...p, description: e.target.value }))}
+                    placeholder="Description *" className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30 sm:col-span-2" />
+                  <input type="number" value={newPayout.amount} onChange={e => setNewPayout(p => ({ ...p, amount: e.target.value }))}
+                    placeholder="Amount ($) *" min="0.01" step="0.01" className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30" />
                 </div>
+                <button onClick={() => void createPayout()} disabled={addingPayout || !newPayout.photographerName || !newPayout.description || !newPayout.amount}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-foreground text-background text-xs hover:opacity-90 transition-opacity disabled:opacity-40">
+                  {addingPayout ? <><span className="w-3 h-3 border border-background/40 border-t-background rounded-full animate-spin inline-block" /> Recording…</> : <><Plus className="w-3 h-3" /> Record Payout</>}
+                </button>
+              </div>
+
+              {/* Payout Records Table */}
+              <div className="mb-6">
+                <h3 className="text-sm font-medium mb-4">All Payout Records</h3>
+                {payoutsLoading ? (
+                  <div className="space-y-2">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+                ) : payouts.length === 0 ? (
+                  <div className="py-12 text-center border border-dashed border-border text-muted-foreground">
+                    <DollarSign className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">No payout records yet. Use the form above to add one.</p>
+                  </div>
+                ) : (
+                  <div className="border border-border overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-card/50">
+                          <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">ID</th>
+                          <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Photographer</th>
+                          <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal hidden sm:table-cell">Description</th>
+                          <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal hidden lg:table-cell">Type</th>
+                          <th className="text-right px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Amount</th>
+                          <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Status</th>
+                          <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal hidden md:table-cell">Date</th>
+                          <th className="px-4 py-3" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {payouts.map(p => (
+                          <tr key={p.id} className="border-b border-border last:border-0 hover:bg-card/40 transition-colors">
+                            <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.payoutId}</td>
+                            <td className="px-4 py-3">
+                              <div>
+                                <span className="font-medium text-sm">{p.photographerName}</span>
+                                {p.email && <p className="text-xs text-muted-foreground">{p.email}</p>}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell max-w-xs truncate">{p.description}</td>
+                            <td className="px-4 py-3 hidden lg:table-cell">
+                              <Badge color="border-border text-muted-foreground">{p.type}</Badge>
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium tabular-nums">${parseFloat(p.amount).toFixed(2)}</td>
+                            <td className="px-4 py-3 text-center">
+                              <Badge color={p.status === "paid" ? "border-green-500/30 text-green-400 bg-green-500/5" : p.status === "rejected" ? "border-red-500/30 text-red-400 bg-red-500/5" : "border-amber-500/30 text-amber-400"}>
+                                {p.status}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">
+                              {new Date(p.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                            </td>
+                            <td className="px-4 py-3">
+                              {p.status === "pending" && (
+                                <div className="flex gap-1.5">
+                                  <button onClick={() => void approvePayout(p.id)}
+                                    className="flex items-center gap-1 text-xs px-2.5 py-1 border border-green-500/30 text-green-400 hover:bg-green-500/10 transition-colors">
+                                    <Check className="w-3 h-3" /> Pay
+                                  </button>
+                                  <button onClick={() => void rejectPayout(p.id)}
+                                    className="flex items-center gap-1 text-xs px-2.5 py-1 border border-border text-muted-foreground hover:text-foreground transition-colors">
+                                    <X className="w-3 h-3" /> Reject
+                                  </button>
+                                </div>
+                              )}
+                              {p.status !== "pending" && p.processedAt && (
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(p.processedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="border border-border bg-card p-5">
                   <h3 className="text-sm font-medium mb-4">Revenue by Type</h3>
-                  {[
-                    { label: "Commissions", value: 1150, color: "bg-purple-500" },
-                    { label: "Licensing", value: 180, color: "bg-blue-500" },
-                    { label: "Prints", value: 124, color: "bg-green-500" },
-                    { label: "Tips", value: 9, color: "bg-amber-500" },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className="mb-3">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span>{label}</span>
-                        <span className="text-muted-foreground">${value}</span>
+                  {(() => {
+                    const byType: Record<string, number> = {};
+                    payouts.filter(p => p.status === "paid").forEach(p => { byType[p.type] = (byType[p.type] ?? 0) + parseFloat(p.amount); });
+                    const colors: Record<string, string> = { commission: "bg-purple-500", license: "bg-blue-500", print: "bg-green-500", tip: "bg-amber-500" };
+                    const max = Math.max(...Object.values(byType), 1);
+                    return Object.entries(byType).length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No paid payouts yet.</p>
+                    ) : Object.entries(byType).map(([type, value]) => (
+                      <div key={type} className="mb-3">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="capitalize">{type}</span>
+                          <span className="text-muted-foreground">${value.toFixed(2)}</span>
+                        </div>
+                        <MiniBar value={value} max={max} color={colors[type] ?? "bg-foreground"} />
                       </div>
-                      <MiniBar value={value} max={1150} color={color} />
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </div>
                 <div className="border border-border bg-card p-5">
                   <h3 className="text-sm font-medium mb-3">Commission Rate Settings</h3>
@@ -1302,10 +1489,112 @@ export function Admin() {
                   <div className="mt-4 pt-3 border-t border-border">
                     <p className="text-xs text-muted-foreground mb-2">Promo Code Generator</p>
                     <div className="flex gap-2">
-                      <input placeholder="SUMMER25" className="flex-1 bg-background border border-border px-2 py-1.5 text-xs focus:outline-none" />
-                      <button className="px-3 py-1.5 bg-foreground text-background text-xs hover:opacity-90 transition-opacity">Generate</button>
+                      <input placeholder="SUMMER25"
+                        className="flex-1 bg-background border border-border px-2 py-1.5 text-xs focus:outline-none"
+                        onKeyDown={e => {
+                          if (e.key === "Enter") {
+                            const input = e.currentTarget;
+                            const code = input.value.trim().toUpperCase();
+                            if (code) { navigator.clipboard.writeText(code).catch(() => {}); input.value = code + " ✓"; setTimeout(() => { input.value = code; }, 2000); }
+                          }
+                        }}
+                      />
+                      <button onClick={e => {
+                        const input = (e.currentTarget.previousSibling as HTMLInputElement);
+                        const code = (input.value.trim() || "AFF" + Math.random().toString(36).slice(2,8).toUpperCase());
+                        input.value = code;
+                        navigator.clipboard.writeText(code).catch(() => {});
+                      }} className="px-3 py-1.5 bg-foreground text-background text-xs hover:opacity-90 transition-opacity">Generate</button>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+            );
+          })()}
+
+          {/* ── LIVE CHAT ── */}
+          {section === "livechat" && (
+            <div>
+              <SectionTitle sub="Respond to customer messages in real time">Live Chat</SectionTitle>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
+                {/* Sessions list */}
+                <div className="border border-border bg-card flex flex-col overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border bg-card/50 flex items-center justify-between flex-shrink-0">
+                    <h3 className="text-sm font-medium">Sessions</h3>
+                    <button onClick={() => void fetchChatSessions()} className="text-muted-foreground hover:text-foreground transition-colors">
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-border">
+                    {chatSessionsLoading ? (
+                      <div className="p-4 space-y-2">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+                    ) : chatSessions.length === 0 ? (
+                      <div className="p-6 text-center">
+                        <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                        <p className="text-xs text-muted-foreground">No customer conversations yet.</p>
+                      </div>
+                    ) : chatSessions.map(s => (
+                      <button key={s.sessionId}
+                        onClick={() => setActiveChatSession(s.sessionId)}
+                        className={cn("w-full text-left p-4 hover:bg-muted/30 transition-colors", activeChatSession === s.sessionId && "bg-muted/40")}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium truncate">{s.customerName}</span>
+                          {s.unread > 0 && (
+                            <span className="ml-2 bg-foreground text-background text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0">{s.unread}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{s.lastMessage}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1">{new Date(s.lastAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Chat area */}
+                <div className="lg:col-span-2 border border-border flex flex-col overflow-hidden">
+                  {!activeChatSession ? (
+                    <div className="flex-1 flex items-center justify-center text-center p-8">
+                      <div>
+                        <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                        <p className="text-sm text-muted-foreground">Select a conversation to view messages</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="px-4 py-3 border-b border-border bg-card/50 flex-shrink-0">
+                        <p className="text-sm font-medium">{chatSessions.find(s => s.sessionId === activeChatSession)?.customerName ?? activeChatSession}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{activeChatSession}</p>
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                        {chatMessages.map(msg => (
+                          <div key={msg.id} className={cn("flex", msg.senderRole === "support" ? "justify-end" : "justify-start")}>
+                            <div className={cn("max-w-[75%] px-3 py-2 text-sm", msg.senderRole === "support" ? "bg-foreground text-background" : "bg-muted border border-border")}>
+                              <p className="text-[10px] font-medium mb-1 opacity-60">{msg.senderRole === "support" ? "You (Support)" : msg.senderName}</p>
+                              <p className="leading-relaxed">{msg.message}</p>
+                              <p className={cn("text-[10px] mt-1", msg.senderRole === "support" ? "text-background/50 text-right" : "text-muted-foreground")}>
+                                {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        {chatMessages.length === 0 && (
+                          <div className="py-12 text-center text-muted-foreground text-sm">No messages in this session yet.</div>
+                        )}
+                        <div ref={chatBottomRef} />
+                      </div>
+                      <div className="border-t border-border p-3 flex items-end gap-2 flex-shrink-0">
+                        <textarea value={chatReply} onChange={e => setChatReply(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendChatReply(); } }}
+                          placeholder="Type a reply… (Enter to send)" rows={2}
+                          className="flex-1 bg-background border border-border px-3 py-2 text-sm resize-none focus:outline-none focus:border-foreground/30 transition-colors" />
+                        <button onClick={() => void sendChatReply()} disabled={!chatReply.trim() || chatSending}
+                          className="w-9 h-9 bg-foreground text-background flex items-center justify-center hover:opacity-80 transition-opacity disabled:opacity-30 flex-shrink-0">
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -1315,6 +1604,36 @@ export function Admin() {
           {section === "settings" && (
             <div>
               <SectionTitle sub="Feature flags, SEO, social media, redirects, and platform config">Site Settings</SectionTitle>
+
+              {/* PIN Config */}
+              <div className="border border-border bg-card p-5 mb-6">
+                <h3 className="text-sm font-medium mb-1 flex items-center gap-2"><Lock className="w-4 h-4 text-muted-foreground" /> Admin PIN</h3>
+                <p className="text-xs text-muted-foreground mb-4">{currentPin ? "A PIN is set. You can change it below." : "No PIN set. Set one to add an extra layer of admin security."}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3 max-w-lg">
+                  {currentPin && (
+                    <input type="password" value={pinForm.current} onChange={e => setPinForm(p => ({ ...p, current: e.target.value }))}
+                      placeholder="Current PIN" className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30" />
+                  )}
+                  <input type="password" value={pinForm.next} onChange={e => setPinForm(p => ({ ...p, next: e.target.value }))}
+                    placeholder="New PIN" className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30" />
+                  <input type="password" value={pinForm.confirm} onChange={e => setPinForm(p => ({ ...p, confirm: e.target.value }))}
+                    placeholder="Confirm PIN" className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30"
+                    onKeyDown={e => { if (e.key === "Enter") changePin(); }} />
+                </div>
+                <div className="flex items-center gap-3">
+                  <button onClick={changePin}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-foreground text-background text-xs hover:opacity-90 transition-opacity">
+                    <KeyRound className="w-3.5 h-3.5" /> {currentPin ? "Update PIN" : "Set PIN"}
+                  </button>
+                  {currentPin && (
+                    <button onClick={() => { localStorage.removeItem(PIN_STORE); setCurrentPin(""); setPinMsg({ ok: true, text: "PIN removed." }); setTimeout(() => setPinMsg(null), 3000); }}
+                      className="text-xs text-muted-foreground hover:text-red-400 transition-colors">Remove PIN</button>
+                  )}
+                  {pinMsg && (
+                    <span className={cn("text-xs", pinMsg.ok ? "text-green-400" : "text-red-400")}>{pinMsg.text}</span>
+                  )}
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 <div className="border border-border bg-card p-5">

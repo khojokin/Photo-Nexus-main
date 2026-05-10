@@ -8,6 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./notifications";
 import { useAuth } from "@/contexts/auth-context";
+import { LiveChat } from "./live-chat";
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 type Theme = "dark" | "light" | "sepia";
@@ -797,6 +798,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </footer>
+      <LiveChat />
     </div>
   );
 }
