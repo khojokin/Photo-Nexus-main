@@ -6,6 +6,7 @@ import path from "path";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { setupReplitAuth } from "./replitAuth";
+import { authMiddleware } from "./middlewares/authMiddleware";
 
 const app: Express = express();
 
@@ -35,6 +36,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 await setupReplitAuth(app);
+
+app.use(authMiddleware);
 
 app.use("/uploads", express.static(path.resolve(process.cwd(), "public", "uploads")));
 app.use("/api", router);
