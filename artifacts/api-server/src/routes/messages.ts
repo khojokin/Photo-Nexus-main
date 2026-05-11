@@ -1,9 +1,20 @@
 import { Router, type IRouter } from "express";
-import { eq, or, and, desc, sql } from "drizzle-orm";
+import { eq, or, and, desc } from "drizzle-orm";
 import { db, messagesTable } from "@workspace/db";
 import { z } from "zod";
 
 const router: IRouter = Router();
+
+// In-memory typing state: "senderName->recipientName" => timestamp of last keystroke
+const typingMap = new Map<string, number>();
+
+// Prune stale entries every 30 seconds so the map doesn't grow forever
+setInterval(() => {
+  const cutoff = Date.now() - 6_000;
+  for (const [key, ts] of typingMap) {
+    if (ts < cutoff) typingMap.delete(key);
+  }
+}, 30_000);
 
 const SendMessageBody = z.object({
   senderName: z.string().min(1).max(80),
@@ -13,6 +24,41 @@ const SendMessageBody = z.object({
 
 const GetMessagesQuery = z.object({
   name: z.string().min(1).max(80),
+});
+
+const TypingBody = z.object({
+  senderName: z.string().min(1).max(80),
+  recipientName: z.string().min(1).max(80),
+});
+
+const TypingQuery = z.object({
+  from: z.string().min(1).max(80),
+  to: z.string().min(1).max(80),
+});
+
+// POST /messages/typing  — called each time the sender presses a key
+router.post("/messages/typing", (req, res): void => {
+  const parsed = TypingBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "senderName and recipientName required" });
+    return;
+  }
+  typingMap.set(`${parsed.data.senderName}->${parsed.data.recipientName}`, Date.now());
+  res.json({ ok: true });
+});
+
+// GET /messages/typing?from=X&to=Y  — recipient polls this to see if sender is typing
+// Must be declared before GET /messages/:partner so "typing" isn't treated as a partner name
+router.get("/messages/typing", (req, res): void => {
+  const parsed = TypingQuery.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "from and to query params required" });
+    return;
+  }
+  const key = `${parsed.data.from}->${parsed.data.to}`;
+  const ts = typingMap.get(key);
+  const isTyping = ts !== undefined && Date.now() - ts < 3_000;
+  res.json({ isTyping });
 });
 
 router.get("/messages", async (req, res): Promise<void> => {
@@ -119,6 +165,9 @@ router.post("/messages", async (req, res): Promise<void> => {
     .insert(messagesTable)
     .values(parsed.data)
     .returning();
+
+  // Clear typing signal once the message is sent
+  typingMap.delete(`${parsed.data.senderName}->${parsed.data.recipientName}`);
 
   res.status(201).json(message);
 });

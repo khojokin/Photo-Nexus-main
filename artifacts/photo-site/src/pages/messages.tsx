@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Send, MessageSquare, User, ArrowLeft, Trash2, Plus, X } from "lucide-react";
@@ -96,6 +96,71 @@ function useThread(myName: string, partner: string) {
   }
 
   return { messages, loading, loadThread, sendMessage, deleteMessage };
+}
+
+// Handles both signalling that the local user is typing and polling for the partner
+function useTypingIndicator(myName: string, partner: string) {
+  const [partnerIsTyping, setPartnerIsTyping] = useState(false);
+  const lastSignalRef = useRef(0);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Throttled: only send a typing signal at most every 2 seconds
+  const signalTyping = useCallback(() => {
+    if (!myName || !partner) return;
+    const now = Date.now();
+    if (now - lastSignalRef.current < 2_000) return;
+    lastSignalRef.current = now;
+    fetch("/api/messages/typing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ senderName: myName, recipientName: partner }),
+    }).catch(() => { /* non-critical */ });
+  }, [myName, partner]);
+
+  // Poll every 1.5 s to check if partner is typing
+  useEffect(() => {
+    if (!myName || !partner) {
+      setPartnerIsTyping(false);
+      return;
+    }
+
+    const check = async () => {
+      try {
+        const res = await fetch(
+          `/api/messages/typing?from=${encodeURIComponent(partner)}&to=${encodeURIComponent(myName)}`
+        );
+        if (res.ok) {
+          const data = await res.json() as { isTyping: boolean };
+          setPartnerIsTyping(data.isTyping);
+        }
+      } catch { /* ignore */ }
+    };
+
+    void check();
+    pollRef.current = setInterval(() => void check(), 1_500);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      setPartnerIsTyping(false);
+    };
+  }, [myName, partner]);
+
+  return { partnerIsTyping, signalTyping };
+}
+
+function TypingBubble({ name }: { name: string }) {
+  return (
+    <div className="flex gap-2 justify-start items-end">
+      <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs flex-shrink-0">
+        {name.charAt(0)}
+      </div>
+      <div className="bg-muted px-4 py-3 flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:0ms]" />
+        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:160ms]" />
+        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:320ms]" />
+      </div>
+    </div>
+  );
 }
 
 function NameSetup({ onSet, pendingTo }: { onSet: (name: string) => void; pendingTo: string | null }) {
@@ -197,6 +262,7 @@ export function Messages() {
 
   const { conversations, loading: convLoading, loadConversations, setConversations } = useMessages(myName);
   const { messages, loading: threadLoading, loadThread, sendMessage, deleteMessage } = useThread(myName, activePartner ?? "");
+  const { partnerIsTyping, signalTyping } = useTypingIndicator(myName, activePartner ?? "");
 
   function handleSetName(name: string) {
     localStorage.setItem(NAME_KEY, name);
@@ -224,9 +290,10 @@ export function Messages() {
     if (myName && activePartner) void loadThread();
   }, [myName, activePartner]);
 
+  // Scroll to bottom when messages or typing state changes
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, partnerIsTyping]);
 
   if (!myName) return <NameSetup onSet={handleSetName} pendingTo={pendingToRef.current} />;
 
@@ -297,6 +364,7 @@ export function Messages() {
 
         <div className="border border-border overflow-hidden" style={{ height: "calc(100vh - 280px)", minHeight: 400 }}>
           <div className="flex h-full">
+            {/* Sidebar — conversation list */}
             <div className={cn(
               "w-full md:w-72 border-r border-border flex flex-col flex-shrink-0",
               mobileView === "thread" && "hidden md:flex"
@@ -339,7 +407,11 @@ export function Messages() {
                             <p className="text-sm font-medium truncate">{conv.partner}</p>
                             <span className="text-xs text-muted-foreground flex-shrink-0">{formatTime(conv.lastAt)}</span>
                           </div>
-                          <p className="text-xs text-muted-foreground truncate mt-0.5">{conv.lastMessage}</p>
+                          {activePartner === conv.partner && partnerIsTyping ? (
+                            <p className="text-xs text-muted-foreground mt-0.5 italic">typing…</p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">{conv.lastMessage}</p>
+                          )}
                         </div>
                         {conv.unread > 0 && (
                           <span className="flex-shrink-0 w-4 h-4 rounded-full bg-foreground text-background text-[10px] flex items-center justify-center font-medium">
@@ -353,6 +425,7 @@ export function Messages() {
               </div>
             </div>
 
+            {/* Main thread area */}
             <div className={cn(
               "flex-1 flex flex-col min-w-0",
               mobileView === "list" && "hidden md:flex"
@@ -364,6 +437,7 @@ export function Messages() {
                 </div>
               ) : (
                 <>
+                  {/* Thread header */}
                   <div className="border-b border-border px-4 py-3 flex items-center gap-3 flex-shrink-0">
                     <button onClick={() => setMobileView("list")} className="md:hidden text-muted-foreground hover:text-foreground mr-1">
                       <ArrowLeft className="w-4 h-4" />
@@ -371,9 +445,17 @@ export function Messages() {
                     <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-serif">
                       {activePartner.charAt(0)}
                     </div>
-                    <p className="font-medium text-sm">{activePartner}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm leading-tight">{activePartner}</p>
+                      {partnerIsTyping && (
+                        <p className="text-[11px] text-muted-foreground leading-tight animate-pulse">
+                          typing…
+                        </p>
+                      )}
+                    </div>
                   </div>
 
+                  {/* Messages */}
                   <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
                     {threadLoading ? (
                       <div className="flex items-center justify-center py-12">
@@ -417,15 +499,22 @@ export function Messages() {
                         );
                       })
                     )}
+
+                    {/* Typing indicator bubble — shown after the last message */}
+                    {partnerIsTyping && !threadLoading && (
+                      <TypingBubble name={activePartner} />
+                    )}
+
                     <div ref={bottomRef} />
                   </div>
 
+                  {/* Compose box */}
                   <div className="border-t border-border px-4 py-3 flex-shrink-0">
                     <div className="flex gap-2">
                       <input
                         type="text"
                         value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
+                        onChange={(e) => { setDraft(e.target.value); signalTyping(); }}
                         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
                         placeholder={`Message ${activePartner}…`}
                         className="flex-1 bg-transparent border border-border px-4 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors"
