@@ -42,9 +42,10 @@ app.use(authMiddleware);
 app.use("/uploads", express.static(path.resolve(process.cwd(), "public", "uploads")));
 app.use("/api", router);
 
-// In production, serve the compiled photo-site SPA
-if (process.env.NODE_ENV === "production") {
-  const siteDist = path.resolve(process.cwd(), "artifacts/photo-site/dist/public");
+// Serve the compiled photo-site SPA when the dist folder is present (production)
+import fs from "fs";
+const siteDist = path.resolve(process.cwd(), "artifacts/photo-site/dist/public");
+if (fs.existsSync(siteDist)) {
   app.use(express.static(siteDist));
   // SPA fallback — all non-API routes serve index.html
   app.use((_req, res) => {
