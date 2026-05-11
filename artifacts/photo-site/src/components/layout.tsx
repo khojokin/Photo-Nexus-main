@@ -581,6 +581,34 @@ function getHiddenPages(): string[] {
   catch { return []; }
 }
 
+interface MaintenanceConfig { enabled: boolean; message: string; returnTime: string; }
+const MAINTENANCE_KEY = "affuaa_maintenance";
+function getMaintenance(): MaintenanceConfig {
+  try { return JSON.parse(localStorage.getItem(MAINTENANCE_KEY) ?? "null") as MaintenanceConfig ?? { enabled: false, message: "", returnTime: "" }; }
+  catch { return { enabled: false, message: "", returnTime: "" }; }
+}
+
+function MaintenanceSplash({ config }: { config: MaintenanceConfig }) {
+  return (
+    <div className="fixed inset-0 z-[500] bg-background flex flex-col items-center justify-center text-center px-6">
+      <div className="max-w-md w-full">
+        <p className="font-serif text-5xl mb-6 tracking-tight">Affuaa.</p>
+        <div className="w-12 h-px bg-foreground/20 mx-auto mb-8" />
+        <p className="font-serif text-2xl mb-3">We'll be back soon.</p>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          {config.message || "We're making things even better. The site is temporarily down for scheduled maintenance."}
+        </p>
+        {config.returnTime && (
+          <p className="mt-4 text-xs font-medium uppercase tracking-widest text-muted-foreground/60">{config.returnTime}</p>
+        )}
+        <div className="mt-10 pt-8 border-t border-border/30 text-xs text-muted-foreground/40">
+          © {new Date().getFullYear()} Affuaa. All rights reserved.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -588,6 +616,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const { user, isAdmin, isLoading, logout } = useAuth();
   const [hiddenPages] = useState<string[]>(() => getHiddenPages());
+  const [maintenanceConfig] = useState<MaintenanceConfig>(() => getMaintenance());
 
   const displayName = (() => {
     try { return JSON.parse(localStorage.getItem("affuaa_settings") ?? "{}").displayName ?? ""; }
@@ -634,6 +663,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
+      {maintenanceConfig.enabled && !isAdmin && !isLoading && (
+        <MaintenanceSplash config={maintenanceConfig} />
+      )}
       {isSigningOut && (
         <div className="fixed inset-0 z-[400] bg-background/90 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
           <div className="text-center">

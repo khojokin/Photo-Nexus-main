@@ -336,6 +336,18 @@ export function Admin() {
   const [seoSettings, setSeoSettings] = useState({ title: "Affuaa — Gallery-quality photography", desc: "Discover extraordinary images carefully selected for those who care about the craft.", ogImage: "" });
   const [socialLinks, setSocialLinks] = useState({ instagram: "@affuaa", twitter: "@affuaa_photos", facebook: "", pinterest: "affuaa" });
 
+  // ── Maintenance Mode ────────────────────────────────────────────────────────
+  const MAINTENANCE_KEY = "affuaa_maintenance";
+  interface MaintenanceConfig { enabled: boolean; message: string; returnTime: string; }
+  const [maintenance, setMaintenanceState] = useState<MaintenanceConfig>(() => {
+    try { return JSON.parse(localStorage.getItem(MAINTENANCE_KEY) ?? "null") as MaintenanceConfig ?? { enabled: false, message: "", returnTime: "" }; }
+    catch { return { enabled: false, message: "", returnTime: "" }; }
+  });
+  function saveMaintenance(next: MaintenanceConfig) {
+    setMaintenanceState(next);
+    localStorage.setItem(MAINTENANCE_KEY, JSON.stringify(next));
+  }
+
   // ── Payouts ────────────────────────────────────────────────────────────────
   interface Payout {
     id: number; payoutId: string; photographerName: string; email: string | null;
@@ -888,6 +900,62 @@ export function Admin() {
                     </div>
                   ))}
                   {analyticsLoading && <Skeleton className="h-4 w-full" />}
+                </div>
+              </div>
+
+              {/* ── Maintenance Mode ── */}
+              <div className={cn(
+                "mt-6 border p-5 transition-colors",
+                maintenance.enabled ? "border-red-500/40 bg-red-500/5" : "border-border bg-card"
+              )}>
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <h3 className="text-sm font-medium flex items-center gap-2">
+                      <Zap className={cn("w-4 h-4", maintenance.enabled ? "text-red-400" : "text-muted-foreground")} />
+                      Maintenance Mode
+                      {maintenance.enabled && (
+                        <span className="text-[10px] px-1.5 py-0.5 border border-red-500/40 text-red-400 uppercase tracking-widest animate-pulse">Live</span>
+                      )}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {maintenance.enabled
+                        ? "Site is in maintenance mode — all visitors see the splash page. You retain full admin access."
+                        : "When enabled, all visitors see a 'We'll be back soon' splash page. Admins bypass it."}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => saveMaintenance({ ...maintenance, enabled: !maintenance.enabled })}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors flex-shrink-0",
+                      maintenance.enabled
+                        ? "bg-green-600 text-white hover:bg-green-700"
+                        : "bg-red-600 text-white hover:bg-red-700"
+                    )}
+                  >
+                    {maintenance.enabled
+                      ? <><ToggleRight className="w-4 h-4" /> Disable Maintenance</>
+                      : <><ToggleLeft className="w-4 h-4" /> Enable Maintenance</>}
+                  </button>
+                </div>
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] uppercase tracking-widest text-muted-foreground block mb-1.5">Custom message (optional)</label>
+                    <input
+                      value={maintenance.message}
+                      onChange={e => saveMaintenance({ ...maintenance, message: e.target.value })}
+                      placeholder="We're making things even better…"
+                      className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase tracking-widest text-muted-foreground block mb-1.5">Estimated return time (optional)</label>
+                    <input
+                      value={maintenance.returnTime}
+                      onChange={e => saveMaintenance({ ...maintenance, returnTime: e.target.value })}
+                      placeholder="e.g. Back in 2 hours"
+                      className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
