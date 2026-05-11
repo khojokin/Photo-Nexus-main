@@ -10,7 +10,7 @@ import {
 import type { Photo, Collection } from "@workspace/api-client-react";
 import {
   LayoutDashboard, Image, Users, FolderOpen, Shield, Tag, DollarSign,
-  Settings, Mail, Server, Star, StarOff, Check, X,
+  Settings, Mail, Server, Star, StarOff, Check, X, EyeOff,
   ExternalLink, AlertTriangle, TrendingUp, Download, Heart, Eye,
   BarChart3, Activity, Zap, Database, HardDrive,
   Bell, Send, UserCheck, UserX, BadgeCheck, RefreshCw, ToggleLeft, ToggleRight,
@@ -23,7 +23,7 @@ import {
 type Section =
   | "dashboard" | "analytics" | "photos" | "users" | "collections"
   | "moderation" | "tags" | "monetisation" | "locks" | "livechat" | "settings" | "comms" | "system"
-  | "verifications" | "subscriptions";
+  | "verifications" | "subscriptions" | "pages";
 
 interface DailyStat {
   label: string;
@@ -60,11 +60,11 @@ const NAV: { id: Section; label: string; icon: React.ElementType; badge?: string
   { id: "collections", label: "Collections", icon: FolderOpen },
   { id: "moderation", label: "Moderation", icon: Shield },
   { id: "tags", label: "Tags", icon: Tag },
-  { id: "monetisation", label: "Monetisation", icon: DollarSign },
   { id: "verifications", label: "Verifications", icon: BadgeCheck },
   { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
   { id: "locks", label: "Locks", icon: Lock },
   { id: "livechat", label: "Live Chat", icon: MessageSquare },
+  { id: "pages", label: "Hide Pages", icon: EyeOff },
   { id: "settings", label: "Site Settings", icon: Settings },
   { id: "comms", label: "Communications", icon: Mail },
   { id: "system", label: "System", icon: Server },
@@ -304,6 +304,34 @@ export function Admin() {
     try { const v = localStorage.getItem("affuaa_featured_spotlight"); return v ? parseInt(v, 10) : null; } catch { return null; }
   });
   const [spotlightMsg, setSpotlightMsg] = useState<string | null>(null);
+
+  // ── Hidden Pages ───────────────────────────────────────────────────────────
+  const HIDDEN_PAGES_KEY = "affuaa_hidden_pages";
+  const HIDEABLE_PAGES = [
+    { path: "/", label: "Home", desc: "Landing page and hero" },
+    { path: "/photos", label: "Explore", desc: "Photo grid with search and filters" },
+    { path: "/collections", label: "Collections", desc: "Curated photo collections" },
+    { path: "/discover", label: "Today's Edit", desc: "Daily curated selection" },
+    { path: "/premium", label: "Premium", desc: "Premium subscription page" },
+    { path: "/leaderboard", label: "Leaderboard", desc: "Top photographers by stats" },
+    { path: "/upload", label: "Upload", desc: "Photo upload page" },
+    { path: "/moodboard", label: "Mood Board", desc: "Personal mood board tool" },
+    { path: "/series", label: "Series", desc: "Photo series collections" },
+    { path: "/photo-of-the-day", label: "Photo of the Day", desc: "Daily featured photo" },
+    { path: "/monetise", label: "Monetise", desc: "Creator monetisation hub" },
+  ];
+  const [hiddenPages, setHiddenPagesState] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(HIDDEN_PAGES_KEY) ?? "[]") as string[]; }
+    catch { return []; }
+  });
+  function toggleHiddenPage(path: string) {
+    setHiddenPagesState(prev => {
+      const next = prev.includes(path) ? prev.filter(p => p !== path) : [...prev, path];
+      localStorage.setItem(HIDDEN_PAGES_KEY, JSON.stringify(next));
+      return next;
+    });
+  }
+
   const [rateLimit, setRateLimit] = useState(120);
   const [seoSettings, setSeoSettings] = useState({ title: "Affuaa — Gallery-quality photography", desc: "Discover extraordinary images carefully selected for those who care about the craft.", ogImage: "" });
   const [socialLinks, setSocialLinks] = useState({ instagram: "@affuaa", twitter: "@affuaa_photos", facebook: "", pinterest: "affuaa" });
@@ -1804,6 +1832,64 @@ export function Admin() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── HIDE PAGES ── */}
+          {section === "pages" && (
+            <div>
+              <SectionTitle sub="Toggle pages on and off — hidden pages show a 'not available' message to visitors. Admins always retain access.">Hide Pages</SectionTitle>
+
+              <div className="border border-amber-500/20 bg-amber-500/5 px-4 py-3 mb-6 flex items-start gap-2 text-amber-400 text-sm">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>Changes take effect immediately for all visitors. You (as admin) will always be able to access any page.</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {HIDEABLE_PAGES.map(page => {
+                  const isHidden = hiddenPages.includes(page.path);
+                  return (
+                    <div key={page.path} className={cn(
+                      "border p-4 flex items-center justify-between gap-4 transition-colors",
+                      isHidden ? "border-red-500/30 bg-red-500/5" : "border-border bg-card"
+                    )}>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{page.label}</p>
+                          {isHidden && (
+                            <span className="text-[10px] px-1.5 py-0.5 border border-red-500/30 text-red-400 uppercase tracking-widest">Hidden</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{page.desc}</p>
+                        <p className="text-[10px] text-muted-foreground/50 font-mono mt-0.5">{page.path}</p>
+                      </div>
+                      <button
+                        onClick={() => toggleHiddenPage(page.path)}
+                        className={cn(
+                          "flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors border",
+                          isHidden
+                            ? "border-green-500/30 text-green-400 hover:bg-green-500/10"
+                            : "border-red-500/30 text-red-400 hover:bg-red-500/10"
+                        )}
+                      >
+                        {isHidden ? <><Eye className="w-3 h-3" /> Show</> : <><EyeOff className="w-3 h-3" /> Hide</>}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {hiddenPages.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-border flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">{hiddenPages.length} page{hiddenPages.length !== 1 ? "s" : ""} currently hidden</p>
+                  <button onClick={() => {
+                    setHiddenPagesState([]);
+                    localStorage.setItem(HIDDEN_PAGES_KEY, "[]");
+                  }} className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4">
+                    Show all pages
+                  </button>
                 </div>
               )}
             </div>

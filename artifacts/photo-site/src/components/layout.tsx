@@ -575,12 +575,19 @@ const ADMIN_LINK = { href: "/admin", label: "Admin Panel", icon: Shield };
 const PREMIUM_LINK = { href: "/premium", label: "Premium", icon: Crown };
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
+const HIDDEN_PAGES_KEY = "affuaa_hidden_pages";
+function getHiddenPages(): string[] {
+  try { return JSON.parse(localStorage.getItem(HIDDEN_PAGES_KEY) ?? "[]") as string[]; }
+  catch { return []; }
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { user, isAdmin, isLoading, logout } = useAuth();
+  const [hiddenPages] = useState<string[]>(() => getHiddenPages());
 
   const displayName = (() => {
     try { return JSON.parse(localStorage.getItem("affuaa_settings") ?? "{}").displayName ?? ""; }
@@ -777,7 +784,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="flex-1">
-        {children}
+        {!isAdmin && hiddenPages.some(p => p === "/" ? location === "/" : location === p || location.startsWith(p + "/")) ? (
+          <div className="min-h-[60vh] flex items-center justify-center text-center px-4">
+            <div>
+              <p className="font-serif text-4xl mb-3">Page Unavailable</p>
+              <p className="text-muted-foreground text-sm">This page is currently not available. Check back soon.</p>
+              <Link href="/" className="mt-6 inline-block text-xs underline underline-offset-4 text-muted-foreground hover:text-foreground transition-colors">← Back to home</Link>
+            </div>
+          </div>
+        ) : children}
       </main>
 
       <footer className="border-t border-border py-12 mt-20">
@@ -791,6 +806,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
               <Link href="/photos" className="hover:text-foreground transition-colors">Explore</Link>
               <Link href="/collections" className="hover:text-foreground transition-colors">Collections</Link>
+              <Link href="/premium" className="hover:text-foreground transition-colors">Premium</Link>
               <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
               <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
             </div>
