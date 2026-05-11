@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, or, and, desc, inArray } from "drizzle-orm";
-import { db, messagesTable, messageReactionsTable } from "@workspace/db";
+import { db, messagesTable, messageReactionsTable, photosTable } from "@workspace/db";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -19,7 +19,8 @@ setInterval(() => {
 const SendMessageBody = z.object({
   senderName: z.string().min(1).max(80),
   recipientName: z.string().min(1).max(80),
-  content: z.string().min(1).max(2000),
+  content: z.string().max(2000).default(""),
+  photoId: z.number().int().positive().optional(),
 });
 
 const GetMessagesQuery = z.object({
@@ -67,7 +68,30 @@ async function fetchReactions(
   return map;
 }
 
-// POST /messages/typing  — called each time the sender presses a key
+// Helper: fetch photo info for a list of photo IDs
+async function fetchPhotos(
+  photoIds: number[],
+): Promise<Map<number, { id: number; title: string; imageUrl: string; photographerName: string }>> {
+  const map = new Map<number, { id: number; title: string; imageUrl: string; photographerName: string }>();
+  if (photoIds.length === 0) return map;
+
+  const rows = await db
+    .select({
+      id: photosTable.id,
+      title: photosTable.title,
+      imageUrl: photosTable.imageUrl,
+      photographerName: photosTable.photographerName,
+    })
+    .from(photosTable)
+    .where(inArray(photosTable.id, photoIds));
+
+  for (const row of rows) {
+    map.set(row.id, row);
+  }
+  return map;
+}
+
+// POST /messages/typing
 router.post("/messages/typing", (req, res): void => {
   const parsed = TypingBody.safeParse(req.body);
   if (!parsed.success) {
@@ -78,8 +102,7 @@ router.post("/messages/typing", (req, res): void => {
   res.json({ ok: true });
 });
 
-// GET /messages/typing?from=X&to=Y  — recipient polls this to see if sender is typing
-// Must be declared before GET /messages/:partner so "typing" isn't treated as a partner name
+// GET /messages/typing?from=X&to=Y
 router.get("/messages/typing", (req, res): void => {
   const parsed = TypingQuery.safeParse(req.query);
   if (!parsed.success) {
@@ -128,7 +151,7 @@ router.get("/messages", async (req, res): Promise<void> => {
     if (!conversationMap.has(partner)) {
       conversationMap.set(partner, {
         partner,
-        lastMessage: msg.content,
+        lastMessage: msg.content || (msg.photoId ? "📷 Photo" : ""),
         lastAt: msg.createdAt.toISOString(),
         unread: 0,
         messages: [],
@@ -177,14 +200,21 @@ router.get("/messages/:partner", async (req, res): Promise<void> => {
       and(eq(messagesTable.recipientName, myName), eq(messagesTable.senderName, partner)),
     );
 
-  const reactionMap = await fetchReactions(messages.map((m) => m.id));
+  const messageIds = messages.map((m) => m.id);
+  const photoIds = messages.map((m) => m.photoId).filter((id): id is number => id !== null);
 
-  const messagesWithReactions = messages.map((m) => ({
+  const [reactionMap, photoMap] = await Promise.all([
+    fetchReactions(messageIds),
+    fetchPhotos(photoIds),
+  ]);
+
+  const messagesWithData = messages.map((m) => ({
     ...m,
     reactions: reactionMap.get(m.id) ?? [],
+    photo: m.photoId ? (photoMap.get(m.photoId) ?? null) : null,
   }));
 
-  res.json({ messages: messagesWithReactions, total: messages.length });
+  res.json({ messages: messagesWithData, total: messages.length });
 });
 
 // POST /messages/:id/react — toggle an emoji reaction
@@ -200,7 +230,6 @@ router.post("/messages/:id/react", async (req, res): Promise<void> => {
 
   const { reactorName, emoji } = parsed.data;
 
-  // Check if the reaction already exists (toggle)
   const existing = await db
     .select()
     .from(messageReactionsTable)
@@ -228,7 +257,6 @@ router.post("/messages/:id/react", async (req, res): Promise<void> => {
       .values({ messageId: id, reactorName, emoji });
   }
 
-  // Return updated reactions for this message
   const reactionMap = await fetchReactions([id]);
   res.json({ reactions: reactionMap.get(id) ?? [] });
 });
@@ -240,6 +268,11 @@ router.post("/messages", async (req, res): Promise<void> => {
     return;
   }
 
+  if (!parsed.data.content && !parsed.data.photoId) {
+    res.status(400).json({ error: "Message must have content or a photo" });
+    return;
+  }
+
   if (parsed.data.senderName === parsed.data.recipientName) {
     res.status(400).json({ error: "Cannot message yourself" });
     return;
@@ -247,13 +280,23 @@ router.post("/messages", async (req, res): Promise<void> => {
 
   const [message] = await db
     .insert(messagesTable)
-    .values(parsed.data)
+    .values({
+      senderName: parsed.data.senderName,
+      recipientName: parsed.data.recipientName,
+      content: parsed.data.content ?? "",
+      photoId: parsed.data.photoId,
+    })
     .returning();
 
-  // Clear typing signal once the message is sent
   typingMap.delete(`${parsed.data.senderName}->${parsed.data.recipientName}`);
 
-  res.status(201).json({ ...message, reactions: [] });
+  let photo = null;
+  if (message.photoId) {
+    const photoMap = await fetchPhotos([message.photoId]);
+    photo = photoMap.get(message.photoId) ?? null;
+  }
+
+  res.status(201).json({ ...message, reactions: [], photo });
 });
 
 router.delete("/messages/:id", async (req, res): Promise<void> => {
