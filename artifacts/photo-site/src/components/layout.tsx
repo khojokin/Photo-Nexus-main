@@ -551,6 +551,35 @@ function MobileSearch() {
   );
 }
 
+// ─── Unread messages badge hook ───────────────────────────────────────────────
+const MSG_NAME_KEY = "affuaa_display_name";
+
+function useUnreadMessages() {
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    const myName = localStorage.getItem(MSG_NAME_KEY);
+    if (!myName) return;
+
+    async function check() {
+      try {
+        const res = await fetch(`/api/messages?name=${encodeURIComponent(myName!)}`);
+        if (res.ok) {
+          const data = await res.json() as { conversations: Array<{ unread: number }> };
+          const total = (data.conversations ?? []).reduce((s, c) => s + (c.unread ?? 0), 0);
+          setUnread(total);
+        }
+      } catch {}
+    }
+
+    void check();
+    const id = setInterval(() => void check(), 15_000);
+    return () => clearInterval(id);
+  }, []);
+
+  return unread;
+}
+
 // ─── Nav config ───────────────────────────────────────────────────────────────
 const PRIMARY_LINKS = [
   { href: "/photos", label: "Explore" },
@@ -615,6 +644,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { user, isAdmin, isLoading, logout } = useAuth();
+  const unreadMessages = useUnreadMessages();
   const [hiddenPages] = useState<string[]>(() => getHiddenPages());
   const [maintenanceConfig] = useState<MaintenanceConfig>(() => getMaintenance());
 
@@ -764,6 +794,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <div className="p-2">
                           {menuLinks.map((l) => {
                             const Icon = l.icon;
+                            const isMessages = l.href === "/messages";
                             return (
                               <Link
                                 key={l.href}
@@ -777,6 +808,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                               >
                                 <Icon className="w-4 h-4 shrink-0" />
                                 {l.label}
+                                {isMessages && unreadMessages > 0 && (
+                                  <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-medium text-background">
+                                    {unreadMessages > 99 ? "99+" : unreadMessages}
+                                  </span>
+                                )}
                               </Link>
                             );
                           })}

@@ -3,6 +3,8 @@ modules = ["nodejs-24", "postgresql-16"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
+run = ["bash", "-c", "PORT=8080 NODE_ENV=production node artifacts/api-server/dist/index.mjs"]
+build = ["bash", "-c", "pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/photo-site run build"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
