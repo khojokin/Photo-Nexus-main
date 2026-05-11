@@ -7,6 +7,13 @@ import { format, isToday, isYesterday } from "date-fns";
 
 const NAME_KEY = "affuaa_display_name";
 
+const QUICK_EMOJIS = ["❤️", "😂", "😮", "😢", "🔥", "👏"];
+
+interface Reaction {
+  emoji: string;
+  reactors: string[];
+}
+
 interface Message {
   id: number;
   senderName: string;
@@ -14,6 +21,7 @@ interface Message {
   content: string;
   read: boolean;
   createdAt: string;
+  reactions: Reaction[];
 }
 
 interface Conversation {
@@ -72,7 +80,7 @@ function useThread(myName: string, partner: string) {
     }
   }
 
-  // Poll the thread every 4 s so read receipts (and new messages) stay fresh
+  // Poll the thread every 4 s so read receipts and reactions stay fresh
   useEffect(() => {
     if (!myName || !partner) return;
     pollRef.current = setInterval(() => void loadThread(true), 4_000);
@@ -81,7 +89,7 @@ function useThread(myName: string, partner: string) {
     };
   }, [myName, partner]);
 
-  async function sendMessage(content: string): Promise<boolean> {
+  async function sendMessage(content: string): Promise<Message | null> {
     const res = await fetch("/api/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -90,9 +98,9 @@ function useThread(myName: string, partner: string) {
     if (res.ok || res.status === 201) {
       const msg: Message = await res.json();
       setMessages((prev) => [...prev, msg]);
-      return true;
+      return msg;
     }
-    return false;
+    return null;
   }
 
   async function deleteMessage(id: number) {
@@ -105,7 +113,21 @@ function useThread(myName: string, partner: string) {
     }
   }
 
-  return { messages, loading, loadThread, sendMessage, deleteMessage };
+  async function toggleReaction(messageId: number, emoji: string) {
+    const res = await fetch(`/api/messages/${messageId}/react`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reactorName: myName, emoji }),
+    });
+    if (res.ok) {
+      const data = await res.json() as { reactions: Reaction[] };
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, reactions: data.reactions } : m))
+      );
+    }
+  }
+
+  return { messages, loading, loadThread, sendMessage, deleteMessage, toggleReaction };
 }
 
 // Handles both signalling that the local user is typing and polling for the partner
@@ -169,6 +191,69 @@ function TypingBubble({ name }: { name: string }) {
         <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:160ms]" />
         <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:320ms]" />
       </div>
+    </div>
+  );
+}
+
+function EmojiPicker({
+  onPick,
+  isMine,
+}: {
+  onPick: (emoji: string) => void;
+  isMine: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "absolute -top-9 flex items-center gap-0.5 bg-card border border-border shadow-md px-1.5 py-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto",
+        isMine ? "right-0" : "left-0"
+      )}
+    >
+      {QUICK_EMOJIS.map((emoji) => (
+        <button
+          key={emoji}
+          onClick={(e) => { e.stopPropagation(); onPick(emoji); }}
+          className="text-base leading-none hover:scale-125 transition-transform p-0.5"
+          aria-label={`React with ${emoji}`}
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ReactionPills({
+  reactions,
+  myName,
+  onToggle,
+}: {
+  reactions: Reaction[];
+  myName: string;
+  onToggle: (emoji: string) => void;
+}) {
+  if (reactions.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {reactions.map((r) => {
+        const iReacted = r.reactors.includes(myName);
+        return (
+          <button
+            key={r.emoji}
+            onClick={() => onToggle(r.emoji)}
+            title={r.reactors.join(", ")}
+            className={cn(
+              "flex items-center gap-0.5 px-1.5 py-0.5 text-xs border transition-colors",
+              iReacted
+                ? "border-foreground/40 bg-foreground/10"
+                : "border-border bg-transparent hover:bg-muted/50"
+            )}
+          >
+            <span>{r.emoji}</span>
+            <span className="text-[10px] text-muted-foreground">{r.reactors.length}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -271,7 +356,7 @@ export function Messages() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { conversations, loading: convLoading, loadConversations, setConversations } = useMessages(myName);
-  const { messages, loading: threadLoading, loadThread, sendMessage, deleteMessage } = useThread(myName, activePartner ?? "");
+  const { messages, loading: threadLoading, loadThread, sendMessage, deleteMessage, toggleReaction } = useThread(myName, activePartner ?? "");
   const { partnerIsTyping, signalTyping } = useTypingIndicator(myName, activePartner ?? "");
 
   function handleSetName(name: string) {
@@ -310,19 +395,20 @@ export function Messages() {
   async function handleSend() {
     if (!draft.trim() || !activePartner || sending) return;
     setSending(true);
-    const ok = await sendMessage(draft.trim());
-    if (ok) {
+    const content = draft.trim();
+    const msg = await sendMessage(content);
+    if (msg) {
       setDraft("");
       setConversations((prev) => {
         const existing = prev.find((c) => c.partner === activePartner);
         if (existing) {
           return prev.map((c) =>
             c.partner === activePartner
-              ? { ...c, lastMessage: draft.trim(), lastAt: new Date().toISOString() }
+              ? { ...c, lastMessage: content, lastAt: new Date().toISOString() }
               : c
           );
         }
-        return [{ partner: activePartner, lastMessage: draft.trim(), lastAt: new Date().toISOString(), unread: 0 }, ...prev];
+        return [{ partner: activePartner!, lastMessage: content, lastAt: new Date().toISOString(), unread: 0 }, ...prev];
       });
     }
     setSending(false);
@@ -477,15 +563,13 @@ export function Messages() {
                       </div>
                     ) : (
                       (() => {
-                        // Index of the last message I sent — used to place the "Seen" receipt
                         const lastMineIdx = messages.reduce(
                           (acc, msg, i) => (msg.senderName === myName ? i : acc),
                           -1,
                         );
                         return messages.map((msg, idx) => {
                           const isMine = msg.senderName === myName;
-                          const showSeen =
-                            isMine && idx === lastMineIdx && msg.read;
+                          const showSeen = isMine && idx === lastMineIdx && msg.read;
                           return (
                             <div key={msg.id} className={cn("flex gap-2 group", isMine ? "justify-end" : "justify-start")}>
                               {!isMine && (
@@ -493,14 +577,30 @@ export function Messages() {
                                   {msg.senderName.charAt(0)}
                                 </div>
                               )}
-                              <div className={cn("max-w-[70%] space-y-1", isMine ? "items-end" : "items-start", "flex flex-col")}>
-                                <div className={cn(
-                                  "px-3.5 py-2.5 text-sm leading-relaxed",
-                                  isMine ? "bg-foreground text-background" : "bg-muted text-foreground"
-                                )}>
-                                  {msg.content}
+                              <div className={cn("max-w-[70%]", isMine ? "items-end" : "items-start", "flex flex-col")}>
+                                {/* Bubble + emoji picker */}
+                                <div className="relative">
+                                  <EmojiPicker
+                                    isMine={isMine}
+                                    onPick={(emoji) => void toggleReaction(msg.id, emoji)}
+                                  />
+                                  <div className={cn(
+                                    "px-3.5 py-2.5 text-sm leading-relaxed",
+                                    isMine ? "bg-foreground text-background" : "bg-muted text-foreground"
+                                  )}>
+                                    {msg.content}
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2">
+
+                                {/* Reaction pills */}
+                                <ReactionPills
+                                  reactions={msg.reactions}
+                                  myName={myName}
+                                  onToggle={(emoji) => void toggleReaction(msg.id, emoji)}
+                                />
+
+                                {/* Timestamp + delete */}
+                                <div className="flex items-center gap-2 mt-1">
                                   <span className="text-[10px] text-muted-foreground">{format(new Date(msg.createdAt), "h:mm a")}</span>
                                   {isMine && (
                                     <button
@@ -512,6 +612,8 @@ export function Messages() {
                                     </button>
                                   )}
                                 </div>
+
+                                {/* Seen receipt */}
                                 {showSeen && (
                                   <span className="text-[10px] text-muted-foreground/70 select-none">
                                     Seen

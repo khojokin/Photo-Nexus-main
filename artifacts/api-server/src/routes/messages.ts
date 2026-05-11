@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, or, and, desc } from "drizzle-orm";
-import { db, messagesTable } from "@workspace/db";
+import { eq, or, and, desc, inArray } from "drizzle-orm";
+import { db, messagesTable, messageReactionsTable } from "@workspace/db";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -35,6 +35,37 @@ const TypingQuery = z.object({
   from: z.string().min(1).max(80),
   to: z.string().min(1).max(80),
 });
+
+const ReactBody = z.object({
+  reactorName: z.string().min(1).max(80),
+  emoji: z.string().min(1).max(10),
+});
+
+// Helper: fetch reactions for a list of message IDs and group them
+async function fetchReactions(
+  messageIds: number[],
+): Promise<Map<number, { emoji: string; reactors: string[] }[]>> {
+  const map = new Map<number, { emoji: string; reactors: string[] }[]>();
+  if (messageIds.length === 0) return map;
+
+  const rows = await db
+    .select()
+    .from(messageReactionsTable)
+    .where(inArray(messageReactionsTable.messageId, messageIds));
+
+  for (const row of rows) {
+    const existing = map.get(row.messageId) ?? [];
+    const group = existing.find((g) => g.emoji === row.emoji);
+    if (group) {
+      group.reactors.push(row.reactorName);
+    } else {
+      existing.push({ emoji: row.emoji, reactors: [row.reactorName] });
+    }
+    map.set(row.messageId, existing);
+  }
+
+  return map;
+}
 
 // POST /messages/typing  — called each time the sender presses a key
 router.post("/messages/typing", (req, res): void => {
@@ -146,7 +177,60 @@ router.get("/messages/:partner", async (req, res): Promise<void> => {
       and(eq(messagesTable.recipientName, myName), eq(messagesTable.senderName, partner)),
     );
 
-  res.json({ messages, total: messages.length });
+  const reactionMap = await fetchReactions(messages.map((m) => m.id));
+
+  const messagesWithReactions = messages.map((m) => ({
+    ...m,
+    reactions: reactionMap.get(m.id) ?? [],
+  }));
+
+  res.json({ messages: messagesWithReactions, total: messages.length });
+});
+
+// POST /messages/:id/react — toggle an emoji reaction
+router.post("/messages/:id/react", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid message id" }); return; }
+
+  const parsed = ReactBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "reactorName and emoji required" });
+    return;
+  }
+
+  const { reactorName, emoji } = parsed.data;
+
+  // Check if the reaction already exists (toggle)
+  const existing = await db
+    .select()
+    .from(messageReactionsTable)
+    .where(
+      and(
+        eq(messageReactionsTable.messageId, id),
+        eq(messageReactionsTable.reactorName, reactorName),
+        eq(messageReactionsTable.emoji, emoji),
+      ),
+    );
+
+  if (existing.length > 0) {
+    await db
+      .delete(messageReactionsTable)
+      .where(
+        and(
+          eq(messageReactionsTable.messageId, id),
+          eq(messageReactionsTable.reactorName, reactorName),
+          eq(messageReactionsTable.emoji, emoji),
+        ),
+      );
+  } else {
+    await db
+      .insert(messageReactionsTable)
+      .values({ messageId: id, reactorName, emoji });
+  }
+
+  // Return updated reactions for this message
+  const reactionMap = await fetchReactions([id]);
+  res.json({ reactions: reactionMap.get(id) ?? [] });
 });
 
 router.post("/messages", async (req, res): Promise<void> => {
@@ -169,7 +253,7 @@ router.post("/messages", async (req, res): Promise<void> => {
   // Clear typing signal once the message is sent
   typingMap.delete(`${parsed.data.senderName}->${parsed.data.recipientName}`);
 
-  res.status(201).json(message);
+  res.status(201).json({ ...message, reactions: [] });
 });
 
 router.delete("/messages/:id", async (req, res): Promise<void> => {

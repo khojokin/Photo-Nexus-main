@@ -5,6 +5,7 @@ export * from "./auth";
 export * from "./comments";
 export * from "./notifications";
 export * from "./messages";
+export * from "./message_reactions";
 export * from "./follows";
 export * from "./reactions";
 export * from "./reports";
