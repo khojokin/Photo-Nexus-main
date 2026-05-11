@@ -54,10 +54,11 @@ function useMessages(myName: string) {
 function useThread(myName: string, partner: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  async function loadThread() {
+  async function loadThread(silent = false) {
     if (!myName || !partner) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const res = await fetch(
         `/api/messages/${encodeURIComponent(partner)}?name=${encodeURIComponent(myName)}`
@@ -67,9 +68,18 @@ function useThread(myName: string, partner: string) {
         setMessages(data.messages ?? []);
       }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
+
+  // Poll the thread every 4 s so read receipts (and new messages) stay fresh
+  useEffect(() => {
+    if (!myName || !partner) return;
+    pollRef.current = setInterval(() => void loadThread(true), 4_000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [myName, partner]);
 
   async function sendMessage(content: string): Promise<boolean> {
     const res = await fetch("/api/messages", {
@@ -466,38 +476,52 @@ export function Messages() {
                         No messages yet. Say hello!
                       </div>
                     ) : (
-                      messages.map((msg) => {
-                        const isMine = msg.senderName === myName;
-                        return (
-                          <div key={msg.id} className={cn("flex gap-2 group", isMine ? "justify-end" : "justify-start")}>
-                            {!isMine && (
-                              <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs flex-shrink-0 mt-1">
-                                {msg.senderName.charAt(0)}
-                              </div>
-                            )}
-                            <div className={cn("max-w-[70%] space-y-1", isMine ? "items-end" : "items-start", "flex flex-col")}>
-                              <div className={cn(
-                                "px-3.5 py-2.5 text-sm leading-relaxed",
-                                isMine ? "bg-foreground text-background" : "bg-muted text-foreground"
-                              )}>
-                                {msg.content}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-muted-foreground">{format(new Date(msg.createdAt), "h:mm a")}</span>
-                                {isMine && (
-                                  <button
-                                    onClick={() => void deleteMessage(msg.id)}
-                                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
-                                    aria-label="Delete"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
+                      (() => {
+                        // Index of the last message I sent — used to place the "Seen" receipt
+                        const lastMineIdx = messages.reduce(
+                          (acc, msg, i) => (msg.senderName === myName ? i : acc),
+                          -1,
+                        );
+                        return messages.map((msg, idx) => {
+                          const isMine = msg.senderName === myName;
+                          const showSeen =
+                            isMine && idx === lastMineIdx && msg.read;
+                          return (
+                            <div key={msg.id} className={cn("flex gap-2 group", isMine ? "justify-end" : "justify-start")}>
+                              {!isMine && (
+                                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs flex-shrink-0 mt-1">
+                                  {msg.senderName.charAt(0)}
+                                </div>
+                              )}
+                              <div className={cn("max-w-[70%] space-y-1", isMine ? "items-end" : "items-start", "flex flex-col")}>
+                                <div className={cn(
+                                  "px-3.5 py-2.5 text-sm leading-relaxed",
+                                  isMine ? "bg-foreground text-background" : "bg-muted text-foreground"
+                                )}>
+                                  {msg.content}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-muted-foreground">{format(new Date(msg.createdAt), "h:mm a")}</span>
+                                  {isMine && (
+                                    <button
+                                      onClick={() => void deleteMessage(msg.id)}
+                                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                                      aria-label="Delete"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                                {showSeen && (
+                                  <span className="text-[10px] text-muted-foreground/70 select-none">
+                                    Seen
+                                  </span>
                                 )}
                               </div>
                             </div>
-                          </div>
-                        );
-                      })
+                          );
+                        });
+                      })()
                     )}
 
                     {/* Typing indicator bubble — shown after the last message */}
