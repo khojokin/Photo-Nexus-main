@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { eq, sql, and } from "drizzle-orm";
-import { db, reactionsTable } from "@workspace/db";
+import { db, reactionsTable, photosTable, notificationsTable } from "@workspace/db";
 import { getCurrentAuthUser } from "../replitAuth";
+import { pushUnreadCount } from "./notifications";
 
 const router = Router();
 
@@ -35,7 +36,11 @@ router.post("/photos/:id/reactions", async (req, res): Promise<void> => {
   const { emoji } = req.body as { emoji?: string };
   if (!emoji) { res.status(400).json({ error: "emoji required" }); return; }
 
-  const actorId = getCurrentAuthUser(req)?.id ?? req.ip ?? "anon";
+  const user = getCurrentAuthUser(req);
+  const actorId = user?.id ?? req.ip ?? "anon";
+  const actorName = user
+    ? ([user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Someone")
+    : "Someone";
 
   const existing = await db
     .select()
@@ -49,6 +54,23 @@ router.post("/photos/:id/reactions", async (req, res): Promise<void> => {
     res.json({ toggled: false });
   } else {
     await db.insert(reactionsTable).values({ photoId, actorId: String(actorId), emoji });
+
+    const [photo] = await db
+      .select({ uploadedBy: photosTable.uploadedBy, title: photosTable.title })
+      .from(photosTable)
+      .where(eq(photosTable.id, photoId));
+
+    if (photo?.uploadedBy && photo.uploadedBy !== user?.id) {
+      db.insert(notificationsTable).values({
+        recipientId: photo.uploadedBy,
+        type: "like",
+        photoId,
+        photoTitle: photo.title,
+        actorName,
+        commentBody: null,
+      }).then(() => pushUnreadCount(photo.uploadedBy)).catch(() => { /* non-critical */ });
+    }
+
     res.status(201).json({ toggled: true });
   }
 });

@@ -98,7 +98,7 @@ function useThread(myName: string, partner: string) {
   return { messages, loading, loadThread, sendMessage, deleteMessage };
 }
 
-function NameSetup({ onSet }: { onSet: (name: string) => void }) {
+function NameSetup({ onSet, pendingTo }: { onSet: (name: string) => void; pendingTo: string | null }) {
   const [value, setValue] = useState("");
 
   return (
@@ -106,9 +106,15 @@ function NameSetup({ onSet }: { onSet: (name: string) => void }) {
       <div className="container mx-auto px-4 py-32 max-w-md text-center">
         <MessageSquare className="w-12 h-12 mx-auto mb-6 text-muted-foreground opacity-40" />
         <h1 className="text-3xl font-serif mb-3">Your Messages</h1>
-        <p className="text-muted-foreground text-sm mb-8">
-          Choose a display name to send and receive messages. This name identifies you in conversations.
-        </p>
+        {pendingTo ? (
+          <p className="text-muted-foreground text-sm mb-8">
+            Choose a display name to start chatting with <span className="text-foreground font-medium">{pendingTo}</span>.
+          </p>
+        ) : (
+          <p className="text-muted-foreground text-sm mb-8">
+            Choose a display name to send and receive messages. This name identifies you in conversations.
+          </p>
+        )}
         <div className="flex gap-2">
           <input
             type="text"
@@ -177,6 +183,10 @@ function NewConversationModal({
 }
 
 export function Messages() {
+  const pendingToRef = useRef<string | null>(
+    new URLSearchParams(window.location.search).get("to")
+  );
+
   const [myName, setMyName] = useState(() => localStorage.getItem(NAME_KEY) ?? "");
   const [activePartner, setActivePartner] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -194,7 +204,20 @@ export function Messages() {
   }
 
   useEffect(() => {
-    if (myName) void loadConversations();
+    if (!myName) return;
+    loadConversations().then(() => {
+      const to = pendingToRef.current;
+      if (to) {
+        pendingToRef.current = null;
+        window.history.replaceState(null, "", "/messages");
+        setConversations((prev) => {
+          if (prev.find((c) => c.partner === to)) return prev;
+          return [{ partner: to, lastMessage: "", lastAt: new Date().toISOString(), unread: 0 }, ...prev];
+        });
+        setActivePartner(to);
+        setMobileView("thread");
+      }
+    });
   }, [myName]);
 
   useEffect(() => {
@@ -205,7 +228,7 @@ export function Messages() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  if (!myName) return <NameSetup onSet={handleSetName} />;
+  if (!myName) return <NameSetup onSet={handleSetName} pendingTo={pendingToRef.current} />;
 
   async function handleSend() {
     if (!draft.trim() || !activePartner || sending) return;

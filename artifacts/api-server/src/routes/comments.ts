@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, commentsTable, photosTable, notificationsTable } from "@workspace/db";
 import { z } from "zod";
+import { pushUnreadCount } from "./notifications";
 
 const router: IRouter = Router();
 
@@ -66,7 +67,7 @@ router.post("/photos/:id/comments", async (req, res): Promise<void> => {
       photoTitle: photo.title,
       actorName: authorName,
       commentBody: body.data.body.slice(0, 120),
-    }).catch(() => { /* non-critical, swallow */ });
+    }).then(() => pushUnreadCount(photo.uploadedBy)).catch(() => { /* non-critical, swallow */ });
   }
 
   res.status(201).json(comment);

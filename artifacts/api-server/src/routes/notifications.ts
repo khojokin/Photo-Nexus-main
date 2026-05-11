@@ -1,8 +1,76 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { db, notificationsTable } from "@workspace/db";
 
 const router: IRouter = Router();
+
+const sseClients = new Map<string, Set<Response>>();
+
+export async function pushUnreadCount(recipientId: string): Promise<void> {
+  const clients = sseClients.get(recipientId);
+  if (!clients || clients.size === 0) return;
+  try {
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.recipientId, recipientId),
+          eq(notificationsTable.isRead, false)
+        )
+      );
+    const count = row?.count ?? 0;
+    const payload = `data: ${JSON.stringify({ unreadCount: count })}\n\n`;
+    for (const res of clients) {
+      try { res.write(payload); } catch { clients.delete(res); }
+    }
+  } catch { /* non-critical */ }
+}
+
+router.get("/notifications/stream", async (req: Request, res: Response): Promise<void> => {
+  if (!req.authUser) {
+    res.status(401).end();
+    return;
+  }
+
+  const userId = req.authUser.id;
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  if (!sseClients.has(userId)) sseClients.set(userId, new Set());
+  sseClients.get(userId)!.add(res);
+
+  const sendCount = async () => {
+    try {
+      const [row] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(notificationsTable)
+        .where(
+          and(
+            eq(notificationsTable.recipientId, userId),
+            eq(notificationsTable.isRead, false)
+          )
+        );
+      const count = row?.count ?? 0;
+      res.write(`data: ${JSON.stringify({ unreadCount: count })}\n\n`);
+    } catch { /* ignore */ }
+  };
+
+  await sendCount();
+
+  const pollInterval = setInterval(() => void sendCount(), 15_000);
+  const heartbeat = setInterval(() => { try { res.write(": heartbeat\n\n"); } catch { /* closed */ } }, 30_000);
+
+  req.on("close", () => {
+    clearInterval(pollInterval);
+    clearInterval(heartbeat);
+    sseClients.get(userId)?.delete(res);
+  });
+});
 
 router.get("/notifications", async (req: Request, res: Response): Promise<void> => {
   if (!req.authUser) {
@@ -38,6 +106,7 @@ router.patch("/notifications/read-all", async (req: Request, res: Response): Pro
       )
     );
 
+  void pushUnreadCount(req.authUser.id);
   res.json({ success: true });
 });
 
@@ -64,6 +133,7 @@ router.patch("/notifications/:id/read", async (req: Request, res: Response): Pro
       )
     );
 
+  void pushUnreadCount(req.authUser.id);
   res.json({ success: true });
 });
 

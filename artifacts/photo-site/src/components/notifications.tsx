@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "wouter";
 import { Bell } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
@@ -15,8 +15,9 @@ interface Notification {
 }
 
 export function NotificationBell() {
-  const { authFetch } = useAuth();
+  const { authFetch, user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+  const esRef = useRef<EventSource | null>(null);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -32,9 +33,34 @@ export function NotificationBell() {
 
   useEffect(() => {
     void fetchNotifications();
-    const interval = setInterval(() => void fetchNotifications(), 30_000);
-    return () => clearInterval(interval);
-  }, [fetchNotifications]);
+
+    if (!user) {
+      const interval = setInterval(() => void fetchNotifications(), 30_000);
+      return () => clearInterval(interval);
+    }
+
+    const es = new EventSource("/api/notifications/stream", { withCredentials: true });
+    esRef.current = es;
+
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data) as { unreadCount: number };
+        setUnreadCount(data.unreadCount);
+      } catch { /* ignore malformed events */ }
+    };
+
+    es.onerror = () => {
+      es.close();
+      esRef.current = null;
+      const interval = setInterval(() => void fetchNotifications(), 30_000);
+      return () => clearInterval(interval);
+    };
+
+    return () => {
+      es.close();
+      esRef.current = null;
+    };
+  }, [user, fetchNotifications]);
 
   return (
     <Link
