@@ -675,6 +675,46 @@ function PageProgressBar() {
   );
 }
 
+// ─── Swipe navigation ─────────────────────────────────────────────────────────
+const SWIPE_TABS = ["/", "/photos", "/collections", "/discover", "/profile"];
+
+function SwipeNav() {
+  const [location, navigate] = useLocation();
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+
+  useEffect(() => {
+    function onTouchStart(e: TouchEvent) {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      const dx = e.changedTouches[0].clientX - touchStartX.current;
+      const dy = e.changedTouches[0].clientY - touchStartY.current;
+      // Only trigger on predominantly horizontal swipes > 60px
+      if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
+
+      const cur = SWIPE_TABS.findIndex(t =>
+        t === "/" ? location === "/" : location === t || location.startsWith(t + "/")
+      );
+      if (cur === -1) return;
+
+      if (dx < 0 && cur < SWIPE_TABS.length - 1) navigate(SWIPE_TABS[cur + 1]);
+      if (dx > 0 && cur > 0) navigate(SWIPE_TABS[cur - 1]);
+    }
+
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [location, navigate]);
+
+  return null;
+}
+
 // ─── Scroll to top on navigation ──────────────────────────────────────────────
 function ScrollToTop() {
   const [location] = useLocation();
@@ -846,6 +886,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <PageProgressBar />
       <ScrollToTop />
+      <SwipeNav />
       {maintenanceConfig.enabled && !isAdmin && !isLoading && (
         <MaintenanceSplash config={maintenanceConfig} />
       )}
@@ -896,7 +937,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {!isLoading && (
               user ? (
                 <>
-                  <NotificationBell />
+                  <span className="hidden md:contents">
+                    <NotificationBell />
+                  </span>
 
                   <div className="relative" ref={menuRef}>
                     <button
@@ -915,23 +958,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
                     {menuOpen && (
                       <div className="absolute right-0 mt-2 w-56 rounded-xl border border-border bg-background/95 backdrop-blur shadow-xl overflow-hidden">
-                        {/* Mobile primary links */}
-                        <div className="lg:hidden border-b border-border/60 pb-2 mb-1 px-2 pt-2">
-                          {PRIMARY_LINKS.map((l) => (
-                            <Link
-                              key={l.href}
-                              href={l.href}
-                              className={cn(
-                                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
-                                location === l.href
-                                  ? "text-foreground bg-accent"
-                                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                              )}
-                            >
-                              {l.label}
-                            </Link>
-                          ))}
-                        </div>
 
                         {!isQualified && !isAdmin && (
                           <div className="px-3 pt-2 pb-1">
@@ -948,12 +974,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                           {menuLinks.map((l) => {
                             const Icon = l.icon;
                             const isMessages = l.href === "/messages";
+                            const mobileHidden = l.href === "/profile" || l.href === "/notifications";
                             return (
                               <Link
                                 key={l.href}
                                 href={l.href}
                                 className={cn(
                                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                                  mobileHidden && "md:flex hidden",
                                   location === l.href
                                     ? "text-foreground bg-accent"
                                     : "text-muted-foreground hover:text-foreground hover:bg-accent"
