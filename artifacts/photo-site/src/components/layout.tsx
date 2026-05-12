@@ -715,6 +715,118 @@ function SwipeNav() {
   return null;
 }
 
+// ─── Pull to refresh ──────────────────────────────────────────────────────────
+const PTR_THRESHOLD = 72;
+
+function PullToRefresh() {
+  const [distance, setDistance] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [snapping, setSnapping] = useState(false);
+  const startY = useRef(0);
+  const pulling = useRef(false);
+  const distRef = useRef(0);
+
+  useEffect(() => {
+    function onTouchStart(e: TouchEvent) {
+      if (window.scrollY > 2 || refreshing) return;
+      pulling.current = true;
+      startY.current = e.touches[0].clientY;
+      distRef.current = 0;
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!pulling.current) return;
+      const dy = e.touches[0].clientY - startY.current;
+      if (dy <= 0) {
+        if (distRef.current > 0) { setDistance(0); distRef.current = 0; }
+        return;
+      }
+      // Rubberband resistance
+      const d = Math.min(dy * 0.42, PTR_THRESHOLD + 24);
+      distRef.current = d;
+      setSnapping(false);
+      setDistance(d);
+    }
+
+    function onTouchEnd() {
+      if (!pulling.current) return;
+      pulling.current = false;
+      const d = distRef.current;
+      if (d >= PTR_THRESHOLD) {
+        setRefreshing(true);
+        setSnapping(true);
+        setDistance(PTR_THRESHOLD);
+        setTimeout(() => { window.location.reload(); }, 950);
+      } else {
+        setSnapping(true);
+        setDistance(0);
+        distRef.current = 0;
+        setTimeout(() => setSnapping(false), 300);
+      }
+    }
+
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchmove", onTouchMove, { passive: true });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [refreshing]);
+
+  const progress = Math.min(distance / PTR_THRESHOLD, 1);
+  const circumference = 2 * Math.PI * 10;
+  const visible = distance > 2 || refreshing;
+
+  return (
+    <div
+      className="md:hidden fixed left-0 right-0 z-[9998] flex justify-center pointer-events-none"
+      style={{
+        top: 64,
+        transform: `translateY(${distance - PTR_THRESHOLD}px)`,
+        transition: snapping ? "transform 0.28s cubic-bezier(0.4,0,0.2,1)" : "none",
+        opacity: visible ? 1 : 0,
+      }}
+    >
+      <div className="w-9 h-9 rounded-full bg-background border border-border shadow-lg flex items-center justify-center mt-2">
+        {refreshing ? (
+          <div className="w-[18px] h-[18px] rounded-full border-2 border-border border-t-foreground animate-spin" />
+        ) : (
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none"
+            style={{ transform: `rotate(${progress * 300}deg)`, transition: "none" }}>
+            <circle
+              cx="11" cy="11" r="10"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - progress)}
+              strokeLinecap="round"
+              className="text-muted-foreground/30"
+              style={{ transformOrigin: "center", transform: "rotate(-90deg)" }}
+            />
+            <circle
+              cx="11" cy="11" r="10"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - progress)}
+              strokeLinecap="round"
+              className="text-foreground"
+              style={{ transformOrigin: "center", transform: "rotate(-90deg)" }}
+            />
+            <path
+              d="M11 5v4l2.5-2.5"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ opacity: progress }}
+            />
+          </svg>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Scroll to top on navigation ──────────────────────────────────────────────
 function ScrollToTop() {
   const [location] = useLocation();
@@ -887,6 +999,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <PageProgressBar />
       <ScrollToTop />
       <SwipeNav />
+      <PullToRefresh />
       {maintenanceConfig.enabled && !isAdmin && !isLoading && (
         <MaintenanceSplash config={maintenanceConfig} />
       )}
