@@ -283,6 +283,12 @@ export const ListPhotosSort = {
   trending: "trending",
 } as const;
 
+export type GetFollowingFeedParams = {
+  followerName: string;
+  page?: number;
+  limit?: number;
+};
+
 export type GetMyPhotosParams = {
   page?: number;
   limit?: number;

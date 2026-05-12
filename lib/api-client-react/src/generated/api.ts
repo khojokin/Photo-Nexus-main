@@ -24,6 +24,7 @@ import type {
   CreateCollectionBody,
   CreatePhotoBody,
   ErrorEnvelope,
+  GetFollowingFeedParams,
   GetMyPhotosParams,
   HealthStatus,
   ListPhotosParams,
@@ -1202,6 +1203,103 @@ export function useListTags<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getListTagsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get latest photos from photographers the given user follows
+ */
+export const getGetFollowingFeedUrl = (params: GetFollowingFeedParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/photos/following-feed?${stringifiedParams}`
+    : `/api/photos/following-feed`;
+};
+
+export const getFollowingFeed = async (
+  params: GetFollowingFeedParams,
+  options?: RequestInit,
+): Promise<PhotoListResponse> => {
+  return customFetch<PhotoListResponse>(getGetFollowingFeedUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFollowingFeedQueryKey = (
+  params?: GetFollowingFeedParams,
+) => {
+  return [`/api/photos/following-feed`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetFollowingFeedQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFollowingFeed>>,
+  TError = ErrorType<void>,
+>(
+  params: GetFollowingFeedParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getFollowingFeed>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetFollowingFeedQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFollowingFeed>>
+  > = ({ signal }) => getFollowingFeed(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFollowingFeed>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFollowingFeedQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFollowingFeed>>
+>;
+export type GetFollowingFeedQueryError = ErrorType<void>;
+
+/**
+ * @summary Get latest photos from photographers the given user follows
+ */
+
+export function useGetFollowingFeed<
+  TData = Awaited<ReturnType<typeof getFollowingFeed>>,
+  TError = ErrorType<void>,
+>(
+  params: GetFollowingFeedParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getFollowingFeed>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFollowingFeedQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

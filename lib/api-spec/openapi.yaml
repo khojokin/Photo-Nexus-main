@@ -296,6 +296,37 @@ paths:
                 items:
                   $ref: "#/components/schemas/Tag"
 
+  /photos/following-feed:
+    get:
+      operationId: getFollowingFeed
+      tags: [photos]
+      summary: Get latest photos from photographers the given user follows
+      parameters:
+        - name: followerName
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Following feed photos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhotoListResponse"
+        "400":
+          description: Missing followerName
+
   /stats/featured:
     get:
       operationId: getFeaturedPhotos

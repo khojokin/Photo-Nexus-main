@@ -9,11 +9,24 @@ import {
   useGetFeaturedPhotos,
   useGetTrendingPhotos,
   useListCollections,
+  useGetFollowingFeed,
 } from "@workspace/api-client-react";
 import type { Photo } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sun, ArrowRight, ArrowUpRight, Camera, Download, Heart, LayoutGrid } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Camera, Download, Heart, LayoutGrid, Users, UserPlus } from "lucide-react";
 import { format } from "date-fns";
+
+const SETTINGS_KEY = "affuaa_settings";
+function getDisplayName(): string {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      return (parsed.displayName as string) ?? "";
+    }
+  } catch { /* ignore */ }
+  return "";
+}
 
 function AnimatedNumber({ value }: { value: number | undefined }) {
   const [display, setDisplay] = useState(0);
@@ -111,12 +124,23 @@ export function Home() {
   const { data: trending, isLoading: loadingTrending } = useGetTrendingPhotos();
   const { data: collections, isLoading: loadingCollections } = useListCollections();
 
+  const [feedTab, setFeedTab] = useState<"trending" | "following">("trending");
+  const [myName] = useState(() => getDisplayName());
+
+  const { data: followingFeedData, isLoading: loadingFollowing } = useGetFollowingFeed(
+    { followerName: myName, limit: 20 },
+    { query: { enabled: feedTab === "following" && !!myName } }
+  );
+
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const trendingPhotos: Photo[] = Array.isArray(trending) ? trending : [];
   const featuredList: Photo[] = Array.isArray(featured) ? featured : [];
+  const followingPhotos: Photo[] = followingFeedData?.photos ?? [];
+
+  const activeFeedPhotos = feedTab === "following" ? followingPhotos : trendingPhotos;
 
   function openLightbox(photo: Photo) {
-    const idx = trendingPhotos.findIndex((p) => p.id === photo.id);
+    const idx = activeFeedPhotos.findIndex((p) => p.id === photo.id);
     if (idx !== -1) setLightboxIndex(idx);
   }
 
@@ -213,38 +237,119 @@ export function Home() {
       {/* ── Photo of the Day ─────────────────────────────────────────────── */}
       <PhotoOfDayBanner />
 
-      {/* ── Trending ─────────────────────────────────────────────────────── */}
+      {/* ── Feed: Trending / Following ────────────────────────────────── */}
       <section className="py-24">
         <div className="container mx-auto px-4">
-          <div className="flex items-end justify-between mb-12">
+          {/* Header row with tab switcher */}
+          <div className="flex items-end justify-between mb-10">
             <div>
-              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">Community Picks</p>
-              <h2 className="text-4xl font-serif">Trending Now</h2>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">Discover</p>
+              <div className="flex items-center gap-1 border border-border/50 p-0.5 bg-muted/10 w-fit">
+                <button
+                  onClick={() => setFeedTab("trending")}
+                  className={`px-5 py-2 text-sm font-medium transition-all ${
+                    feedTab === "trending"
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Trending
+                </button>
+                <button
+                  onClick={() => setFeedTab("following")}
+                  className={`inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium transition-all ${
+                    feedTab === "following"
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  Following
+                </button>
+              </div>
             </div>
-            <Link
-              href="/photos"
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group mb-1"
-            >
-              View all <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
+            {feedTab === "trending" && (
+              <Link
+                href="/photos"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group mb-1"
+              >
+                View all <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            )}
           </div>
 
-          {loadingTrending ? (
-            <div className="masonry-grid">
-              {Array(6).fill(0).map((_, i) => (
-                <div key={i} className="masonry-item">
-                  <Skeleton className="w-full h-[300px]" />
+          {/* Trending tab */}
+          {feedTab === "trending" && (
+            loadingTrending ? (
+              <div className="masonry-grid">
+                {Array(6).fill(0).map((_, i) => (
+                  <div key={i} className="masonry-item">
+                    <Skeleton className="w-full h-[300px]" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="masonry-grid">
+                {trendingPhotos.map((photo) => (
+                  <div key={photo.id} className="masonry-item">
+                    <PhotoCard photo={photo} onOpen={openLightbox} />
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+
+          {/* Following tab */}
+          {feedTab === "following" && (
+            !myName ? (
+              <div className="flex flex-col items-center py-24 text-center max-w-sm mx-auto">
+                <div className="w-14 h-14 border border-border/50 flex items-center justify-center mb-6 bg-muted/10">
+                  <UserPlus className="w-6 h-6 text-muted-foreground/50" />
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="masonry-grid">
-              {trendingPhotos.map((photo) => (
-                <div key={photo.id} className="masonry-item">
-                  <PhotoCard photo={photo} onOpen={openLightbox} />
+                <h3 className="font-serif text-2xl mb-3">Set up your profile first</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed mb-8">
+                  Add a display name in Settings to start following photographers and see their latest work here.
+                </p>
+                <Link
+                  href="/settings"
+                  className="inline-flex h-10 items-center justify-center bg-foreground text-background px-6 text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  Go to Settings
+                </Link>
+              </div>
+            ) : loadingFollowing ? (
+              <div className="masonry-grid">
+                {Array(6).fill(0).map((_, i) => (
+                  <div key={i} className="masonry-item">
+                    <Skeleton className="w-full h-[300px]" />
+                  </div>
+                ))}
+              </div>
+            ) : followingPhotos.length === 0 ? (
+              <div className="flex flex-col items-center py-24 text-center max-w-sm mx-auto">
+                <div className="w-14 h-14 border border-border/50 flex items-center justify-center mb-6 bg-muted/10">
+                  <Users className="w-6 h-6 text-muted-foreground/50" />
                 </div>
-              ))}
-            </div>
+                <h3 className="font-serif text-2xl mb-3">Your feed is empty</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed mb-8">
+                  Follow photographers you admire and their latest photos will appear here.
+                </p>
+                <Link
+                  href="/photos"
+                  className="inline-flex h-10 items-center justify-center bg-foreground text-background px-6 text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  Discover photographers
+                </Link>
+              </div>
+            ) : (
+              <div className="masonry-grid">
+                {followingPhotos.map((photo) => (
+                  <div key={photo.id} className="masonry-item">
+                    <PhotoCard photo={photo} onOpen={openLightbox} />
+                  </div>
+                ))}
+              </div>
+            )
           )}
         </div>
       </section>
@@ -355,9 +460,9 @@ export function Home() {
         </div>
       </section>
 
-      {lightboxIndex !== null && trendingPhotos.length > 0 && (
+      {lightboxIndex !== null && activeFeedPhotos.length > 0 && (
         <Lightbox
-          photos={trendingPhotos}
+          photos={activeFeedPhotos}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
         />

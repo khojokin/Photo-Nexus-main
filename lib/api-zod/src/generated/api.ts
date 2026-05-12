@@ -408,6 +408,62 @@ export const ListTagsResponseItem = zod.object({
 export const ListTagsResponse = zod.array(ListTagsResponseItem);
 
 /**
+ * @summary Get latest photos from photographers the given user follows
+ */
+export const getFollowingFeedQueryPageDefault = 1;
+export const getFollowingFeedQueryLimitDefault = 20;
+
+export const GetFollowingFeedQueryParams = zod.object({
+  followerName: zod.coerce.string(),
+  page: zod.coerce.number().default(getFollowingFeedQueryPageDefault),
+  limit: zod.coerce.number().default(getFollowingFeedQueryLimitDefault),
+});
+
+export const getFollowingFeedResponsePhotosItemLicenseDefault = `cc0`;
+export const getFollowingFeedResponsePhotosItemStatusDefault = `published`;
+
+export const GetFollowingFeedResponse = zod.object({
+  photos: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      description: zod.string().nullish(),
+      imageUrl: zod.string(),
+      blurHash: zod.string().nullish(),
+      width: zod.number(),
+      height: zod.number(),
+      photographerName: zod.string(),
+      photographerAvatarUrl: zod.string().nullish(),
+      tags: zod.array(zod.string()),
+      likes: zod.number(),
+      downloads: zod.number(),
+      views: zod.number(),
+      isFeatured: zod.boolean(),
+      contentWarning: zod.boolean(),
+      uploadedBy: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+      publishAt: zod.coerce.date().nullish(),
+      seriesId: zod.number().nullish(),
+      camera: zod.string().nullish(),
+      lens: zod.string().nullish(),
+      aperture: zod.string().nullish(),
+      shutterSpeed: zod.string().nullish(),
+      iso: zod.number().nullish(),
+      focalLength: zod.string().nullish(),
+      license: zod
+        .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
+        .default(getFollowingFeedResponsePhotosItemLicenseDefault),
+      status: zod
+        .enum(["draft", "published"])
+        .default(getFollowingFeedResponsePhotosItemStatusDefault),
+    }),
+  ),
+  total: zod.number(),
+  page: zod.number(),
+  limit: zod.number(),
+});
+
+/**
  * @summary Get featured/hero photos for the homepage
  */
 export const getFeaturedPhotosResponseLicenseDefault = `cc0`;
