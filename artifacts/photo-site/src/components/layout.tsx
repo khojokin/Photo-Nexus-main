@@ -581,6 +581,39 @@ function useUnreadMessages() {
   return unread;
 }
 
+// ─── Unread notifications badge hook ──────────────────────────────────────────
+function useUnreadNotifications() {
+  const [unread, setUnread] = useState(0);
+  const { authFetch } = useAuth();
+
+  useEffect(() => {
+    async function check() {
+      try {
+        const res = await authFetch("/api/notifications");
+        if (res.ok) {
+          const data = await res.json() as { unreadCount: number };
+          setUnread(data.unreadCount ?? 0);
+        }
+      } catch {}
+    }
+
+    void check();
+
+    const es = new EventSource("/api/notifications/stream", { withCredentials: true });
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data) as { unreadCount: number };
+        setUnread(data.unreadCount ?? 0);
+      } catch {}
+    };
+    es.onerror = () => es.close();
+
+    return () => es.close();
+  }, [authFetch]);
+
+  return unread;
+}
+
 // ─── Nav config ───────────────────────────────────────────────────────────────
 const PRIMARY_LINKS = [
   { href: "/photos", label: "Explore" },
@@ -659,6 +692,9 @@ function ScrollToTop() {
 function MobileBottomNav() {
   const [location] = useLocation();
   const { user } = useAuth();
+  const unreadMessages = useUnreadMessages();
+  const unreadNotifications = useUnreadNotifications();
+  const totalUnread = unreadMessages + unreadNotifications;
 
   const items = [
     { href: "/", label: "Home", Icon: Home, exact: true },
@@ -669,10 +705,11 @@ function MobileBottomNav() {
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-t border-border/60 safe-bottom">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-t border-border/60">
       <div className="flex items-center justify-around h-16 px-1">
         {items.map(({ href, label, Icon, exact }) => {
           const active = exact ? location === href : location === href || location.startsWith(href + "/");
+          const isProfile = Icon === null;
           return (
             <Link
               key={href}
@@ -685,14 +722,21 @@ function MobileBottomNav() {
               {Icon ? (
                 <Icon className={cn("w-5 h-5 transition-all", active && "stroke-[2.2px]")} />
               ) : (
-                <div className={cn(
-                  "w-6 h-6 rounded-full flex items-center justify-center overflow-hidden border transition-all",
-                  active ? "border-foreground" : "border-border bg-muted"
-                )}>
-                  {user?.profileImageUrl ? (
-                    <img src={user.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-3.5 h-3.5" />
+                <div className="relative">
+                  <div className={cn(
+                    "w-6 h-6 rounded-full flex items-center justify-center overflow-hidden border transition-all",
+                    active ? "border-foreground" : "border-border bg-muted"
+                  )}>
+                    {user?.profileImageUrl ? (
+                      <img src={user.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-3.5 h-3.5" />
+                    )}
+                  </div>
+                  {isProfile && totalUnread > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 leading-none shadow-sm">
+                      {totalUnread > 99 ? "99+" : totalUnread}
+                    </span>
                   )}
                 </div>
               )}
