@@ -3,7 +3,6 @@ import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookOpen, Plus, X } from "lucide-react";
-import { useAuth } from "@/contexts/auth-context";
 
 interface Series {
   id: number;
@@ -15,7 +14,6 @@ interface Series {
 }
 
 export function SeriesList() {
-  const { user } = useAuth();
   const [series, setSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -31,6 +29,7 @@ export function SeriesList() {
   }, []);
 
   const settings = (() => { try { return JSON.parse(localStorage.getItem("affuaa_settings") ?? "{}") as { displayName?: string }; } catch { return {}; } })();
+  const hasDisplayName = !!settings.displayName;
 
   async function createSeries() {
     if (!form.name || !form.photographerName) return;
@@ -60,7 +59,7 @@ export function SeriesList() {
               <p className="text-muted-foreground text-sm mt-0.5">Curated multi-part photographic stories</p>
             </div>
           </div>
-          {user && (
+          {hasDisplayName && (
             <button onClick={() => { setShowCreate(true); setForm((f) => ({ ...f, photographerName: settings.displayName ?? "" })); }}
               className="flex items-center gap-2 px-4 py-2 bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity">
               <Plus className="w-4 h-4" /> New Series

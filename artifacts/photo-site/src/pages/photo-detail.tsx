@@ -17,6 +17,7 @@ import {
   MessageSquare, Trash2, Send, BookmarkPlus, ChevronDown, Plus, FolderOpen,
   Camera, Aperture, Clock, Zap, Ruler, Shield, Eye, Flag, Code, X,
   DollarSign, Coffee, Maximize, Minimize, Keyboard,
+  BookOpen, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -527,6 +528,103 @@ function TipSection({ photographerName }: { photographerName: string }) {
   );
 }
 
+interface SeriesPhoto {
+  id: number;
+  title: string;
+  imageUrl: string;
+  seriesPosition: number | null;
+}
+
+interface SeriesInfo {
+  id: number;
+  name: string;
+  photographerName: string;
+}
+
+function SeriesPanel({ seriesId, currentPhotoId }: { seriesId: number; currentPhotoId: number }) {
+  const [series, setSeries] = useState<SeriesInfo | null>(null);
+  const [photos, setPhotos] = useState<SeriesPhoto[]>([]);
+
+  useEffect(() => {
+    fetch(`/api/series/${seriesId}`)
+      .then((r) => r.json())
+      .then((d: { series: SeriesInfo; photos: SeriesPhoto[] }) => {
+        setSeries(d.series);
+        setPhotos(d.photos ?? []);
+      })
+      .catch(() => {});
+  }, [seriesId]);
+
+  if (!series || photos.length === 0) return null;
+
+  const currentIdx = photos.findIndex((p) => p.id === currentPhotoId);
+  const position = currentIdx === -1 ? null : currentIdx + 1;
+  const prevPhoto = currentIdx > 0 ? photos[currentIdx - 1] : null;
+  const nextPhoto = currentIdx >= 0 && currentIdx < photos.length - 1 ? photos[currentIdx + 1] : null;
+
+  return (
+    <div className="bg-muted/5 border-b border-border/40">
+      <div className="container mx-auto px-4 py-3 max-w-6xl">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2.5">
+            <BookOpen className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <span className="text-xs text-muted-foreground">Part of</span>
+            <Link
+              href={`/series/${series.id}`}
+              className="text-xs font-medium hover:underline underline-offset-2 transition-colors"
+            >
+              {series.name}
+            </Link>
+            {position !== null && (
+              <>
+                <span className="text-muted-foreground/40 text-xs">·</span>
+                <span className="text-xs text-muted-foreground font-mono">
+                  Photo {position} of {photos.length}
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1">
+            {prevPhoto ? (
+              <Link
+                href={`/photos/${prevPhoto.id}`}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border/50 hover:border-border transition-colors"
+                title={prevPhoto.title}
+              >
+                <ChevronLeft className="w-3.5 h-3.5" /> Prev
+              </Link>
+            ) : (
+              <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground/30 border border-border/20 cursor-not-allowed">
+                <ChevronLeft className="w-3.5 h-3.5" /> Prev
+              </span>
+            )}
+            <Link
+              href={`/series/${series.id}`}
+              className="px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border/50 hover:border-border transition-colors"
+            >
+              View Series
+            </Link>
+            {nextPhoto ? (
+              <Link
+                href={`/photos/${nextPhoto.id}`}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border/50 hover:border-border transition-colors"
+                title={nextPhoto.title}
+              >
+                Next <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            ) : (
+              <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground/30 border border-border/20 cursor-not-allowed">
+                Next <ChevronRight className="w-3.5 h-3.5" />
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ColorPalette({ imageUrl }: { imageUrl: string }) {
   const [colors, setColors] = useState<string[]>([]);
 
@@ -736,6 +834,10 @@ export function PhotoDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {photo.seriesId && (
+        <SeriesPanel seriesId={photo.seriesId} currentPhotoId={photo.id} />
       )}
 
       <div className="bg-black border-b border-border min-h-[70vh] flex items-center justify-center p-4 md:p-12">

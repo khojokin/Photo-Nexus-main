@@ -619,6 +619,7 @@ function useUnreadNotifications() {
 const PRIMARY_LINKS = [
   { href: "/photos", label: "Explore" },
   { href: "/collections", label: "Collections" },
+  { href: "/series", label: "Series" },
   { href: "/discover", label: "Today's Edit" },
 ];
 

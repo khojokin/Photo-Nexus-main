@@ -23,6 +23,7 @@ export const photosTable = pgTable("photos", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   publishAt: timestamp("publish_at", { withTimezone: true }),
   seriesId: integer("series_id"),
+  seriesPosition: integer("series_position"),
   camera: text("camera"),
   lens: text("lens"),
   aperture: text("aperture"),
