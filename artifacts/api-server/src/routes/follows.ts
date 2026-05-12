@@ -123,6 +123,32 @@ router.delete("/photographers/:name/follow", async (req: Request, res: Response)
   res.json({ followerCount: countRow?.count ?? 0 });
 });
 
+router.get("/photographers/:name/followers", async (req: Request, res: Response): Promise<void> => {
+  const params = NameParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid name" }); return; }
+
+  const rows = await db
+    .select({ name: followsTable.followerName, since: followsTable.createdAt })
+    .from(followsTable)
+    .where(eq(followsTable.followingName, params.data.name))
+    .orderBy(desc(followsTable.createdAt));
+
+  res.json({ list: rows });
+});
+
+router.get("/photographers/:name/following", async (req: Request, res: Response): Promise<void> => {
+  const params = NameParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid name" }); return; }
+
+  const rows = await db
+    .select({ name: followsTable.followingName, since: followsTable.createdAt })
+    .from(followsTable)
+    .where(eq(followsTable.followerName, params.data.name))
+    .orderBy(desc(followsTable.createdAt));
+
+  res.json({ list: rows });
+});
+
 const FollowingFeedQuery = z.object({
   followerName: z.string().min(1).max(120),
   page: z.coerce.number().int().min(1).default(1),

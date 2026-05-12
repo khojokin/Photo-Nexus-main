@@ -9,7 +9,7 @@ import type { Photo } from "@workspace/api-client-react";
 import {
   BadgeCheck, Camera, MapPin, Globe, MessageSquare, Calendar,
   Instagram, Twitter, UserPlus, UserCheck, Loader2, Users,
-  Trophy, Award, Star, Zap, TrendingUp,
+  Trophy, Award, Star, Zap, TrendingUp, X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -286,6 +286,183 @@ function RelatedCard({ photographer, myName }: RelatedCardProps) {
   );
 }
 
+// ─── Followers / Following modal ─────────────────────────────────────────────
+
+interface FollowListEntry {
+  name: string;
+  since: string;
+}
+
+interface FollowListModalProps {
+  subjectName: string;
+  mode: "followers" | "following";
+  myName: string;
+  onClose: () => void;
+}
+
+function FollowListModal({ subjectName, mode, myName, onClose }: FollowListModalProps) {
+  const [list, setList] = useState<FollowListEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [followStates, setFollowStates] = useState<Record<string, boolean>>({});
+  const [togglingName, setTogglingName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const endpoint = mode === "followers"
+      ? `/api/photographers/${encodeURIComponent(subjectName)}/followers`
+      : `/api/photographers/${encodeURIComponent(subjectName)}/following`;
+
+    fetch(endpoint)
+      .then((r) => r.json() as Promise<{ list: FollowListEntry[] }>)
+      .then((d) => {
+        setList(d.list ?? []);
+        if (myName) {
+          Promise.all(
+            (d.list ?? []).map(async (entry) => {
+              if (entry.name.toLowerCase() === myName.toLowerCase()) return null;
+              const r = await fetch(
+                `/api/photographers/${encodeURIComponent(entry.name)}/is-followed-by/${encodeURIComponent(myName)}`
+              );
+              if (!r.ok) return null;
+              const data = await r.json() as { isFollowing: boolean };
+              return { name: entry.name, isFollowing: data.isFollowing };
+            })
+          ).then((results) => {
+            const map: Record<string, boolean> = {};
+            for (const r of results) if (r) map[r.name] = r.isFollowing;
+            setFollowStates(map);
+          }).catch(() => {});
+        }
+      })
+      .catch(() => setList([]))
+      .finally(() => setLoading(false));
+  }, [subjectName, mode, myName]);
+
+  async function toggleFollow(name: string) {
+    if (!myName || togglingName) return;
+    setTogglingName(name);
+    const isFollowing = !!followStates[name];
+    try {
+      const res = await fetch(`/api/photographers/${encodeURIComponent(name)}/follow`, {
+        method: isFollowing ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ followerName: myName }),
+      });
+      if (res.ok || res.status === 201) {
+        setFollowStates((prev) => ({ ...prev, [name]: !isFollowing }));
+      }
+    } finally {
+      setTogglingName(null);
+    }
+  }
+
+  const title = mode === "followers" ? "Followers" : "Following";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-card border border-border w-full max-w-sm mx-4 flex flex-col max-h-[80vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border px-5 py-4 flex-shrink-0">
+          <div>
+            <h3 className="font-serif text-lg">{title}</h3>
+            <p className="text-xs text-muted-foreground truncate max-w-[180px]">{subjectName}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1">
+          {loading ? (
+            <div className="space-y-px py-2">
+              {Array(5).fill(0).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-3">
+                  <Skeleton className="w-9 h-9 rounded-full flex-shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-3.5 w-32" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : list.length === 0 ? (
+            <div className="flex flex-col items-center py-16 text-center px-6">
+              <Users className="w-8 h-8 text-muted-foreground/30 mb-3" />
+              <p className="text-sm text-muted-foreground">
+                {mode === "followers" ? "No followers yet." : "Not following anyone yet."}
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/30">
+              {list.map((entry) => {
+                const isSelf = entry.name.toLowerCase() === myName.toLowerCase();
+                const isFollowing = !!followStates[entry.name];
+                const isToggling = togglingName === entry.name;
+                const initial = entry.name.charAt(0).toUpperCase();
+
+                return (
+                  <div key={entry.name} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors">
+                    <Link
+                      href={`/profile/${encodeURIComponent(entry.name)}`}
+                      onClick={onClose}
+                      className="flex items-center gap-3 flex-1 min-w-0"
+                    >
+                      <div className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-sm font-serif flex-shrink-0 border border-border/50",
+                        avatarColor(entry.name)
+                      )}>
+                        <span className="text-white/90 drop-shadow">{initial}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium truncate">{entry.name}</p>
+                          {VERIFIED_PHOTOGRAPHERS.some((n) => n.toLowerCase() === entry.name.toLowerCase()) && (
+                            <BadgeCheck className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Since {format(new Date(entry.since), "MMM yyyy")}
+                        </p>
+                      </div>
+                    </Link>
+
+                    {!isSelf && myName && (
+                      <button
+                        onClick={() => void toggleFollow(entry.name)}
+                        disabled={!!isToggling}
+                        className={cn(
+                          "flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border transition-all disabled:opacity-40",
+                          isFollowing
+                            ? "border-border text-muted-foreground hover:border-destructive hover:text-destructive"
+                            : "border-foreground/40 text-foreground hover:border-foreground hover:bg-foreground/5"
+                        )}
+                      >
+                        {isToggling ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : isFollowing ? (
+                          <><UserCheck className="w-3 h-3" /> Following</>
+                        ) : (
+                          <><UserPlus className="w-3 h-3" /> Follow</>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Achievement badges ───────────────────────────────────────────────────────
 
 const ACHIEVEMENTS = [
@@ -426,6 +603,7 @@ export function Profile() {
   const [verifyLinks, setVerifyLinks] = useState("");
   const [activeTab, setActiveTab] = useState<"published" | "drafts">("published");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [followModal, setFollowModal] = useState<"followers" | "following" | null>(null);
 
   function submitVerification() {
     setVerifyStep("pending");
@@ -559,23 +737,29 @@ export function Profile() {
                   <p className="text-xs text-muted-foreground">Downloads</p>
                 </div>
                 <div className="w-px h-8 bg-border" />
-                <div className="text-center">
-                  <p className="text-2xl font-serif">
+                <button
+                  onClick={() => setFollowModal("followers")}
+                  className="text-center group hover:opacity-70 transition-opacity"
+                >
+                  <p className="text-2xl font-serif group-hover:underline underline-offset-4 decoration-muted-foreground/40">
                     {followerCount === null
                       ? <span className="text-sm text-muted-foreground">—</span>
                       : followerCount}
                   </p>
                   <p className="text-xs text-muted-foreground">Followers</p>
-                </div>
+                </button>
                 <div className="w-px h-8 bg-border" />
-                <div className="text-center">
-                  <p className="text-2xl font-serif">
+                <button
+                  onClick={() => setFollowModal("following")}
+                  className="text-center group hover:opacity-70 transition-opacity"
+                >
+                  <p className="text-2xl font-serif group-hover:underline underline-offset-4 decoration-muted-foreground/40">
                     {followingCount === null
                       ? <span className="text-sm text-muted-foreground">—</span>
                       : followingCount}
                   </p>
                   <p className="text-xs text-muted-foreground">Following</p>
-                </div>
+                </button>
                 {isOwnProfile && draftPhotos.length > 0 && (
                   <>
                     <div className="w-px h-8 bg-border" />
@@ -886,6 +1070,15 @@ export function Profile() {
           photos={displayedPhotos}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
+        />
+      )}
+
+      {followModal !== null && viewingName && (
+        <FollowListModal
+          subjectName={viewingName}
+          mode={followModal}
+          myName={myName ?? ""}
+          onClose={() => setFollowModal(null)}
         />
       )}
     </Layout>
