@@ -6,6 +6,7 @@ import { useLikePhoto, useDownloadPhoto, getGetPhotoQueryKey } from "@workspace/
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useTasteProfile } from "@/contexts/taste-profile-context";
 
 interface PhotoCardProps {
   photo: Photo;
@@ -19,6 +20,7 @@ export function PhotoCard({ photo, className, priority = false, onOpen }: PhotoC
   const queryClient = useQueryClient();
   const likeMutation = useLikePhoto();
   const downloadMutation = useDownloadPhoto();
+  const { recordInteraction } = useTasteProfile();
 
   const handleLike = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -29,6 +31,9 @@ export function PhotoCard({ photo, className, priority = false, onOpen }: PhotoC
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetPhotoQueryKey(photo.id) });
           queryClient.invalidateQueries({ queryKey: ["/api/photos"] });
+          if (photo.tags && photo.tags.length > 0) {
+            recordInteraction(photo.tags);
+          }
         },
       }
     );
