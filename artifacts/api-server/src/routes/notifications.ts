@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, desc, and, sql } from "drizzle-orm";
-import { db, notificationsTable } from "@workspace/db";
+import { eq, desc, and, sql, ilike } from "drizzle-orm";
+import { db, notificationsTable, followAlertsTable } from "@workspace/db";
+import { z } from "zod/v4";
 
 const router: IRouter = Router();
 
@@ -107,6 +108,49 @@ router.patch("/notifications/read-all", async (req: Request, res: Response): Pro
     );
 
   void pushUnreadCount(req.authUser.id);
+  res.json({ success: true });
+});
+
+// ── Name-based follow alert endpoints (no Replit Auth required) ──────────────
+
+const NameQuery = z.object({ name: z.string().min(1).max(120) });
+
+router.get("/notifications/follow-alerts", async (req: Request, res: Response): Promise<void> => {
+  const parsed = NameQuery.safeParse(req.query);
+  if (!parsed.success) { res.status(400).json({ error: "Missing name" }); return; }
+
+  const alerts = await db
+    .select()
+    .from(followAlertsTable)
+    .where(ilike(followAlertsTable.recipientName, parsed.data.name))
+    .orderBy(desc(followAlertsTable.createdAt))
+    .limit(50);
+
+  const unreadCount = alerts.filter((a) => !a.isRead).length;
+  res.json({ alerts, unreadCount });
+});
+
+router.patch("/notifications/follow-alerts/read-all", async (req: Request, res: Response): Promise<void> => {
+  const parsed = NameQuery.safeParse(req.query);
+  if (!parsed.success) { res.status(400).json({ error: "Missing name" }); return; }
+
+  await db
+    .update(followAlertsTable)
+    .set({ isRead: true })
+    .where(ilike(followAlertsTable.recipientName, parsed.data.name));
+
+  res.json({ success: true });
+});
+
+router.patch("/notifications/follow-alerts/:id/read", async (req: Request, res: Response): Promise<void> => {
+  const id = Number.parseInt(req.params.id ?? "", 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  await db
+    .update(followAlertsTable)
+    .set({ isRead: true })
+    .where(eq(followAlertsTable.id, id));
+
   res.json({ success: true });
 });
 

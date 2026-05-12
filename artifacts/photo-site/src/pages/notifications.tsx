@@ -7,6 +7,17 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-context";
 
+const SETTINGS_KEY = "affuaa_settings";
+function getDisplayName(): string {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return "";
+    return (JSON.parse(raw) as { displayName?: string }).displayName ?? "";
+  } catch {
+    return "";
+  }
+}
+
 interface Notification {
   id: number;
   type: string;
@@ -16,6 +27,7 @@ interface Notification {
   commentBody: string | null;
   isRead: boolean;
   createdAt: string;
+  _source?: "auth" | "follow-alert";
 }
 
 const DEMO_NOTIFICATIONS: Notification[] = [
@@ -64,41 +76,60 @@ export function Notifications() {
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const displayName = getDisplayName();
 
   const fetchNotifications = useCallback(async () => {
+    const results: Notification[] = [];
+    let usedDemo = false;
+
+    // Fetch auth-based notifications
     try {
       const res = await authFetch("/api/notifications");
-      if (res.status === 401) {
-        if (isAuthenticated) {
-          setIsDemoMode(true);
-          setNotifications(DEMO_NOTIFICATIONS);
-          setUnreadCount(DEMO_NOTIFICATIONS.filter(n => !n.isRead).length);
-        }
-        setLoading(false);
-        return;
-      }
       if (res.ok) {
         const data = await res.json() as { notifications: Notification[]; unreadCount: number };
-        const fromApi = data.notifications ?? [];
-        if (fromApi.length === 0 && isAuthenticated) {
-          setIsDemoMode(true);
-          setNotifications(DEMO_NOTIFICATIONS);
-          setUnreadCount(DEMO_NOTIFICATIONS.filter(n => !n.isRead).length);
-        } else {
-          setNotifications(fromApi);
-          setUnreadCount(data.unreadCount ?? 0);
+        const fromApi = (data.notifications ?? []).map((n) => ({ ...n, _source: "auth" as const }));
+        results.push(...fromApi);
+      }
+    } catch { /* swallow */ }
+
+    // Fetch name-based follow alerts
+    if (displayName) {
+      try {
+        const res = await fetch(`/api/notifications/follow-alerts?name=${encodeURIComponent(displayName)}`);
+        if (res.ok) {
+          const data = await res.json() as { alerts: Array<{ id: number; actorName: string; isRead: boolean; createdAt: string }> };
+          const alerts: Notification[] = (data.alerts ?? []).map((a) => ({
+            id: a.id,
+            type: "follow",
+            photoId: null,
+            photoTitle: "",
+            actorName: a.actorName,
+            commentBody: null,
+            isRead: a.isRead,
+            createdAt: a.createdAt,
+            _source: "follow-alert" as const,
+          }));
+          results.push(...alerts);
         }
-      }
-    } catch {
-      if (isAuthenticated) {
-        setIsDemoMode(true);
-        setNotifications(DEMO_NOTIFICATIONS);
-        setUnreadCount(DEMO_NOTIFICATIONS.filter(n => !n.isRead).length);
-      }
-    } finally {
-      setLoading(false);
+      } catch { /* swallow */ }
     }
-  }, [authFetch, isAuthenticated]);
+
+    // Sort merged list newest-first
+    results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    if (results.length === 0 && isAuthenticated) {
+      usedDemo = true;
+      setIsDemoMode(true);
+      setNotifications(DEMO_NOTIFICATIONS);
+      setUnreadCount(DEMO_NOTIFICATIONS.filter((n) => !n.isRead).length);
+    } else {
+      setIsDemoMode(usedDemo);
+      setNotifications(results);
+      setUnreadCount(results.filter((n) => !n.isRead).length);
+    }
+
+    setLoading(false);
+  }, [authFetch, isAuthenticated, displayName]);
 
   useEffect(() => {
     void fetchNotifications();
@@ -108,7 +139,14 @@ export function Notifications() {
     setMarkingAll(true);
     try {
       if (!isDemoMode) {
-        await authFetch("/api/notifications/read-all", { method: "PATCH" });
+        // Mark auth notifications read
+        await authFetch("/api/notifications/read-all", { method: "PATCH" }).catch(() => {});
+        // Mark follow alerts read
+        if (displayName) {
+          await fetch(`/api/notifications/follow-alerts/read-all?name=${encodeURIComponent(displayName)}`, {
+            method: "PATCH",
+          }).catch(() => {});
+        }
       }
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
@@ -117,15 +155,25 @@ export function Notifications() {
     }
   }
 
-  async function markOneRead(id: number) {
+  async function markOneRead(n: Notification) {
     if (!isDemoMode) {
-      await authFetch(`/api/notifications/${id}/read`, { method: "PATCH" });
+      if (n._source === "follow-alert") {
+        await fetch(`/api/notifications/follow-alerts/${n.id}/read`, { method: "PATCH" }).catch(() => {});
+      } else {
+        await authFetch(`/api/notifications/${n.id}/read`, { method: "PATCH" }).catch(() => {});
+      }
     }
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    setNotifications((prev) => prev.map((m) => (m.id === n.id && m._source === n._source ? { ...m, isRead: true } : m)));
     setUnreadCount((prev) => Math.max(0, prev - 1));
   }
 
-  if (!isAuthenticated && !loading) {
+  function notifLink(n: Notification) {
+    if (n.type === "follow") return `/profile/${encodeURIComponent(n.actorName)}`;
+    if (n.photoId) return `/photos/${n.photoId}`;
+    return "/notifications";
+  }
+
+  if (!isAuthenticated && !displayName && !loading) {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-16 max-w-3xl">
@@ -138,7 +186,7 @@ export function Notifications() {
           <div className="text-center py-24 border border-dashed border-border">
             <Bell className="w-10 h-10 mx-auto mb-4 opacity-20" />
             <p className="font-serif text-xl mb-2">Sign in to see notifications</p>
-            <p className="text-sm text-muted-foreground mb-6">You'll be notified when someone likes or comments on your photos.</p>
+            <p className="text-sm text-muted-foreground mb-6">You'll be notified when someone likes, comments on, or follows your work.</p>
             <Link href="/signin" className="bg-foreground text-background px-6 py-3 text-sm font-medium hover:opacity-90 transition-opacity">
               Sign In
             </Link>
@@ -203,15 +251,15 @@ export function Notifications() {
           <div className="border border-border bg-card">
             {notifications.map((n) => (
               <div
-                key={n.id}
+                key={`${n._source ?? "auth"}-${n.id}`}
                 className={cn(
                   "relative border-b border-border/40 last:border-0 transition-colors",
                   !n.isRead ? "bg-muted/30" : "hover:bg-muted/20"
                 )}
               >
                 <Link
-                  href={n.photoId ? `/photos/${n.photoId}` : "/notifications"}
-                  onClick={() => { if (!n.isRead) void markOneRead(n.id); }}
+                  href={notifLink(n)}
+                  onClick={() => { if (!n.isRead) void markOneRead(n); }}
                   className="flex items-start gap-3 px-4 py-3 w-full"
                 >
                   <NotifIcon type={n.type} />
@@ -229,7 +277,7 @@ export function Notifications() {
                   {!n.isRead && (
                     <button
                       type="button"
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); void markOneRead(n.id); }}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); void markOneRead(n); }}
                       className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-2"
                       title="Mark as read"
                     />

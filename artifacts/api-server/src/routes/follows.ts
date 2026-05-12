@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
-import { db, followsTable, notificationsTable, usersTable, photosTable } from "@workspace/db";
+import { db, followsTable, notificationsTable, usersTable, photosTable, followAlertsTable } from "@workspace/db";
 import { z } from "zod/v4";
 
 const router: IRouter = Router();
@@ -66,8 +66,12 @@ router.post("/photographers/:name/follow", async (req: Request, res: Response): 
     .values({ followerName, followingName })
     .onConflictDoNothing();
 
-  // Best-effort: notify the followed user if they have an account
-  // Match by firstName + lastName concatenation or just firstName
+  // Always create a name-based follow alert (works without Replit Auth)
+  db.insert(followAlertsTable)
+    .values({ recipientName: followingName, actorName: followerName })
+    .catch(() => { /* non-critical */ });
+
+  // Also notify the followed user if they have a Replit Auth account
   const users = await db
     .select({ id: usersTable.id, firstName: usersTable.firstName, lastName: usersTable.lastName })
     .from(usersTable);
