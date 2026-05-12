@@ -9,8 +9,9 @@ import type { Photo } from "@workspace/api-client-react";
 import {
   BadgeCheck, Camera, MapPin, Globe, MessageSquare, Calendar,
   Instagram, Twitter, UserPlus, UserCheck, Loader2, Users,
-  Trophy, Award, Star, Zap, TrendingUp, X,
+  Trophy, Award, Star, Zap, TrendingUp, X, BookOpen,
 } from "lucide-react";
+import { SeriesManagerTab } from "@/components/series-manager-tab";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -601,7 +602,7 @@ export function Profile() {
   const [verifyStep, setVerifyStep] = useState<"form" | "pending" | "done">("form");
   const [verifyName, setVerifyName] = useState("");
   const [verifyLinks, setVerifyLinks] = useState("");
-  const [activeTab, setActiveTab] = useState<"published" | "drafts">("published");
+  const [activeTab, setActiveTab] = useState<"published" | "drafts" | "series">("published");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [followModal, setFollowModal] = useState<"followers" | "following" | null>(null);
 
@@ -610,7 +611,7 @@ export function Profile() {
     setTimeout(() => setVerifyStep("done"), 1800);
   }
 
-  const displayedPhotos = activeTab === "drafts" ? draftPhotos : publishedPhotos;
+  const displayedPhotos = activeTab === "drafts" ? draftPhotos : activeTab === "series" ? [] : publishedPhotos;
 
   function openLightbox(photo: Photo) {
     const idx = displayedPhotos.findIndex((p) => p.id === photo.id);
@@ -972,6 +973,20 @@ export function Profile() {
                     <span className="ml-2 text-xs text-amber-400">{draftPhotos.length}</span>
                   </button>
                 )}
+                {isOwnProfile && (
+                  <button
+                    onClick={() => setActiveTab("series")}
+                    className={cn(
+                      "px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-1.5",
+                      activeTab === "series"
+                        ? "text-foreground border-foreground"
+                        : "text-muted-foreground border-transparent hover:text-foreground"
+                    )}
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Series
+                  </button>
+                )}
               </div>
               {isOwnProfile && (
                 <Link
@@ -983,7 +998,12 @@ export function Profile() {
               )}
             </div>
 
-            {loadingPhotos ? (
+            {activeTab === "series" ? (
+              <SeriesManagerTab
+                photographerName={displayName}
+                myPhotos={publishedPhotos}
+              />
+            ) : loadingPhotos ? (
               <div className="masonry-grid">
                 {Array(8).fill(0).map((_, i) => (
                   <div key={i} className="masonry-item">
