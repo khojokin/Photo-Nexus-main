@@ -29,6 +29,7 @@ interface Settings {
   autoplayVideos: boolean;
   accentColor: string;
   publicProfile: boolean;
+  aiChatEnabled: boolean;
 }
 
 const defaultSettings: Settings = {
@@ -52,6 +53,7 @@ const defaultSettings: Settings = {
   autoplayVideos: false,
   accentColor: "#ffffff",
   publicProfile: true,
+  aiChatEnabled: true,
 };
 
 function loadSettings(): Settings {
@@ -165,6 +167,7 @@ export function Settings() {
 
   function handleSave() {
     saveSettings(settings);
+    window.dispatchEvent(new CustomEvent("affuaa-settings-changed", { detail: settings }));
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   }
@@ -504,6 +507,12 @@ export function Settings() {
                     desc="Automatically play animated previews"
                     checked={settings.autoplayVideos}
                     onChange={(v) => update("autoplayVideos", v)}
+                  />
+                  <ToggleRow
+                    label="AI Assistant"
+                    desc="Show the AI support chat button on every page"
+                    checked={settings.aiChatEnabled}
+                    onChange={(v) => update("aiChatEnabled", v)}
                   />
                   <Field label="Accent Color" hint="Used for highlights on your profile page">
                     <div className="flex items-center gap-3">

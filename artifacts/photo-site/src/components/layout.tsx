@@ -950,6 +950,36 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const unreadMessages = useUnreadMessages();
   const [hiddenPages] = useState<string[]>(() => getHiddenPages());
   const [maintenanceConfig] = useState<MaintenanceConfig>(() => getMaintenance());
+  const [aiChatEnabled, setAiChatEnabled] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem("affuaa_settings");
+      if (raw) {
+        const parsed = JSON.parse(raw) as { aiChatEnabled?: boolean };
+        return parsed.aiChatEnabled !== false;
+      }
+    } catch { /* ignore */ }
+    return true;
+  });
+
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key !== "affuaa_settings") return;
+      try {
+        const parsed = JSON.parse(e.newValue ?? "{}") as { aiChatEnabled?: boolean };
+        setAiChatEnabled(parsed.aiChatEnabled !== false);
+      } catch { /* ignore */ }
+    }
+    function onSettingsChanged(e: Event) {
+      const detail = (e as CustomEvent<{ aiChatEnabled?: boolean }>).detail;
+      setAiChatEnabled(detail?.aiChatEnabled !== false);
+    }
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("affuaa-settings-changed", onSettingsChanged);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("affuaa-settings-changed", onSettingsChanged);
+    };
+  }, []);
 
   const displayName = (() => {
     try { return JSON.parse(localStorage.getItem("affuaa_settings") ?? "{}").displayName ?? ""; }
@@ -1050,9 +1080,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {!isLoading && (
               user ? (
                 <>
-                  <span className="hidden md:contents">
-                    <NotificationBell />
-                  </span>
+                  <NotificationBell />
 
                   <div className="relative" ref={menuRef}>
                     <button
@@ -1175,7 +1203,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </footer>
-      <LiveChat />
+      {aiChatEnabled && <LiveChat />}
       <MobileBottomNav />
     </div>
   );
