@@ -4,6 +4,7 @@ import {
   Menu, X, LayoutDashboard, MessageSquare, Upload, User, Settings, Bell,
   LogOut, Activity, BookOpen, Layout as LayoutIcon, Sun, Shield,
   Crown, Lock, Telescope, Search, Tag, ArrowRight, ImageIcon,
+  Home, Compass, FolderOpen, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./notifications";
@@ -603,6 +604,112 @@ const MENU_LINKS = [
 const ADMIN_LINK = { href: "/admin", label: "Admin Panel", icon: Shield };
 const PREMIUM_LINK = { href: "/premium", label: "Premium", icon: Crown };
 
+// ─── Page Progress Bar ────────────────────────────────────────────────────────
+function PageProgressBar() {
+  const [location] = useLocation();
+  const [width, setWidth] = useState(0);
+  const [visible, setVisible] = useState(false);
+  const prevLocation = useRef(location);
+  const t1 = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const t2 = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const t3 = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (location === prevLocation.current) return;
+    prevLocation.current = location;
+
+    [t1, t2, t3].forEach(r => { if (r.current) clearTimeout(r.current); });
+
+    setVisible(true);
+    setWidth(0);
+    t1.current = setTimeout(() => setWidth(75), 30);
+    t2.current = setTimeout(() => setWidth(100), 350);
+    t3.current = setTimeout(() => { setVisible(false); setWidth(0); }, 650);
+  }, [location]);
+
+  return (
+    <div
+      className="fixed top-0 left-0 z-[9999] h-[2px] bg-foreground pointer-events-none"
+      style={{
+        width: `${width}%`,
+        transition: width === 0 ? "none" : "width 320ms cubic-bezier(0.4,0,0.2,1)",
+        opacity: visible ? 1 : 0,
+        transitionProperty: width === 100 ? "width, opacity" : "width",
+        transitionDuration: width === 100 ? "200ms, 200ms" : "320ms",
+        transitionDelay: width === 100 ? "0ms, 100ms" : "0ms",
+      }}
+    />
+  );
+}
+
+// ─── Scroll to top on navigation ──────────────────────────────────────────────
+function ScrollToTop() {
+  const [location] = useLocation();
+  const prev = useRef(location);
+  useEffect(() => {
+    if (location !== prev.current) {
+      prev.current = location;
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+    }
+  }, [location]);
+  return null;
+}
+
+// ─── Mobile bottom navigation ─────────────────────────────────────────────────
+function MobileBottomNav() {
+  const [location] = useLocation();
+  const { user } = useAuth();
+
+  const items = [
+    { href: "/", label: "Home", Icon: Home, exact: true },
+    { href: "/photos", label: "Explore", Icon: Compass, exact: false },
+    { href: "/collections", label: "Collections", Icon: FolderOpen, exact: false },
+    { href: "/discover", label: "Today's Edit", Icon: Sparkles, exact: false },
+    { href: "/profile", label: "Profile", Icon: null, exact: false },
+  ];
+
+  return (
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-t border-border/60 safe-bottom">
+      <div className="flex items-center justify-around h-16 px-1">
+        {items.map(({ href, label, Icon, exact }) => {
+          const active = exact ? location === href : location === href || location.startsWith(href + "/");
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-colors",
+                active ? "text-foreground" : "text-muted-foreground"
+              )}
+            >
+              {Icon ? (
+                <Icon className={cn("w-5 h-5 transition-all", active && "stroke-[2.2px]")} />
+              ) : (
+                <div className={cn(
+                  "w-6 h-6 rounded-full flex items-center justify-center overflow-hidden border transition-all",
+                  active ? "border-foreground" : "border-border bg-muted"
+                )}>
+                  {user?.profileImageUrl ? (
+                    <img src={user.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-3.5 h-3.5" />
+                  )}
+                </div>
+              )}
+              <span className={cn(
+                "text-[9px] leading-none tracking-wide",
+                active ? "font-semibold" : "font-normal"
+              )}>
+                {label}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
 // ─── Layout ───────────────────────────────────────────────────────────────────
 const HIDDEN_PAGES_KEY = "affuaa_hidden_pages";
 function getHiddenPages(): string[] {
@@ -693,6 +800,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <PageProgressBar />
+      <ScrollToTop />
       {maintenanceConfig.enabled && !isAdmin && !isLoading && (
         <MaintenanceSplash config={maintenanceConfig} />
       )}
@@ -851,7 +960,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="flex-1">
+      <main className="flex-1 pb-16 md:pb-0">
         {!isAdmin && hiddenPages.some(p => p === "/" ? location === "/" : location === p || location.startsWith(p + "/")) ? (
           <div className="min-h-[60vh] flex items-center justify-center text-center px-4">
             <div>
@@ -863,7 +972,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         ) : children}
       </main>
 
-      <footer className="border-t border-border py-12 mt-20">
+      <footer className="border-t border-border py-12 mt-20 mb-16 md:mb-0">
         <div className="container mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-center sm:text-left">
@@ -882,6 +991,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </footer>
       <LiveChat />
+      <MobileBottomNav />
     </div>
   );
 }
