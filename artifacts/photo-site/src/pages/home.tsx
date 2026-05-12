@@ -4,6 +4,7 @@ import { Layout } from "@/components/layout";
 import { PhotoCard } from "@/components/photo-card";
 import { Lightbox } from "@/components/lightbox";
 import { ForYouSection } from "@/components/for-you-section";
+import { SuggestedFollows } from "@/components/suggested-follows";
 import {
   useGetSiteSummary,
   useGetFeaturedPhotos,
@@ -353,6 +354,9 @@ export function Home() {
           )}
         </div>
       </section>
+
+      {/* ── Suggested follows ────────────────────────────────────────────── */}
+      <SuggestedFollows />
 
       {/* ── Editorial strip ──────────────────────────────────────────────── */}
       <section className="border-y border-border/40 bg-muted/5 py-16">
