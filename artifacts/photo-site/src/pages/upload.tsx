@@ -2,13 +2,14 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import {
-  Upload as UploadIcon, ImagePlus, X, Check, Loader2, ArrowLeft,
+  Upload as UploadIcon, ImagePlus, X, Loader2, ArrowLeft,
   Trash2, ChevronDown, ChevronUp, Camera, Aperture, Clock, Zap, Ruler,
-  CloudUpload, AlertCircle, ExternalLink, CheckCircle2, RefreshCw,
+  CloudUpload, AlertCircle, ExternalLink, CheckCircle2, RefreshCw, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { useSubscription } from "@/hooks/use-subscription";
+import { useUploadProgress } from "@/contexts/upload-progress-context";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -141,11 +142,29 @@ export function Upload() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadingRef = useRef<Set<string>>(new Set());
+  const itemsRef = useRef<QueueItem[]>([]);
+  const { setUploadStats } = useUploadProgress();
+
+  // Keep itemsRef in sync for use inside async closures
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  // Sync active upload count + avg progress to global context
+  useEffect(() => {
+    const uploading = items.filter((it) => it.status === "uploading");
+    if (uploading.length === 0) {
+      setUploadStats(0, 0);
+    } else {
+      const avg = Math.round(uploading.reduce((s, it) => s + it.progress, 0) / uploading.length);
+      setUploadStats(uploading.length, avg);
+    }
+  }, [items, setUploadStats]);
 
   // Revoke object URLs on unmount
   useEffect(() => {
     return () => {
-      items.forEach((it) => URL.revokeObjectURL(it.previewUrl));
+      itemsRef.current.forEach((it) => URL.revokeObjectURL(it.previewUrl));
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -173,6 +192,18 @@ export function Upload() {
         updateItem(item.id, { progress: pct });
       });
       updateItem(item.id, { status: "ready", imageUrl: url, progress: 100 });
+      // Auto-publish if all required fields are already filled
+      setTimeout(() => {
+        const latest = itemsRef.current.find((it) => it.id === item.id);
+        if (
+          latest &&
+          latest.title.trim() &&
+          latest.photographerName.trim() &&
+          latest.tags.length > 0
+        ) {
+          void publishItem(item.id);
+        }
+      }, 400);
     } catch (err) {
       updateItem(item.id, { status: "error", errorMsg: (err as Error).message });
     } finally {
@@ -186,7 +217,7 @@ export function Upload() {
 
   // ── Publish one ────────────────────────────────────────────────────────────
   async function publishItem(id: string) {
-    const item = items.find((it) => it.id === id);
+    const item = itemsRef.current.find((it) => it.id === id);
     if (!item || item.status !== "ready") return;
     if (!item.title.trim() || !item.photographerName.trim() || item.tags.length === 0) return;
 
@@ -446,54 +477,77 @@ function QueueCard({ item, isPremium, onUpdate, onRemove, onPublish, onRetry }: 
           <p className="text-sm font-medium truncate">{item.file.name}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{formatBytes(item.file.size)}</p>
 
-          {/* Progress bar */}
-          {item.status === "uploading" && (
+          {/* Step progress pipeline */}
+          {item.status !== "error" && (
             <div className="mt-3">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Uploading…
-                </span>
-                <span className="text-xs font-mono text-muted-foreground">{item.progress}%</span>
+              <div className="flex items-center gap-1.5">
+                {/* Step 1: Upload */}
+                <div className={cn(
+                  "flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors",
+                  item.status === "uploading" ? "bg-foreground text-background"
+                    : item.status === "queued" ? "bg-muted text-muted-foreground"
+                    : "bg-green-500/10 text-green-500"
+                )}>
+                  {item.status === "uploading" ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : item.status === "queued" ? <Loader2 className="w-2.5 h-2.5 animate-spin opacity-40" /> : <CheckCircle2 className="w-2.5 h-2.5" />}
+                  Upload
+                </div>
+                <div className={cn("flex-1 h-px", item.status !== "queued" && item.status !== "uploading" ? "bg-green-500/40" : "bg-border")} />
+                {/* Step 2: Publish */}
+                <div className={cn(
+                  "flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors",
+                  item.status === "publishing" ? "bg-foreground text-background"
+                    : item.status === "done" ? "bg-green-500/10 text-green-500"
+                    : "bg-muted text-muted-foreground"
+                )}>
+                  {item.status === "publishing" ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : item.status === "done" ? <CheckCircle2 className="w-2.5 h-2.5" /> : <CloudUpload className="w-2.5 h-2.5 opacity-40" />}
+                  Publish
+                </div>
+                <div className={cn("flex-1 h-px", item.status === "done" ? "bg-green-500/40" : "bg-border")} />
+                {/* Step 3: Live */}
+                <div className={cn(
+                  "flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors",
+                  item.status === "done" ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"
+                )}>
+                  {item.status === "done" ? <Sparkles className="w-2.5 h-2.5" /> : <Sparkles className="w-2.5 h-2.5 opacity-30" />}
+                  Live
+                </div>
               </div>
-              <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-foreground rounded-full transition-all duration-300 ease-out"
-                  style={{ width: `${item.progress}%` }}
-                />
-              </div>
+
+              {/* Progress bar during upload */}
+              {item.status === "uploading" && (
+                <div className="mt-2">
+                  <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-foreground rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${item.progress}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 text-right font-mono">{item.progress}%</p>
+                </div>
+              )}
+
+              {item.status === "queued" && (
+                <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Waiting in queue…
+                </p>
+              )}
+
+              {item.status === "ready" && (
+                <p className="text-xs text-amber-500 mt-1.5 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  Fill in details below to publish
+                </p>
+              )}
             </div>
-          )}
-
-          {item.status === "queued" && (
-            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-              <Loader2 className="w-3 h-3 animate-spin" /> Waiting…
-            </p>
-          )}
-
-          {item.status === "ready" && (
-            <p className="text-xs text-blue-400 mt-2 flex items-center gap-1">
-              <CloudUpload className="w-3 h-3" />
-              Uploaded · fill in details below
-            </p>
-          )}
-
-          {item.status === "publishing" && (
-            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-              <Loader2 className="w-3 h-3 animate-spin" /> Publishing…
-            </p>
           )}
 
           {item.status === "done" && item.photoId && (
             <div className="mt-2 flex items-center gap-3">
-              <span className="text-xs text-green-500 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Published
-              </span>
               <Link
                 href={`/photos/${item.photoId}`}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                className="text-xs text-green-500 hover:text-green-400 flex items-center gap-1 transition-colors"
               >
-                View photo <ExternalLink className="w-2.5 h-2.5" />
+                View in gallery <ExternalLink className="w-2.5 h-2.5" />
               </Link>
             </div>
           )}
@@ -536,8 +590,8 @@ function QueueCard({ item, isPremium, onUpdate, onRemove, onPublish, onRetry }: 
         </div>
       </div>
 
-      {/* Metadata form — only shown when ready or error-after-ready */}
-      {(item.status === "ready" || item.status === "publishing") && (
+      {/* Metadata form — shown while uploading so users can fill in parallel, and when ready/publishing */}
+      {(item.status === "uploading" || item.status === "ready" || item.status === "publishing") && (
         <div className="border-t border-border px-4 pb-5 pt-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Title */}

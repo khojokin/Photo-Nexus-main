@@ -4,12 +4,13 @@ import {
   Menu, X, LayoutDashboard, MessageSquare, Upload, User, Settings, Bell,
   LogOut, Activity, BookOpen, Layout as LayoutIcon, Sun, Shield,
   Crown, Lock, Telescope, Search, Tag, ArrowRight, ImageIcon,
-  Home, Compass, FolderOpen, Sparkles,
+  Home, Compass, FolderOpen, Sparkles, CloudUpload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./notifications";
 import { useAuth } from "@/contexts/auth-context";
 import { LiveChat } from "./live-chat";
+import { useUploadProgress } from "@/contexts/upload-progress-context";
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 type Theme = "dark" | "light" | "sepia";
@@ -1204,7 +1205,35 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </footer>
       {aiChatEnabled && <LiveChat />}
+      <UploadProgressWidget />
       <MobileBottomNav />
     </div>
+  );
+}
+
+function UploadProgressWidget() {
+  const { activeUploads, avgProgress } = useUploadProgress();
+  const [, navigate] = useLocation();
+
+  if (activeUploads === 0) return null;
+
+  return (
+    <button
+      onClick={() => navigate("/upload")}
+      className="fixed bottom-24 right-4 md:bottom-6 z-50 flex items-center gap-2.5 bg-foreground text-background px-4 py-2.5 shadow-xl text-xs font-medium hover:opacity-90 transition-all animate-in slide-in-from-bottom-2 duration-300"
+      aria-label="View upload progress"
+    >
+      <CloudUpload className="w-4 h-4 flex-shrink-0" />
+      <div className="flex flex-col items-start gap-0.5">
+        <span>{activeUploads} photo{activeUploads > 1 ? "s" : ""} uploading</span>
+        <div className="w-24 h-1 bg-background/20 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-background rounded-full transition-all duration-300"
+            style={{ width: `${avgProgress}%` }}
+          />
+        </div>
+      </div>
+      <span className="text-background/60 font-mono text-[10px]">{avgProgress}%</span>
+    </button>
   );
 }

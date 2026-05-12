@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/auth-context";
 import { ThemeProvider } from "@/components/layout";
 import { TasteProfileProvider } from "@/contexts/taste-profile-context";
+import { UploadProgressProvider } from "@/contexts/upload-progress-context";
 import NotFound from "@/pages/not-found";
 
 import { Home } from "@/pages/home";
@@ -89,9 +90,11 @@ function App() {
         <AuthProvider>
           <ThemeProvider>
             <TasteProfileProvider>
-              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-                <Router />
-              </WouterRouter>
+              <UploadProgressProvider>
+                <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                  <Router />
+                </WouterRouter>
+              </UploadProgressProvider>
             </TasteProfileProvider>
           </ThemeProvider>
         </AuthProvider>
