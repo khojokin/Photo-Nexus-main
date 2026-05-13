@@ -466,13 +466,17 @@ function FollowListModal({ subjectName, mode, myName, onClose }: FollowListModal
 
 // ─── Achievement badges ───────────────────────────────────────────────────────
 
-const ACHIEVEMENTS = [
-  { id: "first_upload", label: "First Upload", icon: Camera, desc: "Uploaded your first photo", check: (p: { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number }) => p.photoCount >= 1, color: "text-blue-400" },
-  { id: "ten_photos", label: "Prolific", icon: TrendingUp, desc: "10+ photos uploaded", check: (p: { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number }) => p.photoCount >= 10, color: "text-green-400" },
-  { id: "fifty_likes", label: "Fan Favourite", icon: Star, desc: "50+ total likes", check: (p: { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number }) => p.totalLikes >= 50, color: "text-yellow-400" },
-  { id: "hundred_downloads", label: "Widely Shared", icon: Zap, desc: "100+ total downloads", check: (p: { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number }) => p.totalDownloads >= 100, color: "text-purple-400" },
-  { id: "top_view", label: "Viral", icon: Trophy, desc: "1,000+ total views", check: (p: { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number }) => p.totalViews >= 1000, color: "text-orange-400" },
-  { id: "hundred_photos", label: "Master", icon: Award, desc: "100+ photos uploaded", check: (p: { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number }) => p.photoCount >= 100, color: "text-rose-400" },
+type AchievementStats = { photoCount: number; totalLikes: number; totalDownloads: number; totalViews: number; seriesCount: number };
+
+const ACHIEVEMENTS: { id: string; label: string; icon: React.ElementType; desc: string; check: (p: AchievementStats) => boolean; color: string }[] = [
+  { id: "first_upload",       label: "First Upload",   icon: Camera,    desc: "Uploaded your first photo",       check: (p) => p.photoCount >= 1,    color: "text-blue-400" },
+  { id: "ten_photos",         label: "Prolific",        icon: TrendingUp, desc: "10+ photos uploaded",           check: (p) => p.photoCount >= 10,   color: "text-green-400" },
+  { id: "first_series",       label: "Storyteller",     icon: BookOpen,  desc: "Published your first series",    check: (p) => p.seriesCount >= 1,   color: "text-indigo-400" },
+  { id: "fifty_likes",        label: "Fan Favourite",   icon: Star,      desc: "50+ total likes",                check: (p) => p.totalLikes >= 50,   color: "text-yellow-400" },
+  { id: "hundred_downloads",  label: "Widely Shared",   icon: Zap,       desc: "100+ total downloads",           check: (p) => p.totalDownloads >= 100, color: "text-purple-400" },
+  { id: "top_view",           label: "Viral",           icon: Trophy,    desc: "1,000+ total views",             check: (p) => p.totalViews >= 1000, color: "text-orange-400" },
+  { id: "three_series",       label: "Auteur",          icon: BookOpen,  desc: "Published 3+ series",            check: (p) => p.seriesCount >= 3,   color: "text-cyan-400" },
+  { id: "hundred_photos",     label: "Master",          icon: Award,     desc: "100+ photos uploaded",           check: (p) => p.photoCount >= 100,  color: "text-rose-400" },
 ];
 
 interface AchievementBadgesProps {
@@ -480,10 +484,11 @@ interface AchievementBadgesProps {
   totalLikes: number;
   totalDownloads: number;
   totalViews: number;
+  seriesCount: number;
 }
 
-function AchievementBadges({ photoCount, totalLikes, totalDownloads, totalViews }: AchievementBadgesProps) {
-  const stats = { photoCount, totalLikes, totalDownloads, totalViews };
+function AchievementBadges({ photoCount, totalLikes, totalDownloads, totalViews, seriesCount }: AchievementBadgesProps) {
+  const stats: AchievementStats = { photoCount, totalLikes, totalDownloads, totalViews, seriesCount };
   const earned = ACHIEVEMENTS.filter((a) => a.check(stats));
   const locked = ACHIEVEMENTS.filter((a) => !a.check(stats));
 
@@ -956,6 +961,7 @@ export function Profile() {
               totalLikes={totalLikes}
               totalDownloads={totalDownloads}
               totalViews={publishedPhotos.reduce((acc, p) => acc + p.views, 0)}
+              seriesCount={profileSeries.length}
             />
             {myTags.length > 0 && (
               <div className="mb-10 flex flex-wrap gap-2">
