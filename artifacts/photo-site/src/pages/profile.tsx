@@ -606,6 +606,25 @@ export function Profile() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [followModal, setFollowModal] = useState<"followers" | "following" | null>(null);
 
+  interface ProfileSeries {
+    id: number; name: string; description: string | null;
+    coverImageUrl: string | null; photographerName: string; photoCount?: number;
+  }
+  const [profileSeries, setProfileSeries] = useState<ProfileSeries[]>([]);
+  useEffect(() => {
+    if (!viewingName) return;
+    fetch("/api/series")
+      .then((r) => r.json())
+      .then((d: { series: ProfileSeries[] }) => {
+        setProfileSeries(
+          (d.series ?? []).filter(
+            (s) => s.photographerName.toLowerCase() === viewingName.toLowerCase()
+          )
+        );
+      })
+      .catch(() => setProfileSeries([]));
+  }, [viewingName]);
+
   function submitVerification() {
     setVerifyStep("pending");
     setTimeout(() => setVerifyStep("done"), 1800);
@@ -940,6 +959,56 @@ export function Profile() {
                     {tag}
                   </Link>
                 ))}
+              </div>
+            )}
+
+            {/* ── Public series strip ─────────────────────────── */}
+            {profileSeries.length > 0 && (
+              <div className="mb-10">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium tracking-wide">Series</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{profileSeries.length} series</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {profileSeries.map((s) => (
+                    <Link
+                      key={s.id}
+                      href={`/series/${s.id}`}
+                      className="group block border border-border/50 bg-card hover:border-border transition-colors overflow-hidden"
+                    >
+                      {/* Cover image */}
+                      <div className="aspect-[16/9] overflow-hidden bg-muted/30 relative">
+                        {s.coverImageUrl ? (
+                          <img
+                            src={s.coverImageUrl}
+                            alt={s.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <BookOpen className="w-8 h-8 text-muted-foreground/20" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-1.5 py-0.5 backdrop-blur-sm">
+                          {s.photoCount ?? 0} photo{(s.photoCount ?? 0) !== 1 ? "s" : ""}
+                        </div>
+                      </div>
+                      {/* Info */}
+                      <div className="px-3 py-2.5">
+                        <p className="font-serif text-sm leading-snug group-hover:text-foreground transition-colors">{s.name}</p>
+                        {s.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                            {s.description}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
               </div>
             )}
 
