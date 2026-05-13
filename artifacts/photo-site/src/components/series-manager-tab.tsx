@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import type { Photo } from "@workspace/api-client-react";
 import {
   BookOpen, Plus, Trash2, ArrowUp, ArrowDown,
-  ChevronDown, ChevronUp, X, Film, ImageIcon, Loader2,
+  ChevronDown, ChevronUp, X, Film, ImageIcon, Loader2, Star,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,7 @@ export function SeriesManagerTab({ photographerName, myPhotos }: Props) {
   const [createForm, setCreateForm] = useState({ name: "", description: "", coverImageUrl: "" });
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [settingCover, setSettingCover] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     setLoading(true);
@@ -183,6 +184,24 @@ export function SeriesManagerTab({ photographerName, myPhotos }: Props) {
       ]);
     } finally {
       setSaving((prev) => ({ ...prev, [photoId]: false }));
+    }
+  }
+
+  async function setCover(seriesId: number, imageUrl: string) {
+    setSettingCover((prev) => ({ ...prev, [seriesId]: true }));
+    try {
+      const res = await fetch(`/api/series/${seriesId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coverImageUrl: imageUrl }),
+      });
+      if (res.ok) {
+        setSeries((prev) =>
+          prev.map((s) => s.id === seriesId ? { ...s, coverImageUrl: imageUrl } : s)
+        );
+      }
+    } finally {
+      setSettingCover((prev) => ({ ...prev, [seriesId]: false }));
     }
   }
 
@@ -349,6 +368,8 @@ export function SeriesManagerTab({ photographerName, myPhotos }: Props) {
                   <div className="divide-y divide-border/30">
                     {photos.map((photo, idx) => {
                       const isSaving = !!saving[photo.id];
+                      const isCover = photo.imageUrl === s.coverImageUrl;
+                      const isSettingThisCover = !!settingCover[s.id];
                       return (
                         <div key={photo.id} className="flex items-center gap-3 px-4 py-2.5">
                           {/* Position number */}
@@ -356,10 +377,35 @@ export function SeriesManagerTab({ photographerName, myPhotos }: Props) {
                             {idx + 1}
                           </span>
 
-                          {/* Thumbnail */}
-                          <div className="w-12 h-9 overflow-hidden flex-shrink-0 bg-muted/40">
+                          {/* Thumbnail — click to set as cover */}
+                          <button
+                            onClick={() => !isCover && void setCover(s.id, photo.imageUrl)}
+                            disabled={isCover || isSettingThisCover}
+                            title={isCover ? "Current cover photo" : "Set as series cover"}
+                            className={cn(
+                              "relative w-12 h-9 overflow-hidden flex-shrink-0 bg-muted/40 group",
+                              !isCover && "cursor-pointer hover:ring-2 hover:ring-foreground/60 transition-all",
+                              isCover && "ring-2 ring-amber-400/80"
+                            )}
+                          >
                             <img src={photo.imageUrl} alt={photo.title} className="w-full h-full object-cover" />
-                          </div>
+                            {/* Current cover star badge */}
+                            {isCover && (
+                              <div className="absolute top-0.5 right-0.5 bg-amber-400 rounded-full p-0.5">
+                                <Star className="w-2 h-2 text-black fill-black" />
+                              </div>
+                            )}
+                            {/* Hover overlay for non-cover photos */}
+                            {!isCover && (
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                                {isSettingThisCover ? (
+                                  <Loader2 className="w-3 h-3 text-white animate-spin opacity-0 group-hover:opacity-100 transition-opacity" />
+                                ) : (
+                                  <Star className="w-3 h-3 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                )}
+                              </div>
+                            )}
+                          </button>
 
                           {/* Title */}
                           <Link
@@ -399,6 +445,16 @@ export function SeriesManagerTab({ photographerName, myPhotos }: Props) {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+
+                {/* Cover hint */}
+                {photos && photos.length > 0 && (
+                  <div className="px-4 pt-2 pb-1">
+                    <p className="text-xs text-muted-foreground/50 flex items-center gap-1">
+                      <Star className="w-3 h-3 flex-shrink-0" />
+                      Click a thumbnail to set it as the series cover image
+                    </p>
                   </div>
                 )}
 
