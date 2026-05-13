@@ -756,6 +756,15 @@ export function Profile() {
                   <p className="text-2xl font-serif">{totalDownloads}</p>
                   <p className="text-xs text-muted-foreground">Downloads</p>
                 </div>
+                {profileSeries.length > 0 && (
+                  <>
+                    <div className="w-px h-8 bg-border" />
+                    <Link href={`/profile/${encodeURIComponent(displayName)}#series`} className="text-center group hover:opacity-70 transition-opacity">
+                      <p className="text-2xl font-serif group-hover:underline underline-offset-4 decoration-muted-foreground/40">{profileSeries.length}</p>
+                      <p className="text-xs text-muted-foreground">Series</p>
+                    </Link>
+                  </>
+                )}
                 <div className="w-px h-8 bg-border" />
                 <button
                   onClick={() => setFollowModal("followers")}

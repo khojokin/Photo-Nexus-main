@@ -417,9 +417,6 @@ function MonetiseTab({ isAdmin }: { isAdmin: boolean }) {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h2 className="font-serif text-2xl">Monetise Your Work</h2>
-            {isAdmin && (
-              <span className="text-xs px-2 py-0.5 border border-amber-500/30 text-amber-400 bg-amber-500/10">Admin Access</span>
-            )}
           </div>
           <p className="text-sm text-muted-foreground">Turn your craft into income — prints, commissions, licensing, and payouts.</p>
         </div>
@@ -777,12 +774,19 @@ export function Dashboard() {
 
   const [tab, setTab] = useState<DashTab>("overview");
 
-  const TABS: { id: DashTab; label: string; icon: React.ElementType }[] = [
+  const hiddenPages: string[] = (() => {
+    try { return JSON.parse(localStorage.getItem("affuaa_hidden_pages") ?? "[]") as string[]; }
+    catch { return []; }
+  })();
+  const monetiseHidden = hiddenPages.includes("/monetise") && !isAdmin;
+
+  const ALL_TABS: { id: DashTab; label: string; icon: React.ElementType }[] = [
     { id: "overview",  label: "Overview",    icon: LayoutDashboard },
     { id: "analytics", label: "Analytics",   icon: BarChart3 },
     { id: "monetise",  label: "Monetise",    icon: DollarSign },
     { id: "photos",    label: "My Photos",   icon: Image },
   ];
+  const TABS = ALL_TABS.filter((t) => !(t.id === "monetise" && monetiseHidden));
 
   if (!subLoading && !isPremium && !isAdmin) {
     return (
@@ -839,7 +843,7 @@ export function Dashboard() {
         {/* Tab content */}
         {tab === "overview"  && <OverviewTab  user={user}   summary={summary} trending={Array.isArray(trending) ? trending : undefined} />}
         {tab === "analytics" && <AnalyticsTab summary={summary} trending={Array.isArray(trending) ? trending : undefined} latest={latest} tags={tags} />}
-        {tab === "monetise"  && <MonetiseTab  isAdmin={isAdmin} />}
+        {tab === "monetise"  && !monetiseHidden && <MonetiseTab  isAdmin={isAdmin} />}
         {tab === "photos"    && <MyPhotosTab />}
       </div>
     </Layout>

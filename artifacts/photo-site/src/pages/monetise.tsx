@@ -208,6 +208,13 @@ function QualificationGate({ followers, views }: { followers: number; views: num
 export function Monetise() {
   const { user, isAdmin } = useAuth();
   const [tab, setTab] = useState<Tab>("overview");
+
+  const isPageHidden = (() => {
+    try {
+      const hidden = JSON.parse(localStorage.getItem("affuaa_hidden_pages") ?? "[]") as string[];
+      return hidden.includes("/monetise") && !isAdmin;
+    } catch { return false; }
+  })();
   const [printSizes, setPrintSizes] = useState(PRINT_SIZES);
   const [commissions, setCommissions] = useState(COMMISSION_REQUESTS);
   const [commOpen, setCommOpen] = useState(false);
@@ -249,6 +256,16 @@ export function Monetise() {
 
   const isQualified = isAdmin || (followers >= FOLLOWER_THRESHOLD && views >= VIEWS_THRESHOLD);
 
+  if (isPageHidden) {
+    return (
+      <Layout>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <p className="text-muted-foreground text-sm">Page not found.</p>
+        </div>
+      </Layout>
+    );
+  }
+
   if (!qualLoading && !isQualified) {
     return <QualificationGate followers={followers} views={views} />;
   }
@@ -269,9 +286,6 @@ export function Monetise() {
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-2">
             <h1 className="font-serif text-4xl">Monetise</h1>
-            {isAdmin && (
-              <span className="text-xs px-2 py-0.5 border border-amber-500/30 text-amber-400 bg-amber-500/10">Admin Access</span>
-            )}
           </div>
           <p className="text-muted-foreground">Turn your craft into income. Manage prints, commissions, licensing, and payouts.</p>
         </div>
