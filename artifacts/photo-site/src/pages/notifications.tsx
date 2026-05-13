@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
-import { Bell, Heart, MessageSquare, UserPlus, CheckCheck, Inbox } from "lucide-react";
+import { Bell, Heart, MessageSquare, UserPlus, CheckCheck, Inbox, BookOpen } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,25 +22,27 @@ interface Notification {
   id: number;
   type: string;
   photoId: number | null;
-  photoTitle: string;
+  photoTitle: string | null;
   actorName: string;
   commentBody: string | null;
+  seriesId: number | null;
+  seriesName: string | null;
   isRead: boolean;
   createdAt: string;
   _source?: "auth" | "follow-alert";
 }
 
 const DEMO_NOTIFICATIONS: Notification[] = [
-  { id: 1, type: "like", photoId: 1, photoTitle: "Into the Mist", actorName: "@silentframe", commentBody: null, isRead: false, createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString() },
-  { id: 2, type: "comment", photoId: 3, photoTitle: "Urban Geometry", actorName: "Marcus Reid", commentBody: "The light in this shot is extraordinary. What lens did you use?", isRead: false, createdAt: new Date(Date.now() - 22 * 60 * 1000).toISOString() },
-  { id: 3, type: "follow", photoId: null, photoTitle: "", actorName: "Aria Chen", commentBody: null, isRead: false, createdAt: new Date(Date.now() - 1.5 * 3600 * 1000).toISOString() },
-  { id: 4, type: "like", photoId: 7, photoTitle: "Golden Shore", actorName: "@nomad.lens", commentBody: null, isRead: true, createdAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString() },
-  { id: 5, type: "comment", photoId: 7, photoTitle: "Golden Shore", actorName: "Lena Fischer", commentBody: "Stunning composition — the rule of thirds at its finest.", isRead: true, createdAt: new Date(Date.now() - 5 * 3600 * 1000).toISOString() },
-  { id: 6, type: "like", photoId: 2, photoTitle: "Soft Light Study", actorName: "@coldpixel", commentBody: null, isRead: true, createdAt: new Date(Date.now() - 8 * 3600 * 1000).toISOString() },
-  { id: 7, type: "follow", photoId: null, photoTitle: "", actorName: "@urban.eyes", commentBody: null, isRead: true, createdAt: new Date(Date.now() - 12 * 3600 * 1000).toISOString() },
-  { id: 8, type: "like", photoId: 5, photoTitle: "Rain on Glass", actorName: "Hiroshi Nakamura", commentBody: null, isRead: true, createdAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString() },
-  { id: 9, type: "comment", photoId: 1, photoTitle: "Into the Mist", actorName: "Sofia Petrov", commentBody: "This makes me want to pick up a camera again. Absolutely cinematic.", isRead: true, createdAt: new Date(Date.now() - 36 * 3600 * 1000).toISOString() },
-  { id: 10, type: "like", photoId: 3, photoTitle: "Urban Geometry", actorName: "@vista.works", commentBody: null, isRead: true, createdAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString() },
+  { id: 1, type: "like", photoId: 1, photoTitle: "Into the Mist", actorName: "@silentframe", commentBody: null, seriesId: null, seriesName: null, isRead: false, createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString() },
+  { id: 2, type: "comment", photoId: 3, photoTitle: "Urban Geometry", actorName: "Marcus Reid", commentBody: "The light in this shot is extraordinary. What lens did you use?", seriesId: null, seriesName: null, isRead: false, createdAt: new Date(Date.now() - 22 * 60 * 1000).toISOString() },
+  { id: 3, type: "series_update", photoId: 4, photoTitle: "Fog at Dawn", actorName: "Aria Chen", commentBody: null, seriesId: 1, seriesName: "Morning Light", isRead: false, createdAt: new Date(Date.now() - 1.5 * 3600 * 1000).toISOString() },
+  { id: 4, type: "follow", photoId: null, photoTitle: null, actorName: "@nomad.lens", commentBody: null, seriesId: null, seriesName: null, isRead: false, createdAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString() },
+  { id: 5, type: "comment", photoId: 7, photoTitle: "Golden Shore", actorName: "Lena Fischer", commentBody: "Stunning composition — the rule of thirds at its finest.", seriesId: null, seriesName: null, isRead: true, createdAt: new Date(Date.now() - 5 * 3600 * 1000).toISOString() },
+  { id: 6, type: "like", photoId: 2, photoTitle: "Soft Light Study", actorName: "@coldpixel", commentBody: null, seriesId: null, seriesName: null, isRead: true, createdAt: new Date(Date.now() - 8 * 3600 * 1000).toISOString() },
+  { id: 7, type: "series_update", photoId: 9, photoTitle: "Last Light", actorName: "@urban.eyes", commentBody: null, seriesId: 2, seriesName: "City After Dark", isRead: true, createdAt: new Date(Date.now() - 12 * 3600 * 1000).toISOString() },
+  { id: 8, type: "like", photoId: 5, photoTitle: "Rain on Glass", actorName: "Hiroshi Nakamura", commentBody: null, seriesId: null, seriesName: null, isRead: true, createdAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString() },
+  { id: 9, type: "comment", photoId: 1, photoTitle: "Into the Mist", actorName: "Sofia Petrov", commentBody: "This makes me want to pick up a camera again. Absolutely cinematic.", seriesId: null, seriesName: null, isRead: true, createdAt: new Date(Date.now() - 36 * 3600 * 1000).toISOString() },
+  { id: 10, type: "follow", photoId: null, photoTitle: null, actorName: "@vista.works", commentBody: null, seriesId: null, seriesName: null, isRead: true, createdAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString() },
 ];
 
 function NotifIcon({ type }: { type: string }) {
@@ -56,6 +58,12 @@ function NotifIcon({ type }: { type: string }) {
         <UserPlus className="w-3.5 h-3.5 text-blue-400" />
       </div>
     );
+  if (type === "series_update")
+    return (
+      <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+      </div>
+    );
   return (
     <div className="w-8 h-8 rounded-full bg-violet-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
       <MessageSquare className="w-3.5 h-3.5 text-violet-400" />
@@ -64,9 +72,31 @@ function NotifIcon({ type }: { type: string }) {
 }
 
 function notifText(n: Notification) {
-  if (n.type === "like") return <><span className="font-medium">{n.actorName}</span> liked <span className="text-muted-foreground">"{n.photoTitle}"</span></>;
-  if (n.type === "follow") return <><span className="font-medium">{n.actorName}</span> started following you</>;
+  if (n.type === "like")
+    return <><span className="font-medium">{n.actorName}</span> liked <span className="text-muted-foreground">"{n.photoTitle}"</span></>;
+  if (n.type === "follow")
+    return <><span className="font-medium">{n.actorName}</span> started following you</>;
+  if (n.type === "series_update")
+    return (
+      <>
+        <span className="font-medium">{n.actorName}</span> added{" "}
+        {n.photoTitle ? <><span className="text-muted-foreground">"{n.photoTitle}"</span> </> : "a new photo "}
+        to <span className="text-amber-400/90">"{n.seriesName}"</span>
+      </>
+    );
   return <><span className="font-medium">{n.actorName}</span> commented on <span className="text-muted-foreground">"{n.photoTitle}"</span></>;
+}
+
+interface FollowAlertRaw {
+  id: number;
+  actorName: string;
+  type: string;
+  seriesId: number | null;
+  seriesName: string | null;
+  photoId: number | null;
+  photoTitle: string | null;
+  isRead: boolean;
+  createdAt: string;
 }
 
 export function Notifications() {
@@ -87,24 +117,26 @@ export function Notifications() {
       const res = await authFetch("/api/notifications");
       if (res.ok) {
         const data = await res.json() as { notifications: Notification[]; unreadCount: number };
-        const fromApi = (data.notifications ?? []).map((n) => ({ ...n, _source: "auth" as const }));
+        const fromApi = (data.notifications ?? []).map((n) => ({ ...n, seriesId: null, seriesName: null, _source: "auth" as const }));
         results.push(...fromApi);
       }
     } catch { /* swallow */ }
 
-    // Fetch name-based follow alerts
+    // Fetch name-based follow/series alerts
     if (displayName) {
       try {
         const res = await fetch(`/api/notifications/follow-alerts?name=${encodeURIComponent(displayName)}`);
         if (res.ok) {
-          const data = await res.json() as { alerts: Array<{ id: number; actorName: string; isRead: boolean; createdAt: string }> };
+          const data = await res.json() as { alerts: FollowAlertRaw[] };
           const alerts: Notification[] = (data.alerts ?? []).map((a) => ({
             id: a.id,
-            type: "follow",
-            photoId: null,
-            photoTitle: "",
+            type: a.type ?? "follow",
+            photoId: a.photoId ?? null,
+            photoTitle: a.photoTitle ?? null,
             actorName: a.actorName,
             commentBody: null,
+            seriesId: a.seriesId ?? null,
+            seriesName: a.seriesName ?? null,
             isRead: a.isRead,
             createdAt: a.createdAt,
             _source: "follow-alert" as const,
@@ -139,9 +171,7 @@ export function Notifications() {
     setMarkingAll(true);
     try {
       if (!isDemoMode) {
-        // Mark auth notifications read
         await authFetch("/api/notifications/read-all", { method: "PATCH" }).catch(() => {});
-        // Mark follow alerts read
         if (displayName) {
           await fetch(`/api/notifications/follow-alerts/read-all?name=${encodeURIComponent(displayName)}`, {
             method: "PATCH",
@@ -168,6 +198,7 @@ export function Notifications() {
   }
 
   function notifLink(n: Notification) {
+    if (n.type === "series_update" && n.seriesId) return `/series/${n.seriesId}`;
     if (n.type === "follow") return `/profile/${encodeURIComponent(n.actorName)}`;
     if (n.photoId) return `/photos/${n.photoId}`;
     return "/notifications";
@@ -244,7 +275,7 @@ export function Notifications() {
             <Inbox className="w-10 h-10 mx-auto mb-4 opacity-20" />
             <p className="font-serif text-xl mb-1">No notifications yet</p>
             <p className="text-sm text-muted-foreground">
-              When someone likes, comments, or follows you, they will appear here.
+              When someone likes, comments, follows you, or updates a series you follow, it will appear here.
             </p>
           </div>
         ) : (

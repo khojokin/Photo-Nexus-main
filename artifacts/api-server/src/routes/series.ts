@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, desc, asc, sql, isNull } from "drizzle-orm";
-import { db, seriesTable, photosTable } from "@workspace/db";
+import { eq, desc, asc, sql } from "drizzle-orm";
+import { db, seriesTable, photosTable, followsTable, followAlertsTable } from "@workspace/db";
 import { z } from "zod/v4";
 
 const router = Router();
@@ -93,21 +93,69 @@ router.delete("/series/:id", async (req, res): Promise<void> => {
   res.status(204).end();
 });
 
-// Assign a photo to a series (or remove it)
+// Assign a photo to a series (or update position)
 router.patch("/series/:id/photos/:photoId", async (req, res): Promise<void> => {
   const idParsed = IdParam.safeParse(req.params);
   const photoIdParsed = z.object({ photoId: z.coerce.number().int().positive() }).safeParse(req.params);
   if (!idParsed.success || !photoIdParsed.success) { res.status(400).json({ error: "Invalid params" }); return; }
 
+  const seriesId = idParsed.data.id;
+  const photoId = photoIdParsed.data.photoId;
   const { position } = req.body as { position?: number | null };
+
+  // Check if the photo is already in this series (position update, not a new add)
+  const [existingPhoto] = await db
+    .select({ seriesId: photosTable.seriesId, title: photosTable.title })
+    .from(photosTable)
+    .where(eq(photosTable.id, photoId));
+
+  const isNewToSeries = existingPhoto?.seriesId !== seriesId;
 
   await db
     .update(photosTable)
     .set({
-      seriesId: idParsed.data.id,
+      seriesId,
       seriesPosition: position ?? null,
     })
-    .where(eq(photosTable.id, photoIdParsed.data.photoId));
+    .where(eq(photosTable.id, photoId));
+
+  // Fan out notifications to followers only when a photo is newly added to the series
+  if (isNewToSeries) {
+    void (async () => {
+      try {
+        const [series] = await db
+          .select({ name: seriesTable.name, photographerName: seriesTable.photographerName })
+          .from(seriesTable)
+          .where(eq(seriesTable.id, seriesId));
+
+        if (!series) return;
+
+        const [photo] = await db
+          .select({ title: photosTable.title })
+          .from(photosTable)
+          .where(eq(photosTable.id, photoId));
+
+        const followers = await db
+          .select({ followerName: followsTable.followerName })
+          .from(followsTable)
+          .where(eq(followsTable.followingName, series.photographerName));
+
+        if (followers.length === 0) return;
+
+        await db.insert(followAlertsTable).values(
+          followers.map((f) => ({
+            recipientName: f.followerName,
+            actorName: series.photographerName,
+            type: "series_update",
+            seriesId,
+            seriesName: series.name,
+            photoId,
+            photoTitle: photo?.title ?? null,
+          }))
+        );
+      } catch { /* non-critical */ }
+    })();
+  }
 
   res.json({ success: true });
 });
