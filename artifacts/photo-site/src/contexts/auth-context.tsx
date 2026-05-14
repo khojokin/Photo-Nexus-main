@@ -5,6 +5,12 @@ import {
   useEffect,
   useState,
 } from "react";
+import { useLocation } from "wouter";
+import {
+  useAuth as useClerkAuth,
+  useClerk,
+  useUser,
+} from "@clerk/clerk-react";
 
 const ADMIN_EMAILS = new Set(["kingsfordkojo7@gmail.com", "kingsfordkojo7@icloud.com"]);
 
@@ -31,72 +37,141 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const STICKY_ADMIN_KEY = "affuaa_admin_sticky_v1";
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const fetchUser = useCallback(async () => {
+function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
+  const [, navigate] = useLocation();
+  const { user: clerkUser, isLoaded } = useUser();
+  const { signOut } = useClerk();
+  const {
+    getToken,
+    userId,
+    sessionId,
+    isLoaded: clerkAuthLoaded,
+  } = useClerkAuth();
+  const [stickyAdmin, setStickyAdmin] = useState<boolean>(() => {
     try {
-      const res = await fetch("/api/auth/user", { credentials: "include" });
-      if (!res.ok) {
-        setUser(null);
-        return;
-      }
-      const data = await res.json() as { user: AuthUser | null };
-      setUser(data.user ?? null);
+      return localStorage.getItem(STICKY_ADMIN_KEY) === "1";
     } catch {
-      setUser(null);
-    } finally {
-      setIsLoading(false);
+      return false;
     }
-  }, []);
+  });
+
+  const resolvedEmail = clerkUser?.primaryEmailAddress?.emailAddress
+    ?? clerkUser?.emailAddresses?.[0]?.emailAddress
+    ?? null;
+
+  const user: AuthUser | null = clerkUser
+    ? {
+        id: clerkUser.id,
+        email: resolvedEmail,
+        username: clerkUser.username,
+        firstName: clerkUser.firstName,
+        lastName: clerkUser.lastName,
+        profileImageUrl: clerkUser.imageUrl,
+      }
+    : userId
+      ? {
+          id: userId,
+          email: null,
+          username: null,
+          firstName: null,
+          lastName: null,
+          profileImageUrl: null,
+        }
+      : null;
+
+  const userEmail = user?.email?.toLowerCase() ?? "";
+  const isEmailVerified = Boolean(
+    clerkUser?.emailAddresses?.some((email) => {
+      if (email.emailAddress.toLowerCase() !== userEmail) return false;
+      return email.verification?.status === "verified";
+    }),
+  );
+  const metadataRole =
+    (clerkUser?.publicMetadata?.role as string | undefined)
+    ?? (clerkUser?.unsafeMetadata?.role as string | undefined)
+    ?? "";
+  const hasAdminRole = metadataRole.toLowerCase() === "admin";
+  const hasAdminEmail = Boolean(userEmail && ADMIN_EMAILS.has(userEmail));
+
+  const isAdminFromIdentity = Boolean(
+    clerkUser
+    && (hasAdminRole || (hasAdminEmail && isEmailVerified)),
+  );
+  const isAdmin = isAdminFromIdentity || (!clerkUser && stickyAdmin);
 
   useEffect(() => {
-    void fetchUser();
-  }, [fetchUser]);
+    if (isAdminFromIdentity) {
+      try {
+        localStorage.setItem(STICKY_ADMIN_KEY, "1");
+      } catch {
+        // Ignore storage failures.
+      }
+      setStickyAdmin(true);
+      return;
+    }
+
+    if (clerkUser && !isAdminFromIdentity) {
+      try {
+        localStorage.removeItem(STICKY_ADMIN_KEY);
+      } catch {
+        // Ignore storage failures.
+      }
+      setStickyAdmin(false);
+    }
+  }, [clerkUser, isAdminFromIdentity]);
 
   const refetch = useCallback(async () => {
-    setIsLoading(true);
-    await fetchUser();
-  }, [fetchUser]);
-
-  const login = useCallback(() => {
-    window.location.href = "/api/login";
-  }, []);
-
-  const loginWithUser = useCallback(() => {
-    window.location.href = "/api/login";
-  }, []);
-
-  const loginAsDemo = useCallback(() => {
-    window.location.href = "/api/login";
+    // Clerk user state is managed by ClerkProvider.
   }, []);
 
   const logout = useCallback(async () => {
-    window.location.href = "/api/logout";
-  }, []);
+    try {
+      localStorage.removeItem(STICKY_ADMIN_KEY);
+      localStorage.removeItem("affuaa_logged_out");
+      await signOut({ redirectUrl: `${window.location.origin}/` });
+    } finally {
+      window.location.assign("/");
+    }
+  }, [signOut]);
+
+  const login = useCallback(() => {
+    navigate("/signin");
+  }, [navigate]);
+
+  const loginWithUser = useCallback(() => {
+    navigate("/signin");
+  }, [navigate]);
+
+  const loginAsDemo = useCallback(() => {
+    navigate("/signin");
+  }, [navigate]);
 
   const authFetch = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {
+      const token = await getToken();
+      const headers = new Headers(init?.headers ?? {});
+      if (token && !headers.has("Authorization")) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+
       return fetch(input, {
         ...init,
-        credentials: "include",
+        headers,
+        credentials: init?.credentials ?? "include",
       });
     },
-    [],
+    [getToken],
   );
-
-  const userEmail = user?.email?.toLowerCase() ?? "";
-  const isAdmin = Boolean(userEmail && ADMIN_EMAILS.has(userEmail));
 
   return (
     <AuthContext.Provider
       value={{
         user,
         isAdmin,
-        isLoading,
-        isAuthenticated: Boolean(user),
+        isLoading: !isLoaded || !clerkAuthLoaded,
+        isAuthenticated: Boolean(userId || sessionId || user),
         refetch,
         logout,
         login,
@@ -108,6 +183,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  return <ClerkAuthProvider>{children}</ClerkAuthProvider>;
 }
 
 export function useAuth(): AuthContextValue {
