@@ -1,0 +1,13 @@
+name = "photo-nexus"
+main = "cloudflare/src/worker.ts"
+compatibility_date = "2026-05-08"
+account_id = "6bae1eb69226c6730b68d979e1e68c3c"
+
+[assets]
+directory = "artifacts/photo-site/dist/public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "affuaa-uploads"
