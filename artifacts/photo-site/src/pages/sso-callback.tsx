@@ -1,5 +1,9 @@
-import { AuthenticateWithRedirectCallback } from "@clerk/clerk-react";
+import { useEffect } from "react";
 
 export function SsoCallback() {
-  return <AuthenticateWithRedirectCallback />;
+  useEffect(() => {
+    window.location.href = "/";
+  }, []);
+
+  return null;
 }
