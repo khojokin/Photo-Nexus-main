@@ -132,7 +132,8 @@ export function Home() {
 
   const { data: followingFeedData, isLoading: loadingFollowing } = useGetFollowingFeed(
     { followerName: myName, limit: 20 },
-    { query: { enabled: feedTab === "following" && !!myName } }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { query: { enabled: feedTab === "following" && !!myName } } as any
   );
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);

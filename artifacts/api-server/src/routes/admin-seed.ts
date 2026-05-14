@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { photosTable, collectionsTable, collectionPhotosTable } from "@workspace/db/schema";
-import { sql } from "drizzle-orm";
+import { count } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/adminMiddleware";
 
 const router: IRouter = Router();
@@ -48,10 +48,10 @@ const SEED_COLLECTIONS: Array<{ name: string; description: string; coverImageUrl
 
 router.get("/admin/seed/status", requireAdmin, async (_req, res): Promise<void> => {
   try {
-    const [photoRow] = await db.execute<{ count: string }>(sql`SELECT COUNT(*)::text AS count FROM photos`);
-    const [colRow] = await db.execute<{ count: string }>(sql`SELECT COUNT(*)::text AS count FROM collections`);
-    const photos = parseInt((photoRow as unknown as { rows: Array<{ count: string }> }).rows?.[0]?.count ?? "0", 10);
-    const collections = parseInt((colRow as unknown as { rows: Array<{ count: string }> }).rows?.[0]?.count ?? "0", 10);
+    const [photoRow] = await db.select({ count: count() }).from(photosTable);
+    const [colRow] = await db.select({ count: count() }).from(collectionsTable);
+    const photos = photoRow?.count ?? 0;
+    const collections = colRow?.count ?? 0;
     res.json({ photos, collections, hasData: photos > 0 });
   } catch (err) {
     res.status(500).json({ error: "Failed to get seed status", details: String(err) });
@@ -62,8 +62,8 @@ router.post("/admin/seed", requireAdmin, async (req, res): Promise<void> => {
   const force = req.query["force"] === "true";
 
   try {
-    const [photoRow] = await db.execute<{ count: string }>(sql`SELECT COUNT(*)::text AS count FROM photos`);
-    const existing = parseInt((photoRow as unknown as { rows: Array<{ count: string }> }).rows?.[0]?.count ?? "0", 10);
+    const [photoRow] = await db.select({ count: count() }).from(photosTable);
+    const existing = photoRow?.count ?? 0;
 
     if (existing > 0 && !force) {
       res.status(409).json({ error: "Data already exists. Use force=true to wipe and reseed." });

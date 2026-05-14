@@ -68,7 +68,7 @@ router.post("/locks", requireAdmin, async (req, res): Promise<void> => {
 });
 
 router.patch("/locks/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params["id"] as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const parsed = PatchLockBody.safeParse(req.body);
@@ -88,7 +88,7 @@ router.patch("/locks/:id", requireAdmin, async (req, res): Promise<void> => {
 });
 
 router.delete("/locks/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params["id"] as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(locksTable).where(eq(locksTable.id, id));
   res.sendStatus(204);

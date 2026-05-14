@@ -171,7 +171,8 @@ router.post("/admin/integrations/test", requireAdmin, async (req, res): Promise<
 
   try {
     if (parsed.data.provider === "stripe") {
-      const stripe = new Stripe(config.apiKey ?? "", { apiVersion: "2025-04-30.basil" });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stripe = new Stripe(config.apiKey ?? "", { apiVersion: "2025-04-30.basil" } as any);
       await stripe.balance.retrieve();
       ok = true;
       message = "Stripe connection successful";

@@ -15,7 +15,7 @@ type SizeRow = {
 
 router.get("/admin/system-metrics", requireAdmin, async (_req, res): Promise<void> => {
   try {
-    const [sizeResult] = await db.execute<SizeRow>(sql`
+    const sizeResult = await db.execute<SizeRow>(sql`
       SELECT
         pg_database_size(current_database()) AS database_size,
         COALESCE(pg_total_relation_size(to_regclass('public.photos')), 0) AS photos_size,

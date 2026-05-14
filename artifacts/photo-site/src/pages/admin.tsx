@@ -316,8 +316,8 @@ export function Admin() {
   const [testingProvider, setTestingProvider] = useState<IntegrationProvider | null>(null);
   const [editingPhotoId, setEditingPhotoId] = useState<number | null>(null);
   const [spotlightIdx, setSpotlightIdx] = useState(0);
-  const [featuredThisMonth, setFeaturedThisMonth] = useState<number | null>(() => {
-    try { const v = localStorage.getItem("affuaa_featured_spotlight"); return v ? parseInt(v, 10) : null; } catch { return null; }
+  const [featuredThisMonth, setFeaturedThisMonth] = useState<string | null>(() => {
+    try { return localStorage.getItem("affuaa_featured_spotlight"); } catch { return null; }
   });
   const [spotlightMsg, setSpotlightMsg] = useState<string | null>(null);
 
@@ -570,6 +570,7 @@ export function Admin() {
       const iv = setInterval(() => { void fetchChatSessions(); }, 5000);
       return () => clearInterval(iv);
     }
+    return undefined;
   }, [section, fetchChatSessions]);
 
   useEffect(() => {
@@ -578,6 +579,7 @@ export function Admin() {
       const iv = setInterval(() => { void fetchChatMessages(activeChatSession); }, 3000);
       return () => clearInterval(iv);
     }
+    return undefined;
   }, [activeChatSession, fetchChatMessages]);
 
   useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages]);
@@ -608,11 +610,22 @@ export function Admin() {
 
   const photos = ensureArray<Photo>((photosData as { photos?: Photo[] } | undefined)?.photos ?? photosData);
   const collections = ensureArray<Collection>(collectionsData);
-  const tags = ensureArray<string>((tagsData as { tags?: string[] } | undefined)?.tags ?? tagsData);
+  type TagItem = { name: string; photoCount: number };
+  const tags = ensureArray<TagItem>((tagsData as { tags?: TagItem[] } | undefined)?.tags ?? tagsData as TagItem[]);
   const trending = ensureArray<Photo>((trendingData as { photos?: Photo[] } | undefined)?.photos ?? trendingData);
 
   const [featuredPhotos, setFeaturedPhotos] = useState<Set<number>>(new Set());
   const [featureUpdating, setFeatureUpdating] = useState<Set<number>>(new Set());
+  const [deletedPhotoIds, setDeletedPhotoIds] = useState<Set<number>>(new Set());
+  const [deletingPhotoIds, setDeletingPhotoIds] = useState<Set<number>>(new Set());
+  const [deletedCollectionIds, setDeletedCollectionIds] = useState<Set<number>>(new Set());
+  const [editedCollections, setEditedCollections] = useState<Map<number, Partial<Collection>>>(new Map());
+  const [pendingCollections, setPendingCollections] = useState<Collection[]>([]);
+  const [showNewCollForm, setShowNewCollForm] = useState(false);
+  const [newCollForm, setNewCollForm] = useState({ name: "", description: "", coverImageUrl: "" });
+  const [savingColl, setSavingColl] = useState(false);
+  const [editingCollId, setEditingCollId] = useState<number | null>(null);
+  const [editCollForm, setEditCollForm] = useState({ name: "", description: "", coverImageUrl: "" });
 
 
   useEffect(() => {
@@ -804,18 +817,69 @@ export function Admin() {
     }
   }
 
-  function toggleVerify(id: number) {
+  function toggleVerify(id: string) {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, verified: !u.verified } : u));
   }
 
-  function toggleSuspend(id: number) {
+  function toggleSuspend(id: string) {
     setUsers(prev => prev.map(u =>
       u.id === id ? { ...u, status: u.status === "suspended" ? "active" : "suspended" } : u
     ));
   }
 
-  function changeRole(id: number, role: string) {
+  function changeRole(id: string, role: string) {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u));
+  }
+
+  async function deletePhoto(photoId: number) {
+    setDeletingPhotoIds(prev => new Set(prev).add(photoId));
+    try {
+      const r = await fetch(`/api/photos/${photoId}`, { method: "DELETE", credentials: "include" });
+      if (r.ok || r.status === 204) {
+        setDeletedPhotoIds(prev => new Set(prev).add(photoId));
+        setSelectedPhotos(prev => { const n = new Set(prev); n.delete(photoId); return n; });
+      }
+    } catch { /* ignore */ } finally {
+      setDeletingPhotoIds(prev => { const n = new Set(prev); n.delete(photoId); return n; });
+    }
+  }
+
+  async function createCollection() {
+    if (!newCollForm.name.trim()) return;
+    setSavingColl(true);
+    try {
+      const r = await fetch("/api/collections", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ name: newCollForm.name.trim(), description: newCollForm.description.trim() || undefined, coverImageUrl: newCollForm.coverImageUrl.trim() || undefined }),
+      });
+      if (r.ok) {
+        const created = await r.json() as Collection;
+        setPendingCollections(prev => [{ ...created, photoCount: 0 } as Collection, ...prev]);
+        setNewCollForm({ name: "", description: "", coverImageUrl: "" });
+        setShowNewCollForm(false);
+      }
+    } catch { /* ignore */ } finally { setSavingColl(false); }
+  }
+
+  async function updateCollection(id: number) {
+    setSavingColl(true);
+    try {
+      const r = await fetch(`/api/collections/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ name: editCollForm.name.trim() || undefined, description: editCollForm.description.trim() || undefined, coverImageUrl: editCollForm.coverImageUrl.trim() || undefined }),
+      });
+      if (r.ok) {
+        setEditedCollections(prev => { const m = new Map(prev); m.set(id, { name: editCollForm.name || undefined, description: editCollForm.description || undefined, coverImageUrl: editCollForm.coverImageUrl || undefined }); return m; });
+        setEditingCollId(null);
+      }
+    } catch { /* ignore */ } finally { setSavingColl(false); }
+  }
+
+  async function deleteCollection(id: number) {
+    const r = await fetch(`/api/collections/${id}`, { method: "DELETE", credentials: "include" });
+    if (r.ok || r.status === 204) {
+      setDeletedCollectionIds(prev => new Set(prev).add(id));
+    }
   }
 
   async function pingApi() {
@@ -970,12 +1034,19 @@ export function Admin() {
     u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
     u.handle.toLowerCase().includes(userSearch.toLowerCase())
   );
-  const filteredPhotos = photos.filter((p) => {
+  const displayPhotos = photos.filter(p => !deletedPhotoIds.has(p.id));
+  const filteredPhotos = displayPhotos.filter((p) => {
     const title = String((p as { title?: unknown }).title ?? "").toLowerCase();
     const photographerName = String((p as { photographerName?: unknown }).photographerName ?? "").toLowerCase();
     const query = photoSearch.toLowerCase();
     return title.includes(query) || photographerName.includes(query);
   });
+  const displayCollections = [
+    ...pendingCollections,
+    ...collections
+      .filter(c => !deletedCollectionIds.has(c.id))
+      .map(c => editedCollections.has(c.id) ? { ...c, ...editedCollections.get(c.id) } as Collection : c),
+  ];
   const selectedList = Array.from(selectedPhotos);
   const dailyUploads = analyticsData?.dailyStats.map(d => d.uploads) ?? [];
   const dailyDownloads = analyticsData?.dailyStats.map(d => d.downloads) ?? [];
@@ -1450,6 +1521,11 @@ export function Admin() {
                           <td className="px-4 py-2.5 flex items-center gap-2">
                             <button onClick={() => setEditingPhotoId(editingPhotoId === p.id ? null : p.id)}
                               className="text-muted-foreground hover:text-foreground transition-colors"><Edit3 className="w-3.5 h-3.5" /></button>
+                            <button
+                              onClick={() => setConfirm({ title: "Delete this photo?", desc: `"${String((p as {title?:unknown}).title ?? p.id)}" will be permanently removed.`, confirmLabel: "Delete", onConfirm: () => void deletePhoto(p.id) })}
+                              disabled={deletingPhotoIds.has(p.id)}
+                              className={cn("text-red-400/60 hover:text-red-400 transition-colors", deletingPhotoIds.has(p.id) && "opacity-40")}
+                            ><Trash2 className="w-3.5 h-3.5" /></button>
                             <Link href={`/photos/${p.id}`}
                               className="text-muted-foreground hover:text-foreground transition-colors">
                               <ExternalLink className="w-3.5 h-3.5" />
@@ -1629,46 +1705,140 @@ export function Admin() {
           {section === "collections" && (
             <div>
               <SectionTitle sub="Manage curated photo collections">Collections</SectionTitle>
-              <div className="flex items-center gap-3 mb-5">
-                <button className="flex items-center gap-1.5 text-xs px-3 py-2 border border-border text-muted-foreground hover:text-foreground transition-colors">
+              <div className="flex items-center gap-3 mb-5 flex-wrap">
+                <button
+                  onClick={() => { setShowNewCollForm(v => !v); setNewCollForm({ name: "", description: "", coverImageUrl: "" }); }}
+                  className="flex items-center gap-1.5 text-xs px-3 py-2 border border-border text-muted-foreground hover:text-foreground transition-colors"
+                >
                   <Plus className="w-3.5 h-3.5" /> New Collection
                 </button>
-                <span className="text-xs text-muted-foreground">{collections.length} collections</span>
+                <span className="text-xs text-muted-foreground">{displayCollections.length} collections</span>
               </div>
+
+              {showNewCollForm && (
+                <div className="border border-border bg-card p-5 mb-5">
+                  <h3 className="text-sm font-medium mb-4 flex items-center gap-2"><Plus className="w-4 h-4 text-muted-foreground" /> Create Collection</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                    <input
+                      value={newCollForm.name}
+                      onChange={e => setNewCollForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="Collection name *"
+                      className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30"
+                    />
+                    <input
+                      value={newCollForm.description}
+                      onChange={e => setNewCollForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder="Short description (optional)"
+                      className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30"
+                    />
+                    <input
+                      value={newCollForm.coverImageUrl}
+                      onChange={e => setNewCollForm(f => ({ ...f, coverImageUrl: e.target.value }))}
+                      placeholder="Cover image URL (optional)"
+                      className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => void createCollection()}
+                      disabled={savingColl || !newCollForm.name.trim()}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-foreground text-background text-xs hover:opacity-90 transition-opacity disabled:opacity-40"
+                    >
+                      {savingColl ? <><span className="w-3 h-3 border border-background/40 border-t-background rounded-full animate-spin inline-block" /> Saving…</> : <><Plus className="w-3 h-3" /> Create</>}
+                    </button>
+                    <button onClick={() => setShowNewCollForm(false)} className="text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-2">Cancel</button>
+                  </div>
+                </div>
+              )}
+
               <div className="border border-border overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-card/50">
                       <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Collection</th>
                       <th className="text-right px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Photos</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Description</th>
-                      <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Editorial</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal hidden sm:table-cell">Description</th>
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
                   <tbody>
-                    {collections.map((c: Collection) => (
-                      <tr key={c.id} className="border-b border-border hover:bg-card/40 transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            {c.coverImageUrl && (
-                              <img src={c.coverImageUrl} alt={c.name} className="w-10 h-10 object-cover flex-shrink-0" />
-                            )}
-                            <span className="font-medium">{c.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-right text-xs text-muted-foreground">{c.photoCount}</td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground truncate max-w-xs">{c.description ?? "—"}</td>
-                        <td className="px-4 py-3 text-center">
-                          <Badge color="border-border text-muted-foreground">curated</Badge>
-                        </td>
-                        <td className="px-4 py-3 flex items-center gap-2">
-                          <Link href={`/collections/${c.id}`} className="text-muted-foreground hover:text-foreground transition-colors">
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </Link>
-                        </td>
-                      </tr>
+                    {displayCollections.map((c: Collection) => (
+                      <>
+                        <tr key={c.id} className="border-b border-border hover:bg-card/40 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              {c.coverImageUrl && (
+                                <img src={c.coverImageUrl} alt={c.name} className="w-10 h-10 object-cover flex-shrink-0" />
+                              )}
+                              <span className="font-medium">{c.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right text-xs text-muted-foreground">{c.photoCount ?? 0}</td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground truncate max-w-xs hidden sm:table-cell">{c.description ?? "—"}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2 justify-end">
+                              <button
+                                onClick={() => {
+                                  if (editingCollId === c.id) { setEditingCollId(null); return; }
+                                  setEditingCollId(c.id);
+                                  setEditCollForm({ name: c.name ?? "", description: c.description ?? "", coverImageUrl: c.coverImageUrl ?? "" });
+                                }}
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                              ><Edit3 className="w-3.5 h-3.5" /></button>
+                              <button
+                                onClick={() => setConfirm({ title: "Delete this collection?", desc: `"${c.name}" will be permanently removed. Photos inside are not deleted.`, confirmLabel: "Delete", onConfirm: () => void deleteCollection(c.id) })}
+                                className="text-red-400/60 hover:text-red-400 transition-colors"
+                              ><Trash2 className="w-3.5 h-3.5" /></button>
+                              <Link href={`/collections/${c.id}`} className="text-muted-foreground hover:text-foreground transition-colors">
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                        {editingCollId === c.id && (
+                          <tr key={`edit-${c.id}`} className="border-b border-border bg-card/30">
+                            <td colSpan={4} className="px-4 py-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                                <input
+                                  value={editCollForm.name}
+                                  onChange={e => setEditCollForm(f => ({ ...f, name: e.target.value }))}
+                                  placeholder="Collection name"
+                                  className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30"
+                                />
+                                <input
+                                  value={editCollForm.description}
+                                  onChange={e => setEditCollForm(f => ({ ...f, description: e.target.value }))}
+                                  placeholder="Short description"
+                                  className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30"
+                                />
+                                <input
+                                  value={editCollForm.coverImageUrl}
+                                  onChange={e => setEditCollForm(f => ({ ...f, coverImageUrl: e.target.value }))}
+                                  placeholder="Cover image URL"
+                                  className="bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground/30"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => void updateCollection(c.id)}
+                                  disabled={savingColl}
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-foreground text-background text-xs hover:opacity-90 transition-opacity disabled:opacity-40"
+                                >
+                                  {savingColl ? <><span className="w-3 h-3 border border-background/40 border-t-background rounded-full animate-spin inline-block" /> Saving…</> : <><Check className="w-3 h-3" /> Save changes</>}
+                                </button>
+                                <button onClick={() => setEditingCollId(null)} className="text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-2">Cancel</button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     ))}
+                    {displayCollections.length === 0 && (
+                      <tr><td colSpan={4} className="px-4 py-12 text-center">
+                        <FolderOpen className="w-8 h-8 mx-auto mb-3 opacity-20" />
+                        <p className="text-sm text-muted-foreground">No collections yet. Create your first one above.</p>
+                      </td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>

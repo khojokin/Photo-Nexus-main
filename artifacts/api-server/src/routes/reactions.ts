@@ -68,7 +68,7 @@ router.post("/photos/:id/reactions", async (req, res): Promise<void> => {
         photoTitle: photo.title,
         actorName,
         commentBody: null,
-      }).then(() => pushUnreadCount(photo.uploadedBy)).catch(() => { /* non-critical */ });
+      }).then(() => { if (photo.uploadedBy) pushUnreadCount(photo.uploadedBy); }).catch(() => { /* non-critical */ });
     }
 
     res.status(201).json({ toggled: true });

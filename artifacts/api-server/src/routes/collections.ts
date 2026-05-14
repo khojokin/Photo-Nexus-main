@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, collectionsTable, collectionPhotosTable, photosTable } from "@workspace/db";
 import {
   CreateCollectionBody,
@@ -84,6 +84,33 @@ router.get("/collections/:id", async (req, res): Promise<void> => {
       photos,
     })
   );
+});
+
+router.patch("/collections/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params["id"] as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { name, description, coverImageUrl } = req.body as { name?: string; description?: string; coverImageUrl?: string };
+  const update: Record<string, unknown> = {};
+  if (name !== undefined) update["name"] = name;
+  if (description !== undefined) update["description"] = description;
+  if (coverImageUrl !== undefined) update["coverImageUrl"] = coverImageUrl;
+  if (Object.keys(update).length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
+
+  const [updated] = await db.update(collectionsTable).set(update).where(eq(collectionsTable.id, id)).returning();
+  if (!updated) { res.status(404).json({ error: "Collection not found" }); return; }
+  res.json(updated);
+});
+
+router.delete("/collections/:id/photos/:photoId", async (req, res): Promise<void> => {
+  const collectionId = parseInt(req.params["id"] as string, 10);
+  const photoId = parseInt(req.params["photoId"] as string, 10);
+  if (isNaN(collectionId) || isNaN(photoId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  await db.delete(collectionPhotosTable).where(
+    and(eq(collectionPhotosTable.collectionId, collectionId), eq(collectionPhotosTable.photoId, photoId))
+  );
+  res.sendStatus(204);
 });
 
 router.delete("/collections/:id", async (req, res): Promise<void> => {

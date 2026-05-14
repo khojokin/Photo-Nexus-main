@@ -75,7 +75,7 @@ router.post("/verification-requests", async (req, res): Promise<void> => {
 });
 
 router.patch("/verification-requests/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params["id"] as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const parsed = ReviewBody.safeParse(req.body);
@@ -98,7 +98,7 @@ router.patch("/verification-requests/:id", requireAdmin, async (req, res): Promi
 });
 
 router.delete("/verification-requests/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params["id"] as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(verificationRequestsTable).where(eq(verificationRequestsTable.id, id));
   res.sendStatus(204);

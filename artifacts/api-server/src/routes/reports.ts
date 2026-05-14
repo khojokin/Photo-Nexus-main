@@ -6,7 +6,7 @@ import { requireAdmin } from "../middlewares/adminMiddleware";
 const router = Router();
 
 router.post("/photos/:id/report", async (req, res): Promise<void> => {
-  const photoId = parseInt(req.params.id, 10);
+  const photoId = parseInt(req.params["id"] as string, 10);
   if (isNaN(photoId)) { res.status(400).json({ error: "Invalid photo id" }); return; }
 
   const { reporterName, reason, body } = req.body as { reporterName?: string; reason?: string; body?: string };
@@ -22,7 +22,7 @@ router.get("/admin/reports", requireAdmin, async (_req, res): Promise<void> => {
 });
 
 router.put("/admin/reports/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params["id"] as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const { status } = req.body as { status?: string };

@@ -143,7 +143,7 @@ router.patch("/notifications/follow-alerts/read-all", async (req: Request, res: 
 });
 
 router.patch("/notifications/follow-alerts/:id/read", async (req: Request, res: Response): Promise<void> => {
-  const id = Number.parseInt(req.params.id ?? "", 10);
+  const id = Number.parseInt(String(req.params.id ?? ""), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   await db

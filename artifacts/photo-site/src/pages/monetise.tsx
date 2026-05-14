@@ -607,7 +607,7 @@ function PayoutsTab({ displayName, user }: { displayName: string; user: { firstN
         type: "withdrawal",
         description: description || "Earnings withdrawal",
         amount: parseFloat(amount),
-        paymentMethod,
+        paymentMethod: payoutMethod,
         paypalEmail: payoutMethod === "paypal" ? paypalEmail : undefined,
         bankName: payoutMethod === "bank_transfer" ? bankName : undefined,
         bankAccountHolder: payoutMethod === "bank_transfer" ? bankHolder : undefined,
