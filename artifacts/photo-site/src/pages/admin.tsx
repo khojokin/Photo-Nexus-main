@@ -297,6 +297,9 @@ export function Admin() {
   const [featuredTag, setFeaturedTag] = useState(FEATURED_TAG.tag);
   const [apiPing, setApiPing] = useState<number | null>(null);
   const [pingLoading, setPingLoading] = useState(false);
+  const [seedCounts, setSeedCounts] = useState<{ photos: number; collections: number; hasData: boolean } | null>(null);
+  const [seedLoading, setSeedLoading] = useState(false);
+  const [seedMsg, setSeedMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null);
   const [systemMetricsLoading, setSystemMetricsLoading] = useState(true);
   const [integrations, setIntegrations] = useState<IntegrationRecord[]>([]);
@@ -828,8 +831,37 @@ export function Admin() {
     }
   }
 
+  async function fetchSeedStatus() {
+    try {
+      const r = await fetch("/api/admin/seed/status", { credentials: "include" });
+      if (r.ok) setSeedCounts(await r.json() as { photos: number; collections: number; hasData: boolean });
+    } catch { /* ignore */ }
+  }
+
+  async function runSeed(force: boolean) {
+    setSeedLoading(true);
+    setSeedMsg(null);
+    try {
+      const r = await fetch(`/api/admin/seed${force ? "?force=true" : ""}`, {
+        method: "POST", credentials: "include",
+      });
+      const data = await r.json() as { ok?: boolean; error?: string; photos?: number; collections?: number; wiped?: boolean };
+      if (r.ok && data.ok) {
+        setSeedMsg({ ok: true, text: `${force && data.wiped ? "Reset & seeded" : "Seeded"} ${data.photos} photos across ${data.collections} collections.` });
+        void fetchSeedStatus();
+      } else {
+        setSeedMsg({ ok: false, text: data.error ?? "Seed failed." });
+      }
+    } catch {
+      setSeedMsg({ ok: false, text: "Network error — seed failed." });
+    } finally {
+      setSeedLoading(false);
+    }
+  }
+
   useEffect(() => {
     void pingApi();
+    void fetchSeedStatus();
   }, []);
 
   useEffect(() => {
@@ -2964,6 +2996,69 @@ export function Admin() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              <div className="border border-border bg-card p-5 mb-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-medium flex items-center gap-2">
+                      <Database className="w-4 h-4 text-muted-foreground" /> Sample Data
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Seed the database with 28 curated photos and 6 collections for demo and development.
+                    </p>
+                  </div>
+                  <button onClick={() => void fetchSeedStatus()} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                    <RefreshCw className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-muted/30 border border-border px-4 py-3">
+                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Photos</p>
+                    <p className="text-2xl font-serif">{seedCounts === null ? "—" : seedCounts.photos}</p>
+                  </div>
+                  <div className="bg-muted/30 border border-border px-4 py-3">
+                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Collections</p>
+                    <p className="text-2xl font-serif">{seedCounts === null ? "—" : seedCounts.collections}</p>
+                  </div>
+                </div>
+
+                {seedMsg && (
+                  <p className={cn("text-xs px-3 py-2 border mb-4", seedMsg.ok
+                    ? "border-green-500/30 text-green-400 bg-green-500/5"
+                    : "border-red-500/30 text-red-400 bg-red-500/5")}>
+                    {seedMsg.text}
+                  </p>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    disabled={seedLoading || seedCounts?.hasData === true}
+                    onClick={() => void runSeed(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-xs bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-30"
+                  >
+                    {seedLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                    Seed Sample Data
+                  </button>
+                  <button
+                    disabled={seedLoading}
+                    onClick={() => setConfirm({
+                      title: "Reset & Reseed Database",
+                      desc: "This will permanently delete all photos, collections, and their relationships, then insert fresh sample data. User accounts and sessions are untouched.",
+                      dangerous: true,
+                      confirmLabel: "Wipe & Reseed",
+                      onConfirm: () => void runSeed(true),
+                    })}
+                    className="flex items-center gap-2 px-4 py-2 text-xs border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Reset &amp; Reseed
+                  </button>
+                </div>
+                {seedCounts?.hasData && !seedMsg && (
+                  <p className="text-xs text-muted-foreground mt-2">Database already has data — use Reset &amp; Reseed to start fresh.</p>
+                )}
               </div>
 
               <div className="border border-border">
