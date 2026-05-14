@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { payoutsTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { payoutsTable, photographerProfilesTable } from "@workspace/db";
+import { eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { requireAdmin } from "../middlewares/adminMiddleware";
@@ -125,6 +125,17 @@ router.patch("/payouts/:id", requireAdmin, async (req, res): Promise<void> => {
     .returning();
 
   if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+
+  if (parsed.data.status === "paid" && updated.userId && updated.type === "withdrawal") {
+    db.insert(photographerProfilesTable)
+      .values({ userId: updated.userId, premiumEarningsPaid: updated.amount })
+      .onConflictDoUpdate({
+        target: photographerProfilesTable.userId,
+        set: { premiumEarningsPaid: sql`${photographerProfilesTable.premiumEarningsPaid} + ${updated.amount}` },
+      })
+      .catch(() => { /* non-critical */ });
+  }
+
   res.json(updated);
 });
 

@@ -126,6 +126,8 @@ interface AdminUser {
   status: "active" | "suspended";
   earnings: string;
   subscriptionStatus: string | null;
+  isQualifiedForPremium: boolean;
+  premiumEarnings: string;
 }
 
 const REDIRECT_RULES: Array<{ id: number; from: string; to: string; status: number; hits: number }> = [];
@@ -367,6 +369,37 @@ export function Admin() {
     setMaintenanceState(next);
     localStorage.setItem(MAINTENANCE_KEY, JSON.stringify(next));
     window.dispatchEvent(new CustomEvent("affuaa-maintenance-changed", { detail: next }));
+  }
+
+  // ── Photographer Profiles ──────────────────────────────────────────────────
+  interface PhotographerProfile {
+    userId: string;
+    isQualifiedForPremium: boolean;
+    premiumEarningsTotal: string;
+    premiumEarningsPaid: string;
+  }
+  const [photographerProfiles, setPhotographerProfiles] = useState<PhotographerProfile[]>([]);
+
+  useEffect(() => {
+    fetch("/api/admin/photographers", { credentials: "include" })
+      .then(r => r.ok ? r.json() : { profiles: [] })
+      .then((d: { profiles: PhotographerProfile[] }) => setPhotographerProfiles(d.profiles ?? []))
+      .catch(() => {});
+  }, []);
+
+  async function toggleQualify(userId: string, current: boolean) {
+    const updated = await fetch(`/api/admin/photographers/${userId}/qualify`, {
+      method: "PATCH", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isQualifiedForPremium: !current }),
+    }).then(r => r.ok ? r.json() as Promise<PhotographerProfile> : null);
+    if (updated) {
+      setPhotographerProfiles(prev => {
+        const exists = prev.find(p => p.userId === userId);
+        if (exists) return prev.map(p => p.userId === userId ? updated : p);
+        return [...prev, updated];
+      });
+    }
   }
 
   // ── Payouts ────────────────────────────────────────────────────────────────
@@ -698,6 +731,8 @@ export function Admin() {
             status: "active" as const,
             earnings: "$0",
             subscriptionStatus: u.subscriptionStatus,
+            isQualifiedForPremium: false,
+            premiumEarnings: "$0",
           };
         });
         setUsers(liveUsers);
@@ -1850,6 +1885,7 @@ export function Admin() {
                       <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Role</th>
                       <th className="text-right px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Photos</th>
                       <th className="text-right px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Earnings</th>
+                      <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal" title="Qualified for premium photo earnings">Premium</th>
                       <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Verified</th>
                       <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Status</th>
                       <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Joined</th>
@@ -1876,6 +1912,21 @@ export function Admin() {
                         </td>
                         <td className="px-4 py-3 text-right text-xs text-muted-foreground">{u.photos}</td>
                         <td className="px-4 py-3 text-right text-xs text-green-400">{u.earnings}</td>
+                        <td className="px-4 py-3 text-center">
+                          {(() => {
+                            const profile = photographerProfiles.find(p => p.userId === u.id);
+                            const isQualified = profile?.isQualifiedForPremium ?? false;
+                            const earned = parseFloat(profile?.premiumEarningsTotal ?? "0");
+                            return (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <button onClick={() => void toggleQualify(u.id, isQualified)} title={isQualified ? "Revoke premium qualification" : "Grant premium qualification"}>
+                                  <Crown className={cn("w-4 h-4 mx-auto transition-colors", isQualified ? "text-amber-400" : "text-muted-foreground/30 hover:text-muted-foreground")} />
+                                </button>
+                                {earned > 0 && <span className="text-[10px] text-green-400 tabular-nums">${earned.toFixed(2)}</span>}
+                              </div>
+                            );
+                          })()}
+                        </td>
                         <td className="px-4 py-3 text-center">
                           <button onClick={() => toggleVerify(u.id)} title="Toggle verified">
                             {u.verified

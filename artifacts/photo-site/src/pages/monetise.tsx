@@ -5,7 +5,7 @@ import {
   DollarSign, Printer, MessageSquare, Coffee, FileText, CreditCard,
   TrendingUp, Download, Heart, Eye, Check, ChevronRight, Star,
   AlertCircle, Plus, X, ExternalLink, Zap, Shield, Info, Lock,
-  Users, BarChart3, ArrowRight,
+  Users, BarChart3, ArrowRight, Crown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
@@ -569,6 +569,14 @@ interface PayoutRecord {
   requestedAt: string; processedAt: string | null;
 }
 
+interface PremiumEarnings {
+  isQualifiedForPremium: boolean;
+  premiumEarningsTotal: string;
+  premiumEarningsPaid: string;
+  pendingTotal: string;
+  availableBalance: string;
+}
+
 function PayoutsTab({ displayName, user }: { displayName: string; user: { firstName?: string | null; email?: string | null } | null }) {
   const [payoutMethod, setPayoutMethod] = useState<"paypal" | "bank_transfer">("paypal");
   const [paypalEmail, setPaypalEmail] = useState("");
@@ -584,13 +592,58 @@ function PayoutsTab({ displayName, user }: { displayName: string; user: { firstN
   const [history, setHistory] = useState<PayoutRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
 
+  const [premEarnings, setPremEarnings] = useState<PremiumEarnings | null>(null);
+  const [premPayoutMethod, setPremPayoutMethod] = useState<"paypal" | "bank_transfer">("paypal");
+  const [premPaypalEmail, setPremPaypalEmail] = useState("");
+  const [premBankHolder, setPremBankHolder] = useState("");
+  const [premBankName, setPremBankName] = useState("");
+  const [premBankAccount, setPremBankAccount] = useState("");
+  const [premBankRouting, setPremBankRouting] = useState("");
+  const [premSubmitting, setPremSubmitting] = useState(false);
+  const [premError, setPremError] = useState<string | null>(null);
+  const [premSuccess, setPremSuccess] = useState(false);
+  const [showPremForm, setShowPremForm] = useState(false);
+
   useEffect(() => {
     fetch("/api/payouts/my")
       .then(r => r.json())
       .then((d: { payouts: PayoutRecord[] }) => setHistory(d.payouts ?? []))
       .catch(() => {})
       .finally(() => setHistoryLoading(false));
-  }, [submitted]);
+  }, [submitted, premSuccess]);
+
+  useEffect(() => {
+    fetch("/api/photographers/me/earnings", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: PremiumEarnings | null) => { if (d) setPremEarnings(d); })
+      .catch(() => {});
+  }, [premSuccess]);
+
+  async function submitPremiumPayoutRequest() {
+    setPremError(null);
+    if (premPayoutMethod === "paypal" && !premPaypalEmail) { setPremError("Please enter your PayPal email."); return; }
+    if (premPayoutMethod === "bank_transfer" && (!premBankHolder || !premBankAccount)) { setPremError("Please complete all bank details."); return; }
+    setPremSubmitting(true);
+    try {
+      const acct = premBankAccount.replace(/\s/g, "");
+      const routing = premBankRouting.replace(/\s/g, "");
+      const body = {
+        paymentMethod: premPayoutMethod,
+        paypalEmail: premPayoutMethod === "paypal" ? premPaypalEmail : undefined,
+        bankName: premPayoutMethod === "bank_transfer" ? premBankName : undefined,
+        bankAccountHolder: premPayoutMethod === "bank_transfer" ? premBankHolder : undefined,
+        bankAccountLast4: premPayoutMethod === "bank_transfer" ? acct.slice(-4) : undefined,
+        bankRoutingLast4: premPayoutMethod === "bank_transfer" ? routing.slice(-4) : undefined,
+      };
+      const res = await fetch("/api/photographers/me/payout-request", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json() as { error?: string; message?: string };
+      if (!res.ok) { setPremError(data.message ?? "Request failed. Please try again."); return; }
+      setPremSuccess(v => !v);
+      setShowPremForm(false);
+      setPremPaypalEmail(""); setPremBankHolder(""); setPremBankName(""); setPremBankAccount(""); setPremBankRouting("");
+    } catch { setPremError("Failed to submit request. Please try again."); }
+    finally { setPremSubmitting(false); }
+  }
 
   async function submitRequest() {
     setError(null);
@@ -630,6 +683,121 @@ function PayoutsTab({ displayName, user }: { displayName: string; user: { firstN
 
   return (
     <div className="space-y-8">
+
+      {/* ── Premium Earnings Panel ── */}
+      {premEarnings && (
+        <div className="border border-amber-500/20 bg-amber-500/5 p-6 space-y-5">
+          <div className="flex items-center gap-3">
+            <Crown className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-sm font-medium">Premium Photo Earnings</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {premEarnings.isQualifiedForPremium
+                  ? "You earn $0.10 for every premium download of your photos."
+                  : "You are not yet qualified for premium earnings. Contact the Affuaa team to apply."}
+              </p>
+            </div>
+            {premEarnings.isQualifiedForPremium && (
+              <span className="text-xs px-2.5 py-1 border border-amber-500/30 text-amber-400 bg-amber-500/10 flex-shrink-0">Qualified</span>
+            )}
+          </div>
+
+          {premEarnings.isQualifiedForPremium && (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="border border-border bg-card p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Available</p>
+                  <p className="text-xl font-serif">${premEarnings.availableBalance}</p>
+                </div>
+                <div className="border border-border bg-card p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Total Earned</p>
+                  <p className="text-lg font-medium">${premEarnings.premiumEarningsTotal}</p>
+                </div>
+                <div className="border border-border bg-card p-3">
+                  <p className="text-xs text-muted-foreground mb-1">In Review</p>
+                  <p className="text-lg font-medium">${premEarnings.pendingTotal}</p>
+                </div>
+                <div className="border border-border bg-card p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Paid Out</p>
+                  <p className="text-lg font-medium">${premEarnings.premiumEarningsPaid}</p>
+                </div>
+              </div>
+
+              {parseFloat(premEarnings.availableBalance) < 50 && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Info className="w-3.5 h-3.5 flex-shrink-0" />
+                  Minimum payout is $50.00. You need ${(50 - parseFloat(premEarnings.availableBalance)).toFixed(2)} more ({Math.ceil((50 - parseFloat(premEarnings.availableBalance)) / 0.10)} more premium downloads).
+                </div>
+              )}
+
+              {parseFloat(premEarnings.availableBalance) >= 50 && !showPremForm && (
+                <button onClick={() => setShowPremForm(true)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-amber-500/90 hover:bg-amber-500 text-black text-sm transition-colors font-medium">
+                  <Crown className="w-4 h-4" /> Request Premium Payout (${premEarnings.availableBalance})
+                </button>
+              )}
+
+              {showPremForm && (
+                <div className="border border-amber-500/20 bg-card p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Request Payout — ${premEarnings.availableBalance}</h4>
+                    <button onClick={() => { setShowPremForm(false); setPremError(null); }} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+                  </div>
+                  <div className="flex gap-3">
+                    {([["paypal", "PayPal"], ["bank_transfer", "Bank Transfer"]] as const).map(([m, label]) => (
+                      <button key={m} onClick={() => setPremPayoutMethod(m)}
+                        className={cn("px-3 py-1.5 text-xs border transition-colors",
+                          premPayoutMethod === m ? "border-foreground text-foreground bg-foreground/5" : "border-border text-muted-foreground hover:text-foreground")}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="space-y-3">
+                    {premPayoutMethod === "paypal" ? (
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-1">PayPal Email</label>
+                        <input type="email" value={premPaypalEmail} onChange={e => setPremPaypalEmail(e.target.value)}
+                          placeholder="your@paypal.com"
+                          className="w-full bg-transparent border border-border px-4 py-2 text-sm focus:outline-none focus:border-foreground transition-colors" />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-muted-foreground block mb-1">Account Holder Name</label>
+                          <input type="text" value={premBankHolder} onChange={e => setPremBankHolder(e.target.value)} placeholder="Full legal name"
+                            className="w-full bg-transparent border border-border px-4 py-2 text-sm focus:outline-none focus:border-foreground transition-colors" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground block mb-1">Bank Name</label>
+                          <input type="text" value={premBankName} onChange={e => setPremBankName(e.target.value)} placeholder="e.g. Chase"
+                            className="w-full bg-transparent border border-border px-4 py-2 text-sm focus:outline-none focus:border-foreground transition-colors" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground block mb-1">Account Number</label>
+                          <input type="text" value={premBankAccount} onChange={e => setPremBankAccount(e.target.value)} placeholder="Account number"
+                            className="w-full bg-transparent border border-border px-4 py-2 text-sm focus:outline-none focus:border-foreground transition-colors" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground block mb-1">Routing / Sort Code</label>
+                          <input type="text" value={premBankRouting} onChange={e => setPremBankRouting(e.target.value)} placeholder="Routing number"
+                            className="w-full bg-transparent border border-border px-4 py-2 text-sm focus:outline-none focus:border-foreground transition-colors" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {premError && <p className="text-xs text-red-400">{premError}</p>}
+                  <button onClick={() => void submitPremiumPayoutRequest()} disabled={premSubmitting}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-foreground text-background text-sm hover:opacity-90 disabled:opacity-40 transition-opacity">
+                    {premSubmitting && <span className="w-3 h-3 border border-background/40 border-t-background rounded-full animate-spin" />}
+                    {premSubmitting ? "Submitting…" : "Submit Payout Request"}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <StatCard label="Pending" value={`$${history.filter(p=>p.status==="pending"||p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount),0).toFixed(2)}`} icon={CreditCard} />

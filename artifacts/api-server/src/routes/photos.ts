@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, ilike, sql, or, and } from "drizzle-orm";
-import { db, photosTable, notificationsTable } from "@workspace/db";
+import { db, photosTable, notificationsTable, photographerProfilesTable } from "@workspace/db";
 import { requireAdmin } from "../middlewares/adminMiddleware";
 import {
   ListPhotosQueryParams,
@@ -331,6 +331,16 @@ router.post("/photos/:id/download", async (req, res): Promise<void> => {
   if (!photo) {
     res.status(404).json({ error: "Photo not found" });
     return;
+  }
+
+  if (existing.isPremiumOnly && existing.uploadedBy) {
+    db.insert(photographerProfilesTable)
+      .values({ userId: existing.uploadedBy, premiumEarningsTotal: "0.10" })
+      .onConflictDoUpdate({
+        target: photographerProfilesTable.userId,
+        set: { premiumEarningsTotal: sql`${photographerProfilesTable.premiumEarningsTotal} + 0.10` },
+      })
+      .catch(() => { /* non-critical */ });
   }
 
   res.json(DownloadPhotoResponse.parse(photo));
