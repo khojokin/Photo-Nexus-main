@@ -33,6 +33,9 @@ import type {
   Photo,
   PhotoListResponse,
   RegisterBody,
+  SetHomepageHeroBody,
+  SetPotdPhotoBody,
+  SiteSettings,
   SiteSummary,
   Tag,
   UpdatePhotoBody,
@@ -559,6 +562,167 @@ export const useDeletePhoto = <
 };
 
 /**
+ * @summary Get public site settings (ads_enabled, etc.)
+ */
+export const getGetSiteSettingsUrl = () => {
+  return `/api/settings`;
+};
+
+export const getSiteSettings = async (
+  options?: RequestInit,
+): Promise<SiteSettings> => {
+  return customFetch<SiteSettings>(getGetSiteSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSiteSettingsQueryKey = () => {
+  return [`/api/settings`] as const;
+};
+
+export const getGetSiteSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSiteSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSiteSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSiteSettingsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSiteSettings>>> = ({
+    signal,
+  }) => getSiteSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSiteSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSiteSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSiteSettings>>
+>;
+export type GetSiteSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get public site settings (ads_enabled, etc.)
+ */
+
+export function useGetSiteSettings<
+  TData = Awaited<ReturnType<typeof getSiteSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSiteSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSiteSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update site settings (admin only)
+ */
+export const getUpdateSiteSettingsUrl = () => {
+  return `/api/settings`;
+};
+
+export const updateSiteSettings = async (
+  siteSettings: SiteSettings,
+  options?: RequestInit,
+): Promise<SiteSettings> => {
+  return customFetch<SiteSettings>(getUpdateSiteSettingsUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(siteSettings),
+  });
+};
+
+export const getUpdateSiteSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSiteSettings>>,
+    TError,
+    { data: BodyType<SiteSettings> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSiteSettings>>,
+  TError,
+  { data: BodyType<SiteSettings> },
+  TContext
+> => {
+  const mutationKey = ["updateSiteSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSiteSettings>>,
+    { data: BodyType<SiteSettings> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateSiteSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSiteSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSiteSettings>>
+>;
+export type UpdateSiteSettingsMutationBody = BodyType<SiteSettings>;
+export type UpdateSiteSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update site settings (admin only)
+ */
+export const useUpdateSiteSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSiteSettings>>,
+    TError,
+    { data: BodyType<SiteSettings> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSiteSettings>>,
+  TError,
+  { data: BodyType<SiteSettings> },
+  TContext
+> => {
+  return useMutation(getUpdateSiteSettingsMutationOptions(options));
+};
+
+/**
  * @summary Pin a photo as today's Photo of the Day (admin only)
  */
 export const getSetPotdPhotoUrl = (id: number) => {
@@ -567,11 +731,14 @@ export const getSetPotdPhotoUrl = (id: number) => {
 
 export const setPotdPhoto = async (
   id: number,
+  setPotdPhotoBody?: SetPotdPhotoBody,
   options?: RequestInit,
 ): Promise<Photo> => {
   return customFetch<Photo>(getSetPotdPhotoUrl(id), {
     ...options,
     method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setPotdPhotoBody),
   });
 };
 
@@ -582,14 +749,14 @@ export const getSetPotdPhotoMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof setPotdPhoto>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<SetPotdPhotoBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof setPotdPhoto>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<SetPotdPhotoBody> },
   TContext
 > => {
   const mutationKey = ["setPotdPhoto"];
@@ -603,11 +770,11 @@ export const getSetPotdPhotoMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof setPotdPhoto>>,
-    { id: number }
+    { id: number; data: BodyType<SetPotdPhotoBody> }
   > = (props) => {
-    const { id } = props ?? {};
+    const { id, data } = props ?? {};
 
-    return setPotdPhoto(id, requestOptions);
+    return setPotdPhoto(id, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -616,7 +783,7 @@ export const getSetPotdPhotoMutationOptions = <
 export type SetPotdPhotoMutationResult = NonNullable<
   Awaited<ReturnType<typeof setPotdPhoto>>
 >;
-
+export type SetPotdPhotoMutationBody = BodyType<SetPotdPhotoBody>;
 export type SetPotdPhotoMutationError = ErrorType<void>;
 
 /**
@@ -629,14 +796,14 @@ export const useSetPotdPhoto = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof setPotdPhoto>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<SetPotdPhotoBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof setPotdPhoto>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<SetPotdPhotoBody> },
   TContext
 > => {
   return useMutation(getSetPotdPhotoMutationOptions(options));
@@ -735,11 +902,14 @@ export const getSetHomepageHeroUrl = (id: number) => {
 
 export const setHomepageHero = async (
   id: number,
+  setHomepageHeroBody?: SetHomepageHeroBody,
   options?: RequestInit,
 ): Promise<Photo> => {
   return customFetch<Photo>(getSetHomepageHeroUrl(id), {
     ...options,
     method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setHomepageHeroBody),
   });
 };
 
@@ -750,14 +920,14 @@ export const getSetHomepageHeroMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof setHomepageHero>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<SetHomepageHeroBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof setHomepageHero>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<SetHomepageHeroBody> },
   TContext
 > => {
   const mutationKey = ["setHomepageHero"];
@@ -771,11 +941,11 @@ export const getSetHomepageHeroMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof setHomepageHero>>,
-    { id: number }
+    { id: number; data: BodyType<SetHomepageHeroBody> }
   > = (props) => {
-    const { id } = props ?? {};
+    const { id, data } = props ?? {};
 
-    return setHomepageHero(id, requestOptions);
+    return setHomepageHero(id, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -784,7 +954,7 @@ export const getSetHomepageHeroMutationOptions = <
 export type SetHomepageHeroMutationResult = NonNullable<
   Awaited<ReturnType<typeof setHomepageHero>>
 >;
-
+export type SetHomepageHeroMutationBody = BodyType<SetHomepageHeroBody>;
 export type SetHomepageHeroMutationError = ErrorType<void>;
 
 /**
@@ -797,14 +967,14 @@ export const useSetHomepageHero = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof setHomepageHero>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<SetHomepageHeroBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof setHomepageHero>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<SetHomepageHeroBody> },
   TContext
 > => {
   return useMutation(getSetHomepageHeroMutationOptions(options));

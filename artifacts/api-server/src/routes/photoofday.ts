@@ -5,6 +5,7 @@ import { db, photosTable } from "@workspace/db";
 const router = Router();
 
 router.get("/photo-of-the-day", async (_req, res): Promise<void> => {
+  const now = new Date();
   const [pinned] = await db
     .select()
     .from(photosTable)
@@ -12,8 +13,12 @@ router.get("/photo-of-the-day", async (_req, res): Promise<void> => {
     .limit(1);
 
   if (pinned) {
-    res.json({ photo: pinned });
-    return;
+    if (pinned.pinUntilPotd && pinned.pinUntilPotd < now) {
+      await db.update(photosTable).set({ isPotdPinned: false, pinUntilPotd: null }).where(eq(photosTable.id, pinned.id));
+    } else {
+      res.json({ photo: pinned });
+      return;
+    }
   }
 
   const today = new Date();

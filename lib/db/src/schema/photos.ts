@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, varchar, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./auth";
@@ -20,6 +20,9 @@ export const photosTable = pgTable("photos", {
   isFeatured: boolean("is_featured").notNull().default(false),
   isHomepageHero: boolean("is_homepage_hero").notNull().default(false),
   isPotdPinned: boolean("is_potd_pinned").notNull().default(false),
+  pinUntilHero: timestamp("pin_until_hero", { withTimezone: true }),
+  pinUntilPotd: timestamp("pin_until_potd", { withTimezone: true }),
+  isPremiumOnly: boolean("is_premium_only").notNull().default(false),
   contentWarning: boolean("content_warning").notNull().default(false),
   uploadedBy: varchar("uploaded_by").references(() => usersTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

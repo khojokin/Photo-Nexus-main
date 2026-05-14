@@ -17,7 +17,7 @@ import {
   MessageSquare, Trash2, Send, BookmarkPlus, ChevronDown, Plus, FolderOpen,
   Camera, Aperture, Clock, Zap, Ruler, Shield, Eye, Flag, Code, X,
   DollarSign, Coffee, Maximize, Minimize, Keyboard,
-  BookOpen, ChevronLeft, ChevronRight,
+  BookOpen, ChevronLeft, ChevronRight, Crown, Lock,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useSubscription } from "@/hooks/use-subscription";
 import { usePremiumGate } from "@/hooks/use-premium-gate";
 import { PremiumGateModal } from "@/components/premium-gate-modal";
+import { AdInterstitialModal } from "@/components/ad-interstitial-modal";
 
 const REACTION_EMOJIS = ["❤️", "🔥", "✨", "😮", "🎉"];
 
@@ -697,6 +698,16 @@ export function PhotoDetail() {
   const { isAdmin } = useAuth();
   const { isPremium } = useSubscription();
   const { gate, isOpen: gateOpen, closeGate, activeFeature } = usePremiumGate();
+  const [adsEnabled, setAdsEnabled] = useState(false);
+  const [adOpen, setAdOpen] = useState(false);
+  const pendingDownloadRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then(r => r.ok ? r.json() as Promise<{ adsEnabled: boolean }> : null)
+      .then(data => { if (data != null) setAdsEnabled(data.adsEnabled); })
+      .catch(() => {});
+  }, []);
 
   const { data: photo, isLoading } = useGetPhoto(photoId, {
     query: { enabled: !!photoId, queryKey: getGetPhotoQueryKey(photoId) }
@@ -721,14 +732,34 @@ export function PhotoDetail() {
 
   const handleDownload = () => {
     if (!photo) return;
-    gate("download", () => {
+    const extPhoto = photo as typeof photo & { isPremiumOnly?: boolean };
+
+    if (extPhoto.isPremiumOnly && !isPremium && !isAdmin) {
+      gate("download", () => { /* premium gate handles this */ });
+      return;
+    }
+
+    const doDownload = () => {
       downloadMutation.mutate({ id: photo.id }, {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetPhotoQueryKey(photo.id) });
           window.open(photo.imageUrl, "_blank");
         }
       });
-    });
+    };
+
+    if (adsEnabled && !isPremium && !isAdmin) {
+      pendingDownloadRef.current = doDownload;
+      setAdOpen(true);
+      return;
+    }
+
+    if (!isPremium && !isAdmin && !extPhoto.isPremiumOnly) {
+      gate("download", doDownload);
+      return;
+    }
+
+    doDownload();
   };
 
   const handleShare = async () => {
@@ -796,6 +827,11 @@ export function PhotoDetail() {
   return (
     <Layout>
       <PremiumGateModal open={gateOpen} onClose={closeGate} feature={activeFeature} />
+      <AdInterstitialModal
+        open={adOpen}
+        onClose={() => setAdOpen(false)}
+        onAdComplete={() => { pendingDownloadRef.current?.(); pendingDownloadRef.current = null; }}
+      />
       {focusMode && (
         <div
           className="fixed inset-0 z-50 bg-black flex items-center justify-center"
@@ -932,11 +968,21 @@ export function PhotoDetail() {
                   Like
                 </Button>
                 <Button onClick={handleDownload} disabled={downloadMutation.isPending} className="rounded-none h-12 bg-transparent text-foreground border border-border hover:bg-accent transition-all">
-                  <Download className="w-4 h-4 mr-2" />
-                  {isPremium || isAdmin ? "Download" : "Premium Download"}
+                  {(() => {
+                    const extPhoto = photo as typeof photo & { isPremiumOnly?: boolean };
+                    if (extPhoto.isPremiumOnly && !isPremium && !isAdmin) return <><Lock className="w-4 h-4 mr-2" />Premium Only</>;
+                    if (isPremium || isAdmin) return <><Download className="w-4 h-4 mr-2" />Download</>;
+                    if (adsEnabled) return <><Download className="w-4 h-4 mr-2" />Free Download</>;
+                    return <><Crown className="w-4 h-4 mr-2" />Premium Download</>;
+                  })()}
                 </Button>
               </div>
-              {!isPremium && !isAdmin && <p className="text-xs text-muted-foreground mt-2">HD downloads are available on Premium.</p>}
+              {!isPremium && !isAdmin && (() => {
+                const extPhoto = photo as typeof photo & { isPremiumOnly?: boolean };
+                if (extPhoto.isPremiumOnly) return <p className="text-xs text-muted-foreground mt-2">This photo is exclusive to Premium members.</p>;
+                if (adsEnabled) return <p className="text-xs text-muted-foreground mt-2">Watch a short ad to download. <a href="/premium" className="underline">Go ad-free with Premium.</a></p>;
+                return <p className="text-xs text-muted-foreground mt-2">HD downloads are available on Premium.</p>;
+              })()}
 
               <div className="mt-3 space-y-2">
                 <SaveToCollectionButton photoId={photoId} />

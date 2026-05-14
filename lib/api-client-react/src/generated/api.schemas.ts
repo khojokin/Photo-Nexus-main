@@ -86,6 +86,11 @@ export interface Photo {
   isFeatured: boolean;
   isHomepageHero?: boolean;
   isPotdPinned?: boolean;
+  /** @nullable */
+  pinUntilHero?: string | null;
+  /** @nullable */
+  pinUntilPotd?: string | null;
+  isPremiumOnly?: boolean;
   contentWarning: boolean;
   /** @nullable */
   uploadedBy?: string | null;
@@ -195,6 +200,7 @@ export interface UpdatePhotoBody {
   photographerAvatarUrl?: string | null;
   tags?: string[];
   isFeatured?: boolean;
+  isPremiumOnly?: boolean;
   /** @nullable */
   camera?: string | null;
   /** @nullable */
@@ -220,6 +226,10 @@ export interface Collection {
   coverImageUrl?: string | null;
   photoCount: number;
   createdAt: string;
+}
+
+export interface SiteSettings {
+  adsEnabled: boolean;
 }
 
 export interface CollectionWithPhotos {
@@ -284,6 +294,16 @@ export const ListPhotosSort = {
   popular: "popular",
   trending: "trending",
 } as const;
+
+export type SetPotdPhotoBody = {
+  /** @nullable */
+  pinUntil?: string | null;
+};
+
+export type SetHomepageHeroBody = {
+  /** @nullable */
+  pinUntil?: string | null;
+};
 
 export type GetFollowingFeedParams = {
   followerName: string;

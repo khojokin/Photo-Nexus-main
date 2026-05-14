@@ -152,6 +152,36 @@ paths:
         "403":
           description: Forbidden
 
+  /settings:
+    get:
+      operationId: getSiteSettings
+      tags: [stats]
+      summary: Get public site settings (ads_enabled, etc.)
+      responses:
+        "200":
+          description: Site settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteSettings"
+    patch:
+      operationId: updateSiteSettings
+      tags: [stats]
+      summary: Update site settings (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SiteSettings"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteSettings"
+
   /photos/{id}/set-potd:
     post:
       operationId: setPotdPhoto
@@ -163,6 +193,16 @@ paths:
           required: true
           schema:
             type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pinUntil:
+                  type: ["string", "null"]
+                  format: date-time
       responses:
         "200":
           description: Updated photo
@@ -203,6 +243,16 @@ paths:
           required: true
           schema:
             type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pinUntil:
+                  type: ["string", "null"]
+                  format: date-time
       responses:
         "200":
           description: Updated photo
@@ -671,6 +721,14 @@ components:
           type: boolean
         isPotdPinned:
           type: boolean
+        pinUntilHero:
+          type: ["string", "null"]
+          format: date-time
+        pinUntilPotd:
+          type: ["string", "null"]
+          format: date-time
+        isPremiumOnly:
+          type: boolean
         contentWarning:
           type: boolean
         uploadedBy:
@@ -811,6 +869,8 @@ components:
             type: string
         isFeatured:
           type: boolean
+        isPremiumOnly:
+          type: boolean
         camera:
           type: ["string", "null"]
         lens:
@@ -851,6 +911,14 @@ components:
         - name
         - photoCount
         - createdAt
+
+    SiteSettings:
+      type: object
+      properties:
+        adsEnabled:
+          type: boolean
+      required:
+        - adsEnabled
 
     CollectionWithPhotos:
       type: object

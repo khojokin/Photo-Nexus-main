@@ -10,13 +10,24 @@ import {
 const router: IRouter = Router();
 
 router.get("/stats/hero", async (_req, res): Promise<void> => {
+  const now = new Date();
   const [photo] = await db
     .select()
     .from(photosTable)
     .where(eq(photosTable.isHomepageHero, true))
     .limit(1);
 
-  res.json(photo ?? null);
+  if (photo) {
+    if (photo.pinUntilHero && photo.pinUntilHero < now) {
+      await db.update(photosTable).set({ isHomepageHero: false, pinUntilHero: null }).where(eq(photosTable.id, photo.id));
+      res.json(null);
+      return;
+    }
+    res.json(photo);
+    return;
+  }
+
+  res.json(null);
 });
 
 router.get("/stats/featured", async (_req, res): Promise<void> => {

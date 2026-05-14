@@ -142,6 +142,7 @@ interface ConfirmAction {
   onConfirm: () => void;
   dangerous?: boolean;
   confirmLabel?: string;
+  extraContent?: React.ReactNode;
 }
 
 function ConfirmDialog({ action, onCancel }: { action: ConfirmAction; onCancel: () => void }) {
@@ -157,6 +158,7 @@ function ConfirmDialog({ action, onCancel }: { action: ConfirmAction; onCancel: 
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{action.desc}</p>
           </div>
         </div>
+        {action.extraContent && <div className="mb-4">{action.extraContent}</div>}
         <p className="text-xs text-muted-foreground border border-border/50 bg-muted/20 px-3 py-2 mb-5">
           This action is logged in the audit trail.
         </p>
@@ -622,6 +624,12 @@ export function Admin() {
   const [heroUpdating, setHeroUpdating] = useState(false);
   const [potdPhotoId, setPotdPhotoId] = useState<number | null>(null);
   const [potdUpdating, setPotdUpdating] = useState(false);
+  const [pinHeroUntil, setPinHeroUntil] = useState("");
+  const [pinPotdUntil, setPinPotdUntil] = useState("");
+  const [premiumOnlyPhotos, setPremiumOnlyPhotos] = useState<Set<number>>(new Set());
+  const [premiumOnlyUpdating, setPremiumOnlyUpdating] = useState<Set<number>>(new Set());
+  const [adsEnabled, setAdsEnabled] = useState(true);
+  const [adsUpdating, setAdsUpdating] = useState(false);
   const [deletedPhotoIds, setDeletedPhotoIds] = useState<Set<number>>(new Set());
   const [deletingPhotoIds, setDeletingPhotoIds] = useState<Set<number>>(new Set());
   const [deletedCollectionIds, setDeletedCollectionIds] = useState<Set<number>>(new Set());
@@ -636,12 +644,13 @@ export function Admin() {
 
   useEffect(() => {
     if (photos.length) {
-      type ExtPhoto = Photo & { isHomepageHero?: boolean; isPotdPinned?: boolean };
+      type ExtPhoto = Photo & { isHomepageHero?: boolean; isPotdPinned?: boolean; isPremiumOnly?: boolean };
       setFeaturedPhotos(new Set(photos.filter(p => p.isFeatured).map(p => p.id)));
       const hero = photos.find(p => (p as ExtPhoto).isHomepageHero);
       if (hero) setHeroPhotoId(hero.id);
       const potd = photos.find(p => (p as ExtPhoto).isPotdPinned);
       if (potd) setPotdPhotoId(potd.id);
+      setPremiumOnlyPhotos(new Set(photos.filter(p => (p as ExtPhoto).isPremiumOnly).map(p => p.id)));
     }
   }, [photos]);
 
@@ -653,6 +662,10 @@ export function Admin() {
     fetch("/api/photo-of-the-day")
       .then(r => r.ok ? r.json() as Promise<{ photo: (Photo & { isPotdPinned?: boolean }) | null }> : null)
       .then(data => { if (data?.photo?.isPotdPinned) setPotdPhotoId(data.photo.id); })
+      .catch(() => {});
+    fetch("/api/settings")
+      .then(r => r.ok ? r.json() as Promise<{ adsEnabled: boolean }> : null)
+      .then(data => { if (data != null) setAdsEnabled(data.adsEnabled); })
       .catch(() => {});
   }, []);
 
@@ -826,7 +839,7 @@ export function Admin() {
     }
   }
 
-  async function setPotd(photoId: number) {
+  async function setPotd(photoId: number, pinUntil?: string) {
     const isCurrent = potdPhotoId === photoId;
     setPotdUpdating(true);
     const prevId = potdPhotoId;
@@ -835,16 +848,21 @@ export function Admin() {
       if (isCurrent) {
         await fetch(`/api/photos/${photoId}/set-potd`, { method: "DELETE", credentials: "include" });
       } else {
-        await fetch(`/api/photos/${photoId}/set-potd`, { method: "POST", credentials: "include" });
+        await fetch(`/api/photos/${photoId}/set-potd`, {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pinUntil: pinUntil ? new Date(pinUntil).toISOString() : null }),
+        });
       }
     } catch {
       setPotdPhotoId(prevId);
     } finally {
       setPotdUpdating(false);
+      setPinPotdUntil("");
     }
   }
 
-  async function setHero(photoId: number) {
+  async function setHero(photoId: number, pinUntil?: string) {
     const isCurrentHero = heroPhotoId === photoId;
     setHeroUpdating(true);
     const prevHeroId = heroPhotoId;
@@ -853,12 +871,59 @@ export function Admin() {
       if (isCurrentHero) {
         await fetch(`/api/photos/${photoId}/set-hero`, { method: "DELETE", credentials: "include" });
       } else {
-        await fetch(`/api/photos/${photoId}/set-hero`, { method: "POST", credentials: "include" });
+        await fetch(`/api/photos/${photoId}/set-hero`, {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pinUntil: pinUntil ? new Date(pinUntil).toISOString() : null }),
+        });
       }
     } catch {
       setHeroPhotoId(prevHeroId);
     } finally {
       setHeroUpdating(false);
+      setPinHeroUntil("");
+    }
+  }
+
+  async function togglePremiumOnly(photoId: number) {
+    const isCurrent = premiumOnlyPhotos.has(photoId);
+    setPremiumOnlyUpdating(prev => new Set(prev).add(photoId));
+    setPremiumOnlyPhotos(prev => {
+      const n = new Set(prev);
+      if (isCurrent) n.delete(photoId); else n.add(photoId);
+      return n;
+    });
+    try {
+      await fetch(`/api/photos/${photoId}`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPremiumOnly: !isCurrent }),
+      });
+    } catch {
+      setPremiumOnlyPhotos(prev => {
+        const n = new Set(prev);
+        if (isCurrent) n.add(photoId); else n.delete(photoId);
+        return n;
+      });
+    } finally {
+      setPremiumOnlyUpdating(prev => { const n = new Set(prev); n.delete(photoId); return n; });
+    }
+  }
+
+  async function toggleAdsEnabled() {
+    const next = !adsEnabled;
+    setAdsUpdating(true);
+    setAdsEnabled(next);
+    try {
+      await fetch("/api/settings", {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adsEnabled: next }),
+      });
+    } catch {
+      setAdsEnabled(!next);
+    } finally {
+      setAdsUpdating(false);
     }
   }
 
@@ -1540,6 +1605,7 @@ export function Admin() {
                       <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Featured</th>
                       <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Hero</th>
                       <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">POTD</th>
+                      <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Premium</th>
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
@@ -1582,13 +1648,26 @@ export function Admin() {
                             <button
                               onClick={() => {
                                 const isHero = heroPhotoId === p.id;
+                                setPinHeroUntil("");
                                 setConfirm({
                                   title: isHero ? "Remove homepage hero?" : "Set as homepage hero?",
                                   desc: isHero
                                     ? "The homepage will fall back to the first featured photo."
                                     : `"${p.title}" will be pinned as the full-bleed hero on the homepage, replacing any current hero.`,
                                   confirmLabel: isHero ? "Remove hero" : "Set as hero",
-                                  onConfirm: () => void setHero(p.id),
+                                  onConfirm: () => void setHero(p.id, pinHeroUntil || undefined),
+                                  extraContent: !isHero ? (
+                                    <div>
+                                      <label className="text-xs text-muted-foreground block mb-1.5">Auto-unpin on date (optional)</label>
+                                      <input
+                                        type="date"
+                                        value={pinHeroUntil}
+                                        onChange={e => setPinHeroUntil(e.target.value)}
+                                        min={new Date().toISOString().slice(0, 10)}
+                                        className="w-full bg-background border border-border px-2 py-1.5 text-xs focus:outline-none focus:border-foreground/30"
+                                      />
+                                    </div>
+                                  ) : undefined,
                                 });
                               }}
                               disabled={heroUpdating}
@@ -1604,13 +1683,26 @@ export function Admin() {
                             <button
                               onClick={() => {
                                 const isPotd = potdPhotoId === p.id;
+                                setPinPotdUntil("");
                                 setConfirm({
                                   title: isPotd ? "Unpin Photo of the Day?" : "Set as Photo of the Day?",
                                   desc: isPotd
                                     ? "The daily spotlight will revert to the automatic selection."
                                     : `"${p.title}" will be pinned as today's Photo of the Day, overriding the automatic pick.`,
                                   confirmLabel: isPotd ? "Unpin" : "Pin as POTD",
-                                  onConfirm: () => void setPotd(p.id),
+                                  onConfirm: () => void setPotd(p.id, pinPotdUntil || undefined),
+                                  extraContent: !isPotd ? (
+                                    <div>
+                                      <label className="text-xs text-muted-foreground block mb-1.5">Auto-unpin on date (optional)</label>
+                                      <input
+                                        type="date"
+                                        value={pinPotdUntil}
+                                        onChange={e => setPinPotdUntil(e.target.value)}
+                                        min={new Date().toISOString().slice(0, 10)}
+                                        className="w-full bg-background border border-border px-2 py-1.5 text-xs focus:outline-none focus:border-foreground/30"
+                                      />
+                                    </div>
+                                  ) : undefined,
                                 });
                               }}
                               disabled={potdUpdating}
@@ -1620,6 +1712,25 @@ export function Admin() {
                               {potdPhotoId === p.id
                                 ? <Sun className="w-4 h-4 text-amber-400 fill-amber-400/20 mx-auto" />
                                 : <Sun className="w-4 h-4 text-border mx-auto hover:text-muted-foreground" />}
+                            </button>
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <button
+                              onClick={() => setConfirm({
+                                title: premiumOnlyPhotos.has(p.id) ? "Remove premium restriction?" : "Restrict to premium members?",
+                                desc: premiumOnlyPhotos.has(p.id)
+                                  ? "All users will be able to download this photo."
+                                  : "Only Premium subscribers will be able to download this photo.",
+                                confirmLabel: premiumOnlyPhotos.has(p.id) ? "Remove restriction" : "Set premium-only",
+                                onConfirm: () => void togglePremiumOnly(p.id),
+                              })}
+                              disabled={premiumOnlyUpdating.has(p.id)}
+                              title={premiumOnlyPhotos.has(p.id) ? "Premium-only download — click to open" : "Restrict download to premium"}
+                              className={cn("transition-all", premiumOnlyUpdating.has(p.id) && "opacity-40")}
+                            >
+                              {premiumOnlyPhotos.has(p.id)
+                                ? <Crown className="w-4 h-4 text-amber-400 fill-amber-400/20 mx-auto" />
+                                : <Crown className="w-4 h-4 text-border mx-auto hover:text-muted-foreground" />}
                             </button>
                           </td>
                           <td className="px-4 py-2.5 flex items-center gap-2">
@@ -2753,6 +2864,7 @@ export function Admin() {
                   <Toggle on={flags.email_notifications} onToggle={() => toggleFlag("email_notifications")} label="Email notifications" />
                   <Toggle on={flags.watermark_enabled} onToggle={() => toggleFlag("watermark_enabled")} label="Auto watermarking" sub="Add watermark on download" />
                   <Toggle on={flags.maintenance_mode} onToggle={() => toggleFlag("maintenance_mode")} label="Maintenance mode" sub="Show maintenance banner" />
+                  <Toggle on={adsEnabled} onToggle={toggleAdsEnabled} label="Ads on downloads" sub={adsUpdating ? "Saving…" : "Free/guest users see an ad before downloading"} />
                 </div>
                 <div className="space-y-4">
                   <div className="border border-border bg-card p-5">

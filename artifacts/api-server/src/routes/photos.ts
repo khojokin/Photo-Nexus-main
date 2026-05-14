@@ -202,11 +202,13 @@ router.post("/photos/:id/set-potd", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  await db.update(photosTable).set({ isPotdPinned: false });
+  const pinUntil = req.body?.pinUntil ? new Date(req.body.pinUntil as string) : null;
+
+  await db.update(photosTable).set({ isPotdPinned: false, pinUntilPotd: null });
 
   const [photo] = await db
     .update(photosTable)
-    .set({ isPotdPinned: true })
+    .set({ isPotdPinned: true, pinUntilPotd: pinUntil })
     .where(eq(photosTable.id, id))
     .returning();
 
@@ -220,7 +222,7 @@ router.delete("/photos/:id/set-potd", async (req, res): Promise<void> => {
 
   const [photo] = await db
     .update(photosTable)
-    .set({ isPotdPinned: false })
+    .set({ isPotdPinned: false, pinUntilPotd: null })
     .where(eq(photosTable.id, id))
     .returning();
 
@@ -232,11 +234,13 @@ router.post("/photos/:id/set-hero", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  await db.update(photosTable).set({ isHomepageHero: false });
+  const pinUntil = req.body?.pinUntil ? new Date(req.body.pinUntil as string) : null;
+
+  await db.update(photosTable).set({ isHomepageHero: false, pinUntilHero: null });
 
   const [photo] = await db
     .update(photosTable)
-    .set({ isHomepageHero: true })
+    .set({ isHomepageHero: true, pinUntilHero: pinUntil })
     .where(eq(photosTable.id, id))
     .returning();
 
@@ -250,7 +254,7 @@ router.delete("/photos/:id/set-hero", async (req, res): Promise<void> => {
 
   const [photo] = await db
     .update(photosTable)
-    .set({ isHomepageHero: false })
+    .set({ isHomepageHero: false, pinUntilHero: null })
     .where(eq(photosTable.id, id))
     .returning();
 
@@ -300,6 +304,22 @@ router.post("/photos/:id/download", async (req, res): Promise<void> => {
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
+  }
+
+  const [existing] = await db.select().from(photosTable).where(eq(photosTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Photo not found" });
+    return;
+  }
+
+  if (existing.isPremiumOnly) {
+    const user = req.authUser as { subscriptionStatus?: string; isAdmin?: boolean } | undefined;
+    const isAdmin = !!(user as { isAdmin?: boolean } | undefined)?.isAdmin;
+    const isPremium = user?.subscriptionStatus === "active" || user?.subscriptionStatus === "trialing";
+    if (!isAdmin && !isPremium) {
+      res.status(403).json({ error: "premium_required", message: "This photo requires a Premium subscription to download." });
+      return;
+    }
   }
 
   const [photo] = await db

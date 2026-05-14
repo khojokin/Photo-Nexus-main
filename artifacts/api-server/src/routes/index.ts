@@ -28,6 +28,7 @@ import adminSubscriptionsRouter from "./admin-subscriptions";
 import adminSystemMetricsRouter from "./admin-system-metrics";
 import adminIntegrationsRouter from "./admin-integrations";
 import adminSeedRouter from "./admin-seed";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -60,5 +61,6 @@ router.use(adminSubscriptionsRouter);
 router.use(adminSystemMetricsRouter);
 router.use(adminIntegrationsRouter);
 router.use(adminSeedRouter);
+router.use(settingsRouter);
 
 export default router;

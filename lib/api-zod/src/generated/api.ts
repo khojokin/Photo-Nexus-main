@@ -53,6 +53,9 @@ export const ListPhotosResponse = zod.object({
       isFeatured: zod.boolean(),
       isHomepageHero: zod.boolean().optional(),
       isPotdPinned: zod.boolean().optional(),
+      pinUntilHero: zod.coerce.date().nullish(),
+      pinUntilPotd: zod.coerce.date().nullish(),
+      isPremiumOnly: zod.boolean().optional(),
       contentWarning: zod.boolean(),
       uploadedBy: zod.string().nullish(),
       createdAt: zod.coerce.date(),
@@ -129,6 +132,9 @@ export const GetPhotoResponse = zod.object({
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
   isPotdPinned: zod.boolean().optional(),
+  pinUntilHero: zod.coerce.date().nullish(),
+  pinUntilPotd: zod.coerce.date().nullish(),
+  isPremiumOnly: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -165,6 +171,7 @@ export const UpdatePhotoBody = zod.object({
   photographerAvatarUrl: zod.string().nullish(),
   tags: zod.array(zod.string()).optional(),
   isFeatured: zod.boolean().optional(),
+  isPremiumOnly: zod.boolean().optional(),
   camera: zod.string().nullish(),
   lens: zod.string().nullish(),
   aperture: zod.string().nullish(),
@@ -197,6 +204,9 @@ export const UpdatePhotoResponse = zod.object({
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
   isPotdPinned: zod.boolean().optional(),
+  pinUntilHero: zod.coerce.date().nullish(),
+  pinUntilPotd: zod.coerce.date().nullish(),
+  isPremiumOnly: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -224,10 +234,32 @@ export const DeletePhotoParams = zod.object({
 });
 
 /**
+ * @summary Get public site settings (ads_enabled, etc.)
+ */
+export const GetSiteSettingsResponse = zod.object({
+  adsEnabled: zod.boolean(),
+});
+
+/**
+ * @summary Update site settings (admin only)
+ */
+export const UpdateSiteSettingsBody = zod.object({
+  adsEnabled: zod.boolean(),
+});
+
+export const UpdateSiteSettingsResponse = zod.object({
+  adsEnabled: zod.boolean(),
+});
+
+/**
  * @summary Pin a photo as today's Photo of the Day (admin only)
  */
 export const SetPotdPhotoParams = zod.object({
   id: zod.coerce.number(),
+});
+
+export const SetPotdPhotoBody = zod.object({
+  pinUntil: zod.coerce.date().nullish(),
 });
 
 export const setPotdPhotoResponseLicenseDefault = `cc0`;
@@ -250,6 +282,9 @@ export const SetPotdPhotoResponse = zod.object({
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
   isPotdPinned: zod.boolean().optional(),
+  pinUntilHero: zod.coerce.date().nullish(),
+  pinUntilPotd: zod.coerce.date().nullish(),
+  isPremiumOnly: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -296,6 +331,9 @@ export const UnsetPotdPhotoResponse = zod.object({
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
   isPotdPinned: zod.boolean().optional(),
+  pinUntilHero: zod.coerce.date().nullish(),
+  pinUntilPotd: zod.coerce.date().nullish(),
+  isPremiumOnly: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -322,6 +360,10 @@ export const SetHomepageHeroParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const SetHomepageHeroBody = zod.object({
+  pinUntil: zod.coerce.date().nullish(),
+});
+
 export const setHomepageHeroResponseLicenseDefault = `cc0`;
 export const setHomepageHeroResponseStatusDefault = `published`;
 
@@ -342,6 +384,9 @@ export const SetHomepageHeroResponse = zod.object({
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
   isPotdPinned: zod.boolean().optional(),
+  pinUntilHero: zod.coerce.date().nullish(),
+  pinUntilPotd: zod.coerce.date().nullish(),
+  isPremiumOnly: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -385,6 +430,9 @@ export const GetHomepageHeroResponse = zod.union([
     isFeatured: zod.boolean(),
     isHomepageHero: zod.boolean().optional(),
     isPotdPinned: zod.boolean().optional(),
+    pinUntilHero: zod.coerce.date().nullish(),
+    pinUntilPotd: zod.coerce.date().nullish(),
+    isPremiumOnly: zod.boolean().optional(),
     contentWarning: zod.boolean(),
     uploadedBy: zod.string().nullish(),
     createdAt: zod.coerce.date(),
@@ -433,6 +481,9 @@ export const LikePhotoResponse = zod.object({
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
   isPotdPinned: zod.boolean().optional(),
+  pinUntilHero: zod.coerce.date().nullish(),
+  pinUntilPotd: zod.coerce.date().nullish(),
+  isPremiumOnly: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -479,6 +530,9 @@ export const DownloadPhotoResponse = zod.object({
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
   isPotdPinned: zod.boolean().optional(),
+  pinUntilHero: zod.coerce.date().nullish(),
+  pinUntilPotd: zod.coerce.date().nullish(),
+  isPremiumOnly: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -554,6 +608,9 @@ export const GetCollectionResponse = zod.object({
       isFeatured: zod.boolean(),
       isHomepageHero: zod.boolean().optional(),
       isPotdPinned: zod.boolean().optional(),
+      pinUntilHero: zod.coerce.date().nullish(),
+      pinUntilPotd: zod.coerce.date().nullish(),
+      isPremiumOnly: zod.boolean().optional(),
       contentWarning: zod.boolean(),
       uploadedBy: zod.string().nullish(),
       createdAt: zod.coerce.date(),
@@ -636,6 +693,9 @@ export const GetFollowingFeedResponse = zod.object({
       isFeatured: zod.boolean(),
       isHomepageHero: zod.boolean().optional(),
       isPotdPinned: zod.boolean().optional(),
+      pinUntilHero: zod.coerce.date().nullish(),
+      pinUntilPotd: zod.coerce.date().nullish(),
+      isPremiumOnly: zod.boolean().optional(),
       contentWarning: zod.boolean(),
       uploadedBy: zod.string().nullish(),
       createdAt: zod.coerce.date(),
@@ -683,6 +743,9 @@ export const GetFeaturedPhotosResponseItem = zod.object({
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
   isPotdPinned: zod.boolean().optional(),
+  pinUntilHero: zod.coerce.date().nullish(),
+  pinUntilPotd: zod.coerce.date().nullish(),
+  isPremiumOnly: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -728,6 +791,9 @@ export const GetTrendingPhotosResponseItem = zod.object({
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
   isPotdPinned: zod.boolean().optional(),
+  pinUntilHero: zod.coerce.date().nullish(),
+  pinUntilPotd: zod.coerce.date().nullish(),
+  isPremiumOnly: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -794,6 +860,9 @@ export const GetMyPhotosResponse = zod.object({
       isFeatured: zod.boolean(),
       isHomepageHero: zod.boolean().optional(),
       isPotdPinned: zod.boolean().optional(),
+      pinUntilHero: zod.coerce.date().nullish(),
+      pinUntilPotd: zod.coerce.date().nullish(),
+      isPremiumOnly: zod.boolean().optional(),
       contentWarning: zod.boolean(),
       uploadedBy: zod.string().nullish(),
       createdAt: zod.coerce.date(),

@@ -15,3 +15,4 @@ export * from "./support_chat";
 export * from "./locks";
 export * from "./verification_requests";
 export * from "./follow_alerts";
+export * from "./site_settings";
