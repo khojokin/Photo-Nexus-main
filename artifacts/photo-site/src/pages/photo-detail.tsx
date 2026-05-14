@@ -23,6 +23,8 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { useSubscription } from "@/hooks/use-subscription";
+import { usePremiumGate } from "@/hooks/use-premium-gate";
+import { PremiumGateModal } from "@/components/premium-gate-modal";
 
 const REACTION_EMOJIS = ["❤️", "🔥", "✨", "😮", "🎉"];
 
@@ -694,6 +696,7 @@ export function PhotoDetail() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const { isAdmin } = useAuth();
   const { isPremium } = useSubscription();
+  const { gate, isOpen: gateOpen, closeGate, activeFeature } = usePremiumGate();
 
   const { data: photo, isLoading } = useGetPhoto(photoId, {
     query: { enabled: !!photoId, queryKey: getGetPhotoQueryKey(photoId) }
@@ -718,15 +721,13 @@ export function PhotoDetail() {
 
   const handleDownload = () => {
     if (!photo) return;
-    if (!isPremium && !isAdmin) {
-      window.location.href = "/premium";
-      return;
-    }
-    downloadMutation.mutate({ id: photo.id }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetPhotoQueryKey(photo.id) });
-        window.open(photo.imageUrl, "_blank");
-      }
+    gate("download", () => {
+      downloadMutation.mutate({ id: photo.id }, {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetPhotoQueryKey(photo.id) });
+          window.open(photo.imageUrl, "_blank");
+        }
+      });
     });
   };
 
@@ -794,6 +795,7 @@ export function PhotoDetail() {
 
   return (
     <Layout>
+      <PremiumGateModal open={gateOpen} onClose={closeGate} feature={activeFeature} />
       {focusMode && (
         <div
           className="fixed inset-0 z-50 bg-black flex items-center justify-center"

@@ -8,10 +8,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useAuth } from "@/contexts/auth-context";
+import { usePremiumGate } from "@/hooks/use-premium-gate";
+import { PremiumGateModal } from "@/components/premium-gate-modal";
 import { cn } from "@/lib/utils";
 import {
   Heart, Download, Camera, LayoutGrid, TrendingUp, Tag, Clock, Award,
-  LayoutDashboard, DollarSign, Image, BarChart3,
+  LayoutDashboard, DollarSign, Image, BarChart3, Crown,
   Printer, MessageSquare, Coffee, FileText, CreditCard,
   Check, Info, ArrowUp, Users, Zap, Star, Eye, Upload,
 } from "lucide-react";
@@ -770,6 +772,7 @@ function MyPhotosTab() {
 export function Dashboard() {
   const { user, isAdmin } = useAuth();
   const { isPremium, isLoading: subLoading } = useSubscription();
+  const { gate, isOpen: gateOpen, closeGate, activeFeature } = usePremiumGate();
   const { data: summary } = useGetSiteSummary();
   const { data: trending } = useGetTrendingPhotos();
   const { data: latest } = useListPhotos({ sort: "latest", limit: 5 });
@@ -813,18 +816,41 @@ export function Dashboard() {
   if (!subLoading && !isPremium && !isAdmin) {
     return (
       <Layout>
-        <div className="container mx-auto px-4 py-20 max-w-3xl">
-          <div className="border border-border bg-card p-10">
-            <div className="flex items-center gap-3 mb-4">
-              <LayoutDashboard className="w-5 h-5 text-muted-foreground" />
-              <h1 className="text-3xl font-serif">Dashboard</h1>
+        <PremiumGateModal open={gateOpen} onClose={closeGate} feature={activeFeature} />
+        <div className="min-h-screen flex items-center justify-center px-4">
+          <div className="border border-border bg-card max-w-sm w-full">
+            <div className="px-8 pt-8 pb-6 border-b border-border">
+              <div className="flex items-center gap-2 mb-5">
+                <span className="inline-flex items-center gap-1.5 text-[10px] tracking-[0.2em] uppercase text-amber-400 font-medium">
+                  <LayoutDashboard className="w-3 h-3" />
+                  Premium feature
+                </span>
+              </div>
+              <h1 className="font-serif text-3xl leading-tight mb-2">Creator Dashboard</h1>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Analytics, monetisation tools, and full portfolio management — all in one place.
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground mb-6">
-              The full dashboard — analytics, monetisation tools, and portfolio management — is available on Premium.
-            </p>
-            <Button asChild className="rounded-none">
-              <Link href="/premium">Upgrade to Premium</Link>
-            </Button>
+            <div className="px-8 py-5 border-b border-border space-y-2">
+              {["Advanced analytics dashboard", "Revenue and payout tracking", "Portfolio management", "Monetisation tools"].map((perk) => (
+                <div key={perk} className="flex items-center gap-2.5 text-xs">
+                  <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                  <span className="text-muted-foreground">{perk}</span>
+                </div>
+              ))}
+            </div>
+            <div className="px-8 py-6 space-y-2.5">
+              <Button
+                className="w-full rounded-none bg-amber-500 hover:bg-amber-400 text-black font-medium"
+                onClick={() => gate("analytics")}
+              >
+                <Crown className="w-4 h-4 mr-2" />
+                Get Premium · $6.99/mo
+              </Button>
+              <Button asChild variant="ghost" className="w-full rounded-none text-xs">
+                <Link href="/premium">See everything included</Link>
+              </Button>
+            </div>
           </div>
         </div>
       </Layout>

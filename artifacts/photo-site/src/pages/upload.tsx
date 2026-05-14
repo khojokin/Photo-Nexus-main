@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useUploadProgress } from "@/contexts/upload-progress-context";
+import { usePremiumGate } from "@/hooks/use-premium-gate";
+import { PremiumGateModal } from "@/components/premium-gate-modal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -137,6 +139,7 @@ export function Upload() {
   const { authFetch, isAdmin } = useAuth();
   const { isPremium } = useSubscription();
   const hasPremiumAccess = isPremium || isAdmin;
+  const { gate, isOpen: gateOpen, closeGate, activeFeature } = usePremiumGate();
   const defaultName = loadDefaultName();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -305,6 +308,7 @@ export function Upload() {
 
   return (
     <Layout>
+      <PremiumGateModal open={gateOpen} onClose={closeGate} feature={activeFeature} />
       <div className="container mx-auto px-4 py-12 max-w-4xl">
         {/* Header */}
         <div className="flex items-center gap-4 mb-10">
@@ -420,6 +424,7 @@ export function Upload() {
                 }}
                 onPublish={() => void publishItem(item.id)}
                 onRetry={() => retryUpload(item)}
+                onOpenGate={() => gate("featured_nomination")}
               />
             ))}
           </div>
@@ -438,9 +443,10 @@ interface QueueCardProps {
   onRemove: () => void;
   onPublish: () => void;
   onRetry: () => void;
+  onOpenGate: () => void;
 }
 
-function QueueCard({ item, isPremium, onUpdate, onRemove, onPublish, onRetry }: QueueCardProps) {
+function QueueCard({ item, isPremium, onUpdate, onRemove, onPublish, onRetry, onOpenGate }: QueueCardProps) {
   const canPublish =
     item.status === "ready" &&
     item.title.trim() !== "" &&
@@ -776,15 +782,23 @@ function QueueCard({ item, isPremium, onUpdate, onRemove, onPublish, onRetry }: 
                 />
                 Save as draft
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label
+                className="flex items-center gap-2 cursor-pointer"
+                onClick={(e) => {
+                  if (!isPremium) { e.preventDefault(); onOpenGate(); }
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={item.isFeatured}
-                  onChange={(e) => onUpdate({ isFeatured: e.target.checked })}
-                  disabled={item.status === "publishing" || !isPremium}
+                  onChange={(e) => { if (isPremium) onUpdate({ isFeatured: e.target.checked }); }}
+                  disabled={item.status === "publishing"}
                   className="w-3.5 h-3.5 accent-foreground"
                 />
-                Nominate for featured
+                <span className={!isPremium ? "text-amber-400/80" : ""}>Nominate for featured</span>
+                {!isPremium && (
+                  <span className="text-[10px] tracking-wider uppercase text-amber-400/60">Premium</span>
+                )}
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -797,10 +811,6 @@ function QueueCard({ item, isPremium, onUpdate, onRemove, onPublish, onRetry }: 
                 Content warning
               </label>
             </div>
-
-            {!isPremium && (
-              <p className="text-xs text-muted-foreground">Featured nomination is available on Premium.</p>
-            )}
 
             <div className="flex items-center gap-3">
               {item.errorMsg && item.status === "ready" && (
