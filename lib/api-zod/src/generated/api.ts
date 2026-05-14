@@ -51,6 +51,7 @@ export const ListPhotosResponse = zod.object({
       downloads: zod.number(),
       views: zod.number(),
       isFeatured: zod.boolean(),
+      isHomepageHero: zod.boolean().optional(),
       contentWarning: zod.boolean(),
       uploadedBy: zod.string().nullish(),
       createdAt: zod.coerce.date(),
@@ -125,6 +126,7 @@ export const GetPhotoResponse = zod.object({
   downloads: zod.number(),
   views: zod.number(),
   isFeatured: zod.boolean(),
+  isHomepageHero: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -191,6 +193,7 @@ export const UpdatePhotoResponse = zod.object({
   downloads: zod.number(),
   views: zod.number(),
   isFeatured: zod.boolean(),
+  isHomepageHero: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -218,6 +221,95 @@ export const DeletePhotoParams = zod.object({
 });
 
 /**
+ * @summary Pin a photo as the homepage hero (admin only)
+ */
+export const SetHomepageHeroParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const setHomepageHeroResponseLicenseDefault = `cc0`;
+export const setHomepageHeroResponseStatusDefault = `published`;
+
+export const SetHomepageHeroResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  imageUrl: zod.string(),
+  blurHash: zod.string().nullish(),
+  width: zod.number(),
+  height: zod.number(),
+  photographerName: zod.string(),
+  photographerAvatarUrl: zod.string().nullish(),
+  tags: zod.array(zod.string()),
+  likes: zod.number(),
+  downloads: zod.number(),
+  views: zod.number(),
+  isFeatured: zod.boolean(),
+  isHomepageHero: zod.boolean().optional(),
+  contentWarning: zod.boolean(),
+  uploadedBy: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  publishAt: zod.coerce.date().nullish(),
+  seriesId: zod.number().nullish(),
+  camera: zod.string().nullish(),
+  lens: zod.string().nullish(),
+  aperture: zod.string().nullish(),
+  shutterSpeed: zod.string().nullish(),
+  iso: zod.number().nullish(),
+  focalLength: zod.string().nullish(),
+  license: zod
+    .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
+    .default(setHomepageHeroResponseLicenseDefault),
+  status: zod
+    .enum(["draft", "published"])
+    .default(setHomepageHeroResponseStatusDefault),
+});
+
+/**
+ * @summary Get the pinned homepage hero photo
+ */
+export const getHomepageHeroResponseOneLicenseDefault = `cc0`;
+export const getHomepageHeroResponseOneStatusDefault = `published`;
+
+export const GetHomepageHeroResponse = zod.union([
+  zod.object({
+    id: zod.number(),
+    title: zod.string(),
+    description: zod.string().nullish(),
+    imageUrl: zod.string(),
+    blurHash: zod.string().nullish(),
+    width: zod.number(),
+    height: zod.number(),
+    photographerName: zod.string(),
+    photographerAvatarUrl: zod.string().nullish(),
+    tags: zod.array(zod.string()),
+    likes: zod.number(),
+    downloads: zod.number(),
+    views: zod.number(),
+    isFeatured: zod.boolean(),
+    isHomepageHero: zod.boolean().optional(),
+    contentWarning: zod.boolean(),
+    uploadedBy: zod.string().nullish(),
+    createdAt: zod.coerce.date(),
+    publishAt: zod.coerce.date().nullish(),
+    seriesId: zod.number().nullish(),
+    camera: zod.string().nullish(),
+    lens: zod.string().nullish(),
+    aperture: zod.string().nullish(),
+    shutterSpeed: zod.string().nullish(),
+    iso: zod.number().nullish(),
+    focalLength: zod.string().nullish(),
+    license: zod
+      .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
+      .default(getHomepageHeroResponseOneLicenseDefault),
+    status: zod
+      .enum(["draft", "published"])
+      .default(getHomepageHeroResponseOneStatusDefault),
+  }),
+  zod.null(),
+]);
+
+/**
  * @summary Like a photo
  */
 export const LikePhotoParams = zod.object({
@@ -242,6 +334,7 @@ export const LikePhotoResponse = zod.object({
   downloads: zod.number(),
   views: zod.number(),
   isFeatured: zod.boolean(),
+  isHomepageHero: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -286,6 +379,7 @@ export const DownloadPhotoResponse = zod.object({
   downloads: zod.number(),
   views: zod.number(),
   isFeatured: zod.boolean(),
+  isHomepageHero: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -359,6 +453,7 @@ export const GetCollectionResponse = zod.object({
       downloads: zod.number(),
       views: zod.number(),
       isFeatured: zod.boolean(),
+      isHomepageHero: zod.boolean().optional(),
       contentWarning: zod.boolean(),
       uploadedBy: zod.string().nullish(),
       createdAt: zod.coerce.date(),
@@ -439,6 +534,7 @@ export const GetFollowingFeedResponse = zod.object({
       downloads: zod.number(),
       views: zod.number(),
       isFeatured: zod.boolean(),
+      isHomepageHero: zod.boolean().optional(),
       contentWarning: zod.boolean(),
       uploadedBy: zod.string().nullish(),
       createdAt: zod.coerce.date(),
@@ -484,6 +580,7 @@ export const GetFeaturedPhotosResponseItem = zod.object({
   downloads: zod.number(),
   views: zod.number(),
   isFeatured: zod.boolean(),
+  isHomepageHero: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -527,6 +624,7 @@ export const GetTrendingPhotosResponseItem = zod.object({
   downloads: zod.number(),
   views: zod.number(),
   isFeatured: zod.boolean(),
+  isHomepageHero: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -591,6 +689,7 @@ export const GetMyPhotosResponse = zod.object({
       downloads: zod.number(),
       views: zod.number(),
       isFeatured: zod.boolean(),
+      isHomepageHero: zod.boolean().optional(),
       contentWarning: zod.boolean(),
       uploadedBy: zod.string().nullish(),
       createdAt: zod.coerce.date(),

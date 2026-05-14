@@ -127,6 +127,16 @@ export function Home() {
   const { data: collections, isLoading: loadingCollections } = useListCollections();
   const { isAuthenticated } = useAuth();
 
+  const [pinnedHero, setPinnedHero] = useState<Photo | null>(null);
+  const [loadingHero, setLoadingHero] = useState(true);
+  useEffect(() => {
+    fetch("/api/stats/hero")
+      .then(r => r.ok ? r.json() as Promise<Photo | null> : null)
+      .then(photo => setPinnedHero(photo))
+      .catch(() => {})
+      .finally(() => setLoadingHero(false));
+  }, []);
+
   const [feedTab, setFeedTab] = useState<"trending" | "following">("trending");
   const [myName] = useState(() => getDisplayName());
 
@@ -139,6 +149,9 @@ export function Home() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const trendingPhotos: Photo[] = Array.isArray(trending) ? trending : [];
   const featuredList: Photo[] = Array.isArray(featured) ? featured : [];
+
+  const heroPhoto: Photo | null = pinnedHero ?? (featuredList.length > 0 ? featuredList[0] : null);
+  const isHeroLoading = loadingHero && loadingFeatured;
   const followingPhotos: Photo[] = followingFeedData?.photos ?? [];
 
   const activeFeedPhotos = feedTab === "following" ? followingPhotos : trendingPhotos;
@@ -153,10 +166,10 @@ export function Home() {
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative min-h-[90vh] flex items-end overflow-hidden">
         {/* Background image */}
-        {!loadingFeatured && featuredList.length > 0 ? (
+        {!isHeroLoading && heroPhoto ? (
           <div className="absolute inset-0 z-0">
             <img
-              src={featuredList[0].imageUrl}
+              src={heroPhoto.imageUrl}
               alt="Featured cover"
               className="w-full h-full object-cover"
             />

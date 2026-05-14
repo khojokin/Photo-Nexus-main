@@ -18,6 +18,7 @@ import {
   Globe, Monitor, Smartphone, Tablet, Search, Filter,
   Calendar, Clock, ChevronDown, Edit3, Trash2, Copy, ExternalLink as LinkIcon,
   Layers, GitBranch, Package, AlertCircle, Menu, MessageSquare, KeyRound, Lock, Crown,
+  Home,
 } from "lucide-react";
 
 type Section =
@@ -616,6 +617,8 @@ export function Admin() {
 
   const [featuredPhotos, setFeaturedPhotos] = useState<Set<number>>(new Set());
   const [featureUpdating, setFeatureUpdating] = useState<Set<number>>(new Set());
+  const [heroPhotoId, setHeroPhotoId] = useState<number | null>(null);
+  const [heroUpdating, setHeroUpdating] = useState(false);
   const [deletedPhotoIds, setDeletedPhotoIds] = useState<Set<number>>(new Set());
   const [deletingPhotoIds, setDeletingPhotoIds] = useState<Set<number>>(new Set());
   const [deletedCollectionIds, setDeletedCollectionIds] = useState<Set<number>>(new Set());
@@ -631,8 +634,17 @@ export function Admin() {
   useEffect(() => {
     if (photos.length) {
       setFeaturedPhotos(new Set(photos.filter(p => p.isFeatured).map(p => p.id)));
+      const hero = photos.find(p => (p as Photo & { isHomepageHero?: boolean }).isHomepageHero);
+      if (hero) setHeroPhotoId(hero.id);
     }
   }, [photos]);
+
+  useEffect(() => {
+    fetch("/api/stats/hero")
+      .then(r => r.ok ? r.json() as Promise<(Photo & { isHomepageHero?: boolean }) | null> : null)
+      .then(photo => { if (photo) setHeroPhotoId(photo.id); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/admin/reports", { credentials: "include" })
@@ -801,6 +813,24 @@ export function Admin() {
       });
     } finally {
       setFeatureUpdating(prev => { const n = new Set(prev); n.delete(photoId); return n; });
+    }
+  }
+
+  async function setHero(photoId: number) {
+    const isCurrentHero = heroPhotoId === photoId;
+    setHeroUpdating(true);
+    const prevHeroId = heroPhotoId;
+    setHeroPhotoId(isCurrentHero ? null : photoId);
+    try {
+      if (isCurrentHero) {
+        await fetch(`/api/photos/${photoId}/set-hero`, { method: "DELETE", credentials: "include" });
+      } else {
+        await fetch(`/api/photos/${photoId}/set-hero`, { method: "POST", credentials: "include" });
+      }
+    } catch {
+      setHeroPhotoId(prevHeroId);
+    } finally {
+      setHeroUpdating(false);
     }
   }
 
@@ -1480,6 +1510,7 @@ export function Admin() {
                       <th className="text-right px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Likes</th>
                       <th className="text-right px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">DL</th>
                       <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Featured</th>
+                      <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Hero</th>
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
@@ -1516,6 +1547,28 @@ export function Admin() {
                               {isFeatured
                                 ? <Star className="w-4 h-4 text-amber-400 fill-amber-400 mx-auto" />
                                 : <StarOff className="w-4 h-4 text-border mx-auto hover:text-muted-foreground" />}
+                            </button>
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <button
+                              onClick={() => {
+                                const isHero = heroPhotoId === p.id;
+                                setConfirm({
+                                  title: isHero ? "Remove homepage hero?" : "Set as homepage hero?",
+                                  desc: isHero
+                                    ? "The homepage will fall back to the first featured photo."
+                                    : `"${p.title}" will be pinned as the full-bleed hero on the homepage, replacing any current hero.`,
+                                  confirmLabel: isHero ? "Remove hero" : "Set as hero",
+                                  onConfirm: () => void setHero(p.id),
+                                });
+                              }}
+                              disabled={heroUpdating}
+                              title={heroPhotoId === p.id ? "Currently set as homepage hero — click to unpin" : "Set as homepage hero"}
+                              className={cn("transition-all", heroUpdating && "opacity-40")}
+                            >
+                              {heroPhotoId === p.id
+                                ? <Home className="w-4 h-4 text-sky-400 fill-sky-400/20 mx-auto" />
+                                : <Home className="w-4 h-4 text-border mx-auto hover:text-muted-foreground" />}
                             </button>
                           </td>
                           <td className="px-4 py-2.5 flex items-center gap-2">

@@ -152,6 +152,42 @@ paths:
         "403":
           description: Forbidden
 
+  /photos/{id}/set-hero:
+    post:
+      operationId: setHomepageHero
+      tags: [photos]
+      summary: Pin a photo as the homepage hero (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated photo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Photo"
+        "404":
+          description: Not found
+
+  /stats/hero:
+    get:
+      operationId: getHomepageHero
+      tags: [stats]
+      summary: Get the pinned homepage hero photo
+      responses:
+        "200":
+          description: Hero photo or null
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Photo"
+                  - type: "null"
+
   /photos/{id}/like:
     post:
       operationId: likePhoto
@@ -590,6 +626,8 @@ components:
         views:
           type: integer
         isFeatured:
+          type: boolean
+        isHomepageHero:
           type: boolean
         contentWarning:
           type: boolean

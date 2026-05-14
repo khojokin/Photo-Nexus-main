@@ -84,6 +84,7 @@ export interface Photo {
   downloads: number;
   views: number;
   isFeatured: boolean;
+  isHomepageHero?: boolean;
   contentWarning: boolean;
   /** @nullable */
   uploadedBy?: string | null;

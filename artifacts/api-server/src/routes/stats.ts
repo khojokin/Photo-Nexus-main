@@ -9,6 +9,16 @@ import {
 
 const router: IRouter = Router();
 
+router.get("/stats/hero", async (_req, res): Promise<void> => {
+  const [photo] = await db
+    .select()
+    .from(photosTable)
+    .where(eq(photosTable.isHomepageHero, true))
+    .limit(1);
+
+  res.json(photo ?? null);
+});
+
 router.get("/stats/featured", async (_req, res): Promise<void> => {
   const photos = await db
     .select()

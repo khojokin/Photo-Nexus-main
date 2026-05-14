@@ -198,6 +198,36 @@ router.delete("/photos/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
+router.post("/photos/:id/set-hero", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  await db.update(photosTable).set({ isHomepageHero: false });
+
+  const [photo] = await db
+    .update(photosTable)
+    .set({ isHomepageHero: true })
+    .where(eq(photosTable.id, id))
+    .returning();
+
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
+  res.json(photo);
+});
+
+router.delete("/photos/:id/set-hero", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [photo] = await db
+    .update(photosTable)
+    .set({ isHomepageHero: false })
+    .where(eq(photosTable.id, id))
+    .returning();
+
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
+  res.json(photo);
+});
+
 router.post("/photos/:id/like", async (req, res): Promise<void> => {
   const params = LikePhotoParams.safeParse(req.params);
   if (!params.success) {

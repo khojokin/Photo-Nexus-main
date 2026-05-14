@@ -559,6 +559,165 @@ export const useDeletePhoto = <
 };
 
 /**
+ * @summary Pin a photo as the homepage hero (admin only)
+ */
+export const getSetHomepageHeroUrl = (id: number) => {
+  return `/api/photos/${id}/set-hero`;
+};
+
+export const setHomepageHero = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Photo> => {
+  return customFetch<Photo>(getSetHomepageHeroUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSetHomepageHeroMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setHomepageHero>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setHomepageHero>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["setHomepageHero"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setHomepageHero>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return setHomepageHero(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetHomepageHeroMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setHomepageHero>>
+>;
+
+export type SetHomepageHeroMutationError = ErrorType<void>;
+
+/**
+ * @summary Pin a photo as the homepage hero (admin only)
+ */
+export const useSetHomepageHero = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setHomepageHero>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setHomepageHero>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getSetHomepageHeroMutationOptions(options));
+};
+
+/**
+ * @summary Get the pinned homepage hero photo
+ */
+export const getGetHomepageHeroUrl = () => {
+  return `/api/stats/hero`;
+};
+
+export const getHomepageHero = async (
+  options?: RequestInit,
+): Promise<Photo | null> => {
+  return customFetch<Photo | null>(getGetHomepageHeroUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHomepageHeroQueryKey = () => {
+  return [`/api/stats/hero`] as const;
+};
+
+export const getGetHomepageHeroQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHomepageHero>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHomepageHero>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetHomepageHeroQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getHomepageHero>>> = ({
+    signal,
+  }) => getHomepageHero({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHomepageHero>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHomepageHeroQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHomepageHero>>
+>;
+export type GetHomepageHeroQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the pinned homepage hero photo
+ */
+
+export function useGetHomepageHero<
+  TData = Awaited<ReturnType<typeof getHomepageHero>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHomepageHero>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHomepageHeroQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Like a photo
  */
 export const getLikePhotoUrl = (id: number) => {
