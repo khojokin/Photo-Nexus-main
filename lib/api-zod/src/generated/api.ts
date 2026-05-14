@@ -52,6 +52,7 @@ export const ListPhotosResponse = zod.object({
       views: zod.number(),
       isFeatured: zod.boolean(),
       isHomepageHero: zod.boolean().optional(),
+      isPotdPinned: zod.boolean().optional(),
       contentWarning: zod.boolean(),
       uploadedBy: zod.string().nullish(),
       createdAt: zod.coerce.date(),
@@ -127,6 +128,7 @@ export const GetPhotoResponse = zod.object({
   views: zod.number(),
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
+  isPotdPinned: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -194,6 +196,7 @@ export const UpdatePhotoResponse = zod.object({
   views: zod.number(),
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
+  isPotdPinned: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -218,6 +221,98 @@ export const UpdatePhotoResponse = zod.object({
  */
 export const DeletePhotoParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Pin a photo as today's Photo of the Day (admin only)
+ */
+export const SetPotdPhotoParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const setPotdPhotoResponseLicenseDefault = `cc0`;
+export const setPotdPhotoResponseStatusDefault = `published`;
+
+export const SetPotdPhotoResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  imageUrl: zod.string(),
+  blurHash: zod.string().nullish(),
+  width: zod.number(),
+  height: zod.number(),
+  photographerName: zod.string(),
+  photographerAvatarUrl: zod.string().nullish(),
+  tags: zod.array(zod.string()),
+  likes: zod.number(),
+  downloads: zod.number(),
+  views: zod.number(),
+  isFeatured: zod.boolean(),
+  isHomepageHero: zod.boolean().optional(),
+  isPotdPinned: zod.boolean().optional(),
+  contentWarning: zod.boolean(),
+  uploadedBy: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  publishAt: zod.coerce.date().nullish(),
+  seriesId: zod.number().nullish(),
+  camera: zod.string().nullish(),
+  lens: zod.string().nullish(),
+  aperture: zod.string().nullish(),
+  shutterSpeed: zod.string().nullish(),
+  iso: zod.number().nullish(),
+  focalLength: zod.string().nullish(),
+  license: zod
+    .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
+    .default(setPotdPhotoResponseLicenseDefault),
+  status: zod
+    .enum(["draft", "published"])
+    .default(setPotdPhotoResponseStatusDefault),
+});
+
+/**
+ * @summary Unpin the current Photo of the Day pin (admin only)
+ */
+export const UnsetPotdPhotoParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const unsetPotdPhotoResponseLicenseDefault = `cc0`;
+export const unsetPotdPhotoResponseStatusDefault = `published`;
+
+export const UnsetPotdPhotoResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  imageUrl: zod.string(),
+  blurHash: zod.string().nullish(),
+  width: zod.number(),
+  height: zod.number(),
+  photographerName: zod.string(),
+  photographerAvatarUrl: zod.string().nullish(),
+  tags: zod.array(zod.string()),
+  likes: zod.number(),
+  downloads: zod.number(),
+  views: zod.number(),
+  isFeatured: zod.boolean(),
+  isHomepageHero: zod.boolean().optional(),
+  isPotdPinned: zod.boolean().optional(),
+  contentWarning: zod.boolean(),
+  uploadedBy: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  publishAt: zod.coerce.date().nullish(),
+  seriesId: zod.number().nullish(),
+  camera: zod.string().nullish(),
+  lens: zod.string().nullish(),
+  aperture: zod.string().nullish(),
+  shutterSpeed: zod.string().nullish(),
+  iso: zod.number().nullish(),
+  focalLength: zod.string().nullish(),
+  license: zod
+    .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
+    .default(unsetPotdPhotoResponseLicenseDefault),
+  status: zod
+    .enum(["draft", "published"])
+    .default(unsetPotdPhotoResponseStatusDefault),
 });
 
 /**
@@ -246,6 +341,7 @@ export const SetHomepageHeroResponse = zod.object({
   views: zod.number(),
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
+  isPotdPinned: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -288,6 +384,7 @@ export const GetHomepageHeroResponse = zod.union([
     views: zod.number(),
     isFeatured: zod.boolean(),
     isHomepageHero: zod.boolean().optional(),
+    isPotdPinned: zod.boolean().optional(),
     contentWarning: zod.boolean(),
     uploadedBy: zod.string().nullish(),
     createdAt: zod.coerce.date(),
@@ -335,6 +432,7 @@ export const LikePhotoResponse = zod.object({
   views: zod.number(),
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
+  isPotdPinned: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -380,6 +478,7 @@ export const DownloadPhotoResponse = zod.object({
   views: zod.number(),
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
+  isPotdPinned: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -454,6 +553,7 @@ export const GetCollectionResponse = zod.object({
       views: zod.number(),
       isFeatured: zod.boolean(),
       isHomepageHero: zod.boolean().optional(),
+      isPotdPinned: zod.boolean().optional(),
       contentWarning: zod.boolean(),
       uploadedBy: zod.string().nullish(),
       createdAt: zod.coerce.date(),
@@ -535,6 +635,7 @@ export const GetFollowingFeedResponse = zod.object({
       views: zod.number(),
       isFeatured: zod.boolean(),
       isHomepageHero: zod.boolean().optional(),
+      isPotdPinned: zod.boolean().optional(),
       contentWarning: zod.boolean(),
       uploadedBy: zod.string().nullish(),
       createdAt: zod.coerce.date(),
@@ -581,6 +682,7 @@ export const GetFeaturedPhotosResponseItem = zod.object({
   views: zod.number(),
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
+  isPotdPinned: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -625,6 +727,7 @@ export const GetTrendingPhotosResponseItem = zod.object({
   views: zod.number(),
   isFeatured: zod.boolean(),
   isHomepageHero: zod.boolean().optional(),
+  isPotdPinned: zod.boolean().optional(),
   contentWarning: zod.boolean(),
   uploadedBy: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -690,6 +793,7 @@ export const GetMyPhotosResponse = zod.object({
       views: zod.number(),
       isFeatured: zod.boolean(),
       isHomepageHero: zod.boolean().optional(),
+      isPotdPinned: zod.boolean().optional(),
       contentWarning: zod.boolean(),
       uploadedBy: zod.string().nullish(),
       createdAt: zod.coerce.date(),

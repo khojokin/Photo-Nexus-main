@@ -559,6 +559,174 @@ export const useDeletePhoto = <
 };
 
 /**
+ * @summary Pin a photo as today's Photo of the Day (admin only)
+ */
+export const getSetPotdPhotoUrl = (id: number) => {
+  return `/api/photos/${id}/set-potd`;
+};
+
+export const setPotdPhoto = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Photo> => {
+  return customFetch<Photo>(getSetPotdPhotoUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSetPotdPhotoMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setPotdPhoto>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setPotdPhoto>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["setPotdPhoto"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setPotdPhoto>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return setPotdPhoto(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetPotdPhotoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setPotdPhoto>>
+>;
+
+export type SetPotdPhotoMutationError = ErrorType<void>;
+
+/**
+ * @summary Pin a photo as today's Photo of the Day (admin only)
+ */
+export const useSetPotdPhoto = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setPotdPhoto>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setPotdPhoto>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getSetPotdPhotoMutationOptions(options));
+};
+
+/**
+ * @summary Unpin the current Photo of the Day pin (admin only)
+ */
+export const getUnsetPotdPhotoUrl = (id: number) => {
+  return `/api/photos/${id}/set-potd`;
+};
+
+export const unsetPotdPhoto = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Photo> => {
+  return customFetch<Photo>(getUnsetPotdPhotoUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getUnsetPotdPhotoMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unsetPotdPhoto>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof unsetPotdPhoto>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["unsetPotdPhoto"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof unsetPotdPhoto>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return unsetPotdPhoto(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UnsetPotdPhotoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unsetPotdPhoto>>
+>;
+
+export type UnsetPotdPhotoMutationError = ErrorType<void>;
+
+/**
+ * @summary Unpin the current Photo of the Day pin (admin only)
+ */
+export const useUnsetPotdPhoto = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unsetPotdPhoto>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof unsetPotdPhoto>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getUnsetPotdPhotoMutationOptions(options));
+};
+
+/**
  * @summary Pin a photo as the homepage hero (admin only)
  */
 export const getSetHomepageHeroUrl = (id: number) => {

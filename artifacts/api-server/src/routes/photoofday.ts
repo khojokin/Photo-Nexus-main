@@ -1,10 +1,21 @@
 import { Router } from "express";
-import { desc, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { db, photosTable } from "@workspace/db";
 
 const router = Router();
 
 router.get("/photo-of-the-day", async (_req, res): Promise<void> => {
+  const [pinned] = await db
+    .select()
+    .from(photosTable)
+    .where(eq(photosTable.isPotdPinned, true))
+    .limit(1);
+
+  if (pinned) {
+    res.json({ photo: pinned });
+    return;
+  }
+
   const today = new Date();
   const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
 

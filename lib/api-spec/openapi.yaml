@@ -152,6 +152,46 @@ paths:
         "403":
           description: Forbidden
 
+  /photos/{id}/set-potd:
+    post:
+      operationId: setPotdPhoto
+      tags: [photos]
+      summary: Pin a photo as today's Photo of the Day (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated photo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Photo"
+        "404":
+          description: Not found
+    delete:
+      operationId: unsetPotdPhoto
+      tags: [photos]
+      summary: Unpin the current Photo of the Day pin (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated photo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Photo"
+        "404":
+          description: Not found
+
   /photos/{id}/set-hero:
     post:
       operationId: setHomepageHero
@@ -628,6 +668,8 @@ components:
         isFeatured:
           type: boolean
         isHomepageHero:
+          type: boolean
+        isPotdPinned:
           type: boolean
         contentWarning:
           type: boolean

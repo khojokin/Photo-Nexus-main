@@ -19,6 +19,7 @@ export const photosTable = pgTable("photos", {
   views: integer("views").notNull().default(0),
   isFeatured: boolean("is_featured").notNull().default(false),
   isHomepageHero: boolean("is_homepage_hero").notNull().default(false),
+  isPotdPinned: boolean("is_potd_pinned").notNull().default(false),
   contentWarning: boolean("content_warning").notNull().default(false),
   uploadedBy: varchar("uploaded_by").references(() => usersTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

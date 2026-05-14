@@ -19,6 +19,7 @@ import {
   Calendar, Clock, ChevronDown, Edit3, Trash2, Copy, ExternalLink as LinkIcon,
   Layers, GitBranch, Package, AlertCircle, Menu, MessageSquare, KeyRound, Lock, Crown,
   Home,
+  Sun,
 } from "lucide-react";
 
 type Section =
@@ -619,6 +620,8 @@ export function Admin() {
   const [featureUpdating, setFeatureUpdating] = useState<Set<number>>(new Set());
   const [heroPhotoId, setHeroPhotoId] = useState<number | null>(null);
   const [heroUpdating, setHeroUpdating] = useState(false);
+  const [potdPhotoId, setPotdPhotoId] = useState<number | null>(null);
+  const [potdUpdating, setPotdUpdating] = useState(false);
   const [deletedPhotoIds, setDeletedPhotoIds] = useState<Set<number>>(new Set());
   const [deletingPhotoIds, setDeletingPhotoIds] = useState<Set<number>>(new Set());
   const [deletedCollectionIds, setDeletedCollectionIds] = useState<Set<number>>(new Set());
@@ -633,9 +636,12 @@ export function Admin() {
 
   useEffect(() => {
     if (photos.length) {
+      type ExtPhoto = Photo & { isHomepageHero?: boolean; isPotdPinned?: boolean };
       setFeaturedPhotos(new Set(photos.filter(p => p.isFeatured).map(p => p.id)));
-      const hero = photos.find(p => (p as Photo & { isHomepageHero?: boolean }).isHomepageHero);
+      const hero = photos.find(p => (p as ExtPhoto).isHomepageHero);
       if (hero) setHeroPhotoId(hero.id);
+      const potd = photos.find(p => (p as ExtPhoto).isPotdPinned);
+      if (potd) setPotdPhotoId(potd.id);
     }
   }, [photos]);
 
@@ -643,6 +649,10 @@ export function Admin() {
     fetch("/api/stats/hero")
       .then(r => r.ok ? r.json() as Promise<(Photo & { isHomepageHero?: boolean }) | null> : null)
       .then(photo => { if (photo) setHeroPhotoId(photo.id); })
+      .catch(() => {});
+    fetch("/api/photo-of-the-day")
+      .then(r => r.ok ? r.json() as Promise<{ photo: (Photo & { isPotdPinned?: boolean }) | null }> : null)
+      .then(data => { if (data?.photo?.isPotdPinned) setPotdPhotoId(data.photo.id); })
       .catch(() => {});
   }, []);
 
@@ -813,6 +823,24 @@ export function Admin() {
       });
     } finally {
       setFeatureUpdating(prev => { const n = new Set(prev); n.delete(photoId); return n; });
+    }
+  }
+
+  async function setPotd(photoId: number) {
+    const isCurrent = potdPhotoId === photoId;
+    setPotdUpdating(true);
+    const prevId = potdPhotoId;
+    setPotdPhotoId(isCurrent ? null : photoId);
+    try {
+      if (isCurrent) {
+        await fetch(`/api/photos/${photoId}/set-potd`, { method: "DELETE", credentials: "include" });
+      } else {
+        await fetch(`/api/photos/${photoId}/set-potd`, { method: "POST", credentials: "include" });
+      }
+    } catch {
+      setPotdPhotoId(prevId);
+    } finally {
+      setPotdUpdating(false);
     }
   }
 
@@ -1511,6 +1539,7 @@ export function Admin() {
                       <th className="text-right px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">DL</th>
                       <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Featured</th>
                       <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Hero</th>
+                      <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">POTD</th>
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
@@ -1569,6 +1598,28 @@ export function Admin() {
                               {heroPhotoId === p.id
                                 ? <Home className="w-4 h-4 text-sky-400 fill-sky-400/20 mx-auto" />
                                 : <Home className="w-4 h-4 text-border mx-auto hover:text-muted-foreground" />}
+                            </button>
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <button
+                              onClick={() => {
+                                const isPotd = potdPhotoId === p.id;
+                                setConfirm({
+                                  title: isPotd ? "Unpin Photo of the Day?" : "Set as Photo of the Day?",
+                                  desc: isPotd
+                                    ? "The daily spotlight will revert to the automatic selection."
+                                    : `"${p.title}" will be pinned as today's Photo of the Day, overriding the automatic pick.`,
+                                  confirmLabel: isPotd ? "Unpin" : "Pin as POTD",
+                                  onConfirm: () => void setPotd(p.id),
+                                });
+                              }}
+                              disabled={potdUpdating}
+                              title={potdPhotoId === p.id ? "Currently pinned as Photo of the Day — click to unpin" : "Set as Photo of the Day"}
+                              className={cn("transition-all", potdUpdating && "opacity-40")}
+                            >
+                              {potdPhotoId === p.id
+                                ? <Sun className="w-4 h-4 text-amber-400 fill-amber-400/20 mx-auto" />
+                                : <Sun className="w-4 h-4 text-border mx-auto hover:text-muted-foreground" />}
                             </button>
                           </td>
                           <td className="px-4 py-2.5 flex items-center gap-2">

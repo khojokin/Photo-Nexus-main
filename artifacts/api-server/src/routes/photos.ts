@@ -198,6 +198,36 @@ router.delete("/photos/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
+router.post("/photos/:id/set-potd", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  await db.update(photosTable).set({ isPotdPinned: false });
+
+  const [photo] = await db
+    .update(photosTable)
+    .set({ isPotdPinned: true })
+    .where(eq(photosTable.id, id))
+    .returning();
+
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
+  res.json(photo);
+});
+
+router.delete("/photos/:id/set-potd", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [photo] = await db
+    .update(photosTable)
+    .set({ isPotdPinned: false })
+    .where(eq(photosTable.id, id))
+    .returning();
+
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
+  res.json(photo);
+});
+
 router.post("/photos/:id/set-hero", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
