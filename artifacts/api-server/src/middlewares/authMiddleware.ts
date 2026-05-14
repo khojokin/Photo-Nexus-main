@@ -1,6 +1,8 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { verifyToken } from "@clerk/backend";
 import { getCurrentAuthUser } from "../replitAuth";
+import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 declare global {
   namespace Express {
@@ -11,6 +13,32 @@ declare global {
 }
 
 const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY ?? "";
+
+async function upsertClerkUser(user: import("../lib/authUser").AuthUser): Promise<void> {
+  try {
+    await db
+      .insert(usersTable)
+      .values({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl,
+      })
+      .onConflictDoUpdate({
+        target: usersTable.id,
+        set: {
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          profileImageUrl: user.profileImageUrl,
+          updatedAt: new Date(),
+        },
+      });
+  } catch {
+    // Non-fatal — auth still proceeds even if upsert fails
+  }
+}
 
 async function getClerkAuthUser(req: Request): Promise<import("../lib/authUser").AuthUser | null> {
   const authHeader = req.headers["authorization"];
@@ -29,7 +57,7 @@ async function getClerkAuthUser(req: Request): Promise<import("../lib/authUser")
         : null;
     const emailVerified = payload.email_verified === true || payload.email_verified === "true";
 
-    return {
+    const authUser: import("../lib/authUser").AuthUser = {
       id: String(payload.sub),
       email,
       emailVerified,
@@ -37,6 +65,11 @@ async function getClerkAuthUser(req: Request): Promise<import("../lib/authUser")
       lastName: typeof payload.family_name === "string" ? payload.family_name : null,
       profileImageUrl: typeof payload.picture === "string" ? payload.picture : null,
     };
+
+    // Ensure the user exists in our DB on every authenticated request
+    await upsertClerkUser(authUser);
+
+    return authUser;
   } catch {
     return null;
   }
