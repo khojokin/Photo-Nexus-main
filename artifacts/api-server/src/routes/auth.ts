@@ -20,6 +20,10 @@ router.post("/auth/logout", (_req: Request, res: Response) => {
   res.json(LogoutUserResponse.parse({ success: true }));
 });
 
+router.get("/auth/error", (_req: Request, res: Response) => {
+  res.redirect("/?auth_error=1");
+});
+
 router.post("/auth/demo-login", (req: Request, res: Response) => {
   void (async () => {
     const demoId = "demo-user-001";
