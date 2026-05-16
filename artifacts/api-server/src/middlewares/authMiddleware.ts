@@ -1,4 +1,5 @@
 import { type Request, type Response, type NextFunction } from "express";
+import { getSession, getSessionId } from "../lib/auth";
 
 declare global {
   namespace Express {
@@ -8,20 +9,17 @@ declare global {
   }
 }
 
-const DEFAULT_USER: import("../lib/authUser").AuthUser = {
-  id: "default-user-001",
-  email: "photographer@affuaa.com",
-  emailVerified: true,
-  firstName: "Alex",
-  lastName: "Morgan",
-  profileImageUrl: null,
-};
-
 export async function authMiddleware(
   req: Request,
   _res: Response,
   next: NextFunction,
 ) {
-  req.authUser = DEFAULT_USER;
+  const sid = getSessionId(req);
+  if (sid) {
+    const session = await getSession(sid).catch(() => null);
+    if (session?.user) {
+      req.authUser = session.user;
+    }
+  }
   next();
 }

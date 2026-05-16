@@ -2,6 +2,8 @@ import {
   createContext,
   useCallback,
   useContext,
+  useState,
+  useEffect,
 } from "react";
 
 export interface AuthUser {
@@ -12,14 +14,6 @@ export interface AuthUser {
   lastName: string | null;
   profileImageUrl: string | null;
 }
-
-const DEFAULT_USER: AuthUser = {
-  id: "default-user-001",
-  email: "photographer@affuaa.com",
-  firstName: "Alex",
-  lastName: "Morgan",
-  profileImageUrl: null,
-};
 
 const ADMIN_EMAILS = new Set(["photographer@affuaa.com", "kingsfordkojo7@gmail.com", "kingsfordkojo7@icloud.com"]);
 
@@ -39,25 +33,49 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchUser = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/user", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json() as { user: AuthUser | null };
+        setUser(data.user ?? null);
+      } else {
+        setUser(null);
+      }
+    } catch {
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
+
   const login = useCallback(() => {
-    window.location.href = "/";
+    const base = (import.meta.env.BASE_URL as string).replace(/\/+$/, "") || "/";
+    window.location.href = `/api/login?returnTo=${encodeURIComponent(base)}`;
   }, []);
 
   const logout = useCallback(async () => {
-    window.location.href = "/";
+    window.location.href = "/api/logout";
   }, []);
 
   const refetch = useCallback(async () => {
-    // Always logged in — no-op
-  }, []);
+    await fetchUser();
+  }, [fetchUser]);
 
   const loginWithUser = useCallback((_u: AuthUser) => {
     window.location.href = "/";
   }, []);
 
   const loginAsDemo = useCallback(() => {
-    window.location.href = "/";
-  }, []);
+    login();
+  }, [login]);
 
   const authFetch = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -69,16 +87,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const userEmail = DEFAULT_USER.email?.toLowerCase() ?? "";
+  const userEmail = user?.email?.toLowerCase() ?? "";
   const isAdmin = Boolean(userEmail && ADMIN_EMAILS.has(userEmail));
 
   return (
     <AuthContext.Provider
       value={{
-        user: DEFAULT_USER,
+        user,
         isAdmin,
-        isLoading: false,
-        isAuthenticated: true,
+        isLoading,
+        isAuthenticated: !!user,
         refetch,
         logout,
         login,
