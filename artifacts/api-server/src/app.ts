@@ -5,7 +5,6 @@ import pinoHttp from "pino-http";
 import path from "path";
 import router from "./routes";
 import { logger } from "./lib/logger";
-import { setupReplitAuth } from "./replitAuth";
 import { authMiddleware } from "./middlewares/authMiddleware";
 
 const app: Express = express();
@@ -35,18 +34,6 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const shouldEnableReplitAuth = Boolean(
-  process.env.REPL_ID
-  && process.env.SESSION_SECRET
-  && process.env.DATABASE_URL,
-);
-
-if (shouldEnableReplitAuth) {
-  await setupReplitAuth(app);
-} else {
-  logger.info("Skipping Replit auth bootstrap; using Clerk-only auth configuration");
-}
-
 app.use(authMiddleware);
 
 app.use("/uploads", express.static(path.resolve(process.cwd(), "public", "uploads")));
@@ -57,7 +44,6 @@ import fs from "fs";
 const siteDist = path.resolve(process.cwd(), "artifacts/photo-site/dist/public");
 if (fs.existsSync(siteDist)) {
   app.use(express.static(siteDist));
-  // SPA fallback — all non-API routes serve index.html
   app.use((_req, res) => {
     res.sendFile(path.join(siteDist, "index.html"));
   });

@@ -2,11 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
-  useState,
 } from "react";
-
-const ADMIN_EMAILS = new Set(["kingsfordkojo7@gmail.com", "kingsfordkojo7@icloud.com"]);
 
 export interface AuthUser {
   id: string;
@@ -16,6 +12,16 @@ export interface AuthUser {
   lastName: string | null;
   profileImageUrl: string | null;
 }
+
+const DEFAULT_USER: AuthUser = {
+  id: "default-user-001",
+  email: "photographer@affuaa.com",
+  firstName: "Alex",
+  lastName: "Morgan",
+  profileImageUrl: null,
+};
+
+const ADMIN_EMAILS = new Set(["photographer@affuaa.com", "kingsfordkojo7@gmail.com", "kingsfordkojo7@icloud.com"]);
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -32,47 +38,26 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function ReplitAuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const fetchUser = useCallback(async () => {
-    try {
-      const res = await fetch("/api/auth/user", { credentials: "include" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { user: AuthUser | null };
-      setUser(data.user ?? null);
-    } catch {
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchUser();
-  }, [fetchUser]);
-
-  const refetch = useCallback(async () => {
-    await fetchUser();
-  }, [fetchUser]);
-
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(() => {
-    const base = (import.meta.env.BASE_URL as string).replace(/\/+$/, "") || "/";
-    window.location.href = `/api/login?returnTo=${encodeURIComponent(base)}`;
+    window.location.href = "/";
   }, []);
 
   const logout = useCallback(async () => {
-    window.location.href = "/api/logout";
+    window.location.href = "/";
+  }, []);
+
+  const refetch = useCallback(async () => {
+    // Always logged in — no-op
   }, []);
 
   const loginWithUser = useCallback((_u: AuthUser) => {
-    login();
-  }, [login]);
+    window.location.href = "/";
+  }, []);
 
   const loginAsDemo = useCallback(() => {
-    login();
-  }, [login]);
+    window.location.href = "/";
+  }, []);
 
   const authFetch = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -84,16 +69,16 @@ function ReplitAuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const userEmail = user?.email?.toLowerCase() ?? "";
+  const userEmail = DEFAULT_USER.email?.toLowerCase() ?? "";
   const isAdmin = Boolean(userEmail && ADMIN_EMAILS.has(userEmail));
 
   return (
     <AuthContext.Provider
       value={{
-        user,
+        user: DEFAULT_USER,
         isAdmin,
-        isLoading,
-        isAuthenticated: Boolean(user),
+        isLoading: false,
+        isAuthenticated: true,
         refetch,
         logout,
         login,
@@ -105,10 +90,6 @@ function ReplitAuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  return <ReplitAuthProvider>{children}</ReplitAuthProvider>;
 }
 
 export function useAuth(): AuthContextValue {
