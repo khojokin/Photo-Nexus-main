@@ -1686,6 +1686,7 @@ export function Admin() {
                         checked={selectedPhotos.size === filteredPhotos.length && filteredPhotos.length > 0}
                         onChange={e => setSelectedPhotos(e.target.checked ? new Set(filteredPhotos.map(p => p.id)) : new Set())}
                         className="accent-foreground" /></th>
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Upload ID</th>
                       <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Photo</th>
                       <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Photographer</th>
                       <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">License</th>
@@ -1712,6 +1713,9 @@ export function Admin() {
                                 if (e.target.checked) n.add(p.id); else n.delete(p.id);
                                 return n;
                               })} className="accent-foreground" />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span className="font-mono text-xs text-muted-foreground bg-muted/30 px-1.5 py-0.5 border border-border/50">#{p.id}</span>
                           </td>
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-3">
@@ -1911,6 +1915,7 @@ export function Admin() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-card/50">
+                      <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">User ID</th>
                       <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">User</th>
                       <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Role</th>
                       <th className="text-right px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Photos</th>
@@ -1925,6 +1930,9 @@ export function Admin() {
                   <tbody>
                     {filteredUsers.map(u => (
                       <tr key={u.id} className="border-b border-border hover:bg-card/40 transition-colors">
+                        <td className="px-4 py-3">
+                          <span className="font-mono text-xs text-muted-foreground bg-muted/30 px-1.5 py-0.5 border border-border/50 select-all" title={u.id}>{u.id.length > 12 ? `${u.id.slice(0, 12)}…` : u.id}</span>
+                        </td>
                         <td className="px-4 py-3">
                           <div>
                             <p className="font-medium">{u.name}</p>
@@ -2616,8 +2624,10 @@ export function Admin() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-card/50">
+                        <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">User ID</th>
                         <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">User</th>
                         <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Email</th>
+                        <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal hidden lg:table-cell">Transaction ID</th>
                         <th className="text-center px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Status</th>
                         <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Period End</th>
                         <th className="text-left px-4 py-3 text-xs uppercase tracking-widest text-muted-foreground font-normal">Joined</th>
@@ -2626,8 +2636,16 @@ export function Admin() {
                     <tbody>
                       {subUsers.map(u => (
                         <tr key={u.id} className="border-b border-border hover:bg-card/40 transition-colors">
+                          <td className="px-4 py-3">
+                            <span className="font-mono text-xs text-muted-foreground bg-muted/30 px-1.5 py-0.5 border border-border/50 select-all" title={u.id}>{u.id.length > 12 ? `${u.id.slice(0, 12)}…` : u.id}</span>
+                          </td>
                           <td className="px-4 py-3 font-medium">{[u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}</td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">{u.email ?? "—"}</td>
+                          <td className="px-4 py-3 hidden lg:table-cell">
+                            {u.stripeSubscriptionId
+                              ? <span className="font-mono text-xs text-muted-foreground bg-muted/30 px-1.5 py-0.5 border border-border/50 select-all">{u.stripeSubscriptionId}</span>
+                              : <span className="text-xs text-muted-foreground">—</span>}
+                          </td>
                           <td className="px-4 py-3 text-center">
                             <Badge color={
                               u.subscriptionStatus === "active" ? "border-green-500/30 text-green-400 bg-green-500/5" :

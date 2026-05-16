@@ -618,6 +618,7 @@ function useUnreadNotifications() {
 // ─── Nav config ───────────────────────────────────────────────────────────────
 const PRIMARY_LINKS = [
   { href: "/photos", label: "Explore" },
+  { href: "/illustrations", label: "Illustrations" },
   { href: "/collections", label: "Collections" },
   { href: "/series", label: "Series" },
   { href: "/discover", label: "Today's Edit" },
@@ -859,8 +860,8 @@ function MobileBottomNav() {
   const items = [
     { href: "/", label: "Home", Icon: Home, exact: true },
     { href: "/photos", label: "Explore", Icon: Compass, exact: false },
+    { href: "/illustrations", label: "Art", Icon: Palette, exact: false },
     { href: "/collections", label: "Collections", Icon: FolderOpen, exact: false },
-    { href: "/discover", label: "Today's Edit", Icon: Sparkles, exact: false },
     { href: "/profile", label: "Profile", Icon: null, exact: false },
     ...(isAdmin ? [{ href: "/admin", label: "Admin", Icon: Shield, exact: false }] : []),
   ];
@@ -1266,6 +1267,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
               <Link href="/photos" className="hover:text-foreground transition-colors">Explore</Link>
+              <Link href="/illustrations" className="hover:text-foreground transition-colors">Illustrations</Link>
               <Link href="/collections" className="hover:text-foreground transition-colors">Collections</Link>
               <Link href="/premium" className="hover:text-foreground transition-colors">Premium</Link>
               <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
