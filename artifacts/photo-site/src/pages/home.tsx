@@ -262,38 +262,51 @@ export function Home() {
               alt="Featured cover"
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/55 to-background/5" />
+            {/* Film grain overlay */}
+            <div className="absolute inset-0 opacity-[0.03] mix-blend-overlay"
+              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E\")", backgroundRepeat: "repeat" }}
+            />
           </div>
         ) : (
-          <div className="absolute inset-0 z-0 bg-gradient-to-br from-muted/30 via-background to-background" />
+          <div className="absolute inset-0 z-0">
+            {/* Cinematic darkroom fallback with subtle grid */}
+            <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950" />
+            <div className="absolute inset-0 opacity-[0.04]"
+              style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.5) 1px, transparent 1px)", backgroundSize: "60px 60px" }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+          </div>
         )}
 
         {/* Hero content — bottom-aligned editorial style */}
         <div className="container relative z-10 mx-auto px-4 pb-20 pt-48 max-w-6xl w-full">
+          {/* Thin editorial rule */}
+          <div className="w-10 h-px bg-foreground/30 mb-6" />
           <div className="max-w-3xl">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-6">
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-6">
               Gallery-quality curation &nbsp;·&nbsp; Since 2024
             </p>
             <h1 className="text-5xl md:text-7xl font-serif mb-8 leading-[1.05] tracking-tight">
               Photography
               <br />
-              <span className="text-muted-foreground/70 italic">worth looking at.</span>
+              <span className="text-muted-foreground/60 italic">worth looking at.</span>
             </h1>
-            <p className="text-base text-muted-foreground mb-10 max-w-xl font-light leading-relaxed">
+            <p className="text-base text-muted-foreground mb-10 max-w-xl font-light leading-relaxed tracking-wide">
               Affuaa is a curated platform for photographers who take the craft seriously —
               darkroom-inspired, editorial in spirit, uncompromising in quality.
             </p>
             <div className="flex items-center gap-4 flex-wrap">
               <Link
                 href="/photos"
-                className="inline-flex h-12 items-center justify-center bg-foreground text-background px-8 text-sm font-medium hover:opacity-90 transition-opacity"
+                className="inline-flex h-12 items-center justify-center bg-foreground text-background px-8 text-sm font-medium hover:opacity-90 transition-opacity tracking-wide"
                 data-testid="link-hero-explore"
               >
                 Explore Gallery
               </Link>
               <Link
                 href="/collections"
-                className="inline-flex h-12 items-center justify-center border border-border/60 bg-transparent px-8 text-sm font-medium hover:border-border transition-colors"
+                className="inline-flex h-12 items-center justify-center border border-border/60 bg-background/40 backdrop-blur-sm px-8 text-sm font-medium hover:border-border hover:bg-background/60 transition-all tracking-wide"
                 data-testid="link-hero-collections"
               >
                 View Collections

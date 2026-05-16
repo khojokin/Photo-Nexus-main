@@ -28,6 +28,7 @@ import adminSubscriptionsRouter from "./admin-subscriptions";
 import adminSystemMetricsRouter from "./admin-system-metrics";
 import adminIntegrationsRouter from "./admin-integrations";
 import adminSeedRouter from "./admin-seed";
+import adminSecurityEventsRouter from "./admin-security-events";
 import settingsRouter from "./settings";
 import photographersRouter from "./photographers";
 
@@ -62,6 +63,7 @@ router.use(adminSubscriptionsRouter);
 router.use(adminSystemMetricsRouter);
 router.use(adminIntegrationsRouter);
 router.use(adminSeedRouter);
+router.use(adminSecurityEventsRouter);
 router.use(settingsRouter);
 router.use(photographersRouter);
 
