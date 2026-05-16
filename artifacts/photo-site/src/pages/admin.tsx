@@ -20,6 +20,7 @@ import {
   Layers, GitBranch, Package, AlertCircle, Menu, MessageSquare, KeyRound, Lock, Crown,
   Home,
   Sun,
+  Palette,
 } from "lucide-react";
 
 type Section =
@@ -294,6 +295,8 @@ export function Admin() {
   const [photoStatusFilter, setPhotoStatusFilter] = useState<"all" | "published" | "pending" | "draft">("all");
   const [approvingPhotos, setApprovingPhotos] = useState<Set<number>>(new Set());
   const [selectedPhotos, setSelectedPhotos] = useState<Set<number>>(new Set());
+  const [artTagOpen, setArtTagOpen] = useState(false);
+  const [artTagProgress, setArtTagProgress] = useState<{ done: number; total: number } | null>(null);
   const [analyticsData, setAnalyticsData] = useState<{ dailyStats: DailyStat[]; photographerStats: PhotographerStat[] } | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [announcementText, setAnnouncementText] = useState("");
@@ -981,6 +984,28 @@ export function Admin() {
     }
   }
 
+  const ART_TAGS = ["illustration", "digital art", "painting", "drawing", "concept art", "watercolour", "sketch", "portrait", "abstract", "fantasy"];
+
+  async function bulkTagAsArtwork(ids: number[], tag: string) {
+    setArtTagOpen(false);
+    setSelectedPhotos(new Set());
+    setArtTagProgress({ done: 0, total: ids.length });
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      const existing = photos.find(p => p.id === id);
+      const existingTags: string[] = (existing as { tags?: string[] } | undefined)?.tags ?? [];
+      const merged = Array.from(new Set([...existingTags, tag]));
+      await fetch(`/api/photos/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: merged }),
+      }).catch(() => {});
+      setArtTagProgress({ done: i + 1, total: ids.length });
+    }
+    setTimeout(() => setArtTagProgress(null), 2000);
+  }
+
   function toggleVerify(id: string) {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, verified: !u.verified } : u));
   }
@@ -1662,7 +1687,7 @@ export function Admin() {
                     className="w-full bg-card border border-border pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-foreground/30" />
                 </div>
                 {selectedList.length > 0 && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-muted-foreground">{selectedList.length} selected</span>
                     <button onClick={() => setConfirm({ title: `Feature ${selectedList.length} photos?`, desc: "These photos will appear in the featured section on the homepage.", onConfirm: () => void bulkFeature(selectedList, true), confirmLabel: "Feature all" })}
                       className="text-xs px-3 py-1.5 border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors flex items-center gap-1.5">
@@ -1672,8 +1697,34 @@ export function Admin() {
                       className="text-xs px-3 py-1.5 border border-border text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5">
                       <StarOff className="w-3 h-3" /> Unfeature all
                     </button>
-                    <button onClick={() => setSelectedPhotos(new Set())}
+                    <div className="relative">
+                      <button onClick={() => setArtTagOpen(v => !v)}
+                        className="text-xs px-3 py-1.5 border border-violet-500/30 text-violet-400 hover:bg-violet-500/10 transition-colors flex items-center gap-1.5">
+                        <Palette className="w-3 h-3" /> Tag as Artwork
+                      </button>
+                      {artTagOpen && (
+                        <div className="absolute top-full left-0 mt-1 z-50 bg-card border border-border shadow-xl min-w-[160px]">
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-3 pt-2.5 pb-1">Choose art tag</p>
+                          {ART_TAGS.map(tag => (
+                            <button key={tag}
+                              onClick={() => void bulkTagAsArtwork(selectedList, tag)}
+                              className="w-full text-left px-3 py-2 text-xs hover:bg-muted/40 transition-colors capitalize">
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => { setSelectedPhotos(new Set()); setArtTagOpen(false); }}
                       className="text-xs text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                )}
+                {artTagProgress && (
+                  <div className="flex items-center gap-2 text-xs text-violet-400">
+                    <Palette className="w-3 h-3 animate-pulse" />
+                    {artTagProgress.done < artTagProgress.total
+                      ? `Tagging ${artTagProgress.done}/${artTagProgress.total}…`
+                      : `Tagged ${artTagProgress.total} photo${artTagProgress.total !== 1 ? "s" : ""} as artwork`}
                   </div>
                 )}
                 <span className="text-xs text-muted-foreground ml-auto">{filteredPhotos.length} photos</span>
