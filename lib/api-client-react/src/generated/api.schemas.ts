@@ -64,6 +64,7 @@ export type PhotoStatus = (typeof PhotoStatus)[keyof typeof PhotoStatus];
 export const PhotoStatus = {
   draft: "draft",
   published: "published",
+  pending: "pending",
 } as const;
 
 export interface Photo {
@@ -139,6 +140,7 @@ export type CreatePhotoBodyStatus =
 export const CreatePhotoBodyStatus = {
   draft: "draft",
   published: "published",
+  pending: "pending",
 } as const;
 
 export interface CreatePhotoBody {
@@ -186,6 +188,7 @@ export type UpdatePhotoBodyStatus =
 export const UpdatePhotoBodyStatus = {
   draft: "draft",
   published: "published",
+  pending: "pending",
 } as const;
 
 export interface UpdatePhotoBody {

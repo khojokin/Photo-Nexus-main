@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, sql, eq } from "drizzle-orm";
+import { desc, sql, eq, ne } from "drizzle-orm";
 import { db, photosTable, collectionsTable, collectionPhotosTable } from "@workspace/db";
 import {
   GetFeaturedPhotosResponse,
@@ -58,7 +58,8 @@ router.get("/stats/summary", async (_req, res): Promise<void> => {
       totalLikes: sql<number>`coalesce(sum(${photosTable.likes}), 0)::int`,
       totalDownloads: sql<number>`coalesce(sum(${photosTable.downloads}), 0)::int`,
     })
-    .from(photosTable);
+    .from(photosTable)
+    .where(ne(photosTable.status, "pending"));
 
   const [collectionStats] = await db
     .select({

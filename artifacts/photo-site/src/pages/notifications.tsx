@@ -106,6 +106,7 @@ export function Notifications() {
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const displayName = getDisplayName();
 
   const fetchNotifications = useCallback(async () => {
@@ -251,6 +252,26 @@ export function Notifications() {
           )}
         </div>
 
+        {/* Type filter chips */}
+        {notifications.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-6">
+            {(["all", "like", "comment", "follow", "series_update"] as const).map((type) => {
+              const count = type === "all" ? notifications.length : notifications.filter(n => n.type === type).length;
+              if (count === 0 && type !== "all") return null;
+              const labels: Record<string, string> = { all: "All", like: "Likes", comment: "Comments", follow: "Follows", series_update: "Series" };
+              return (
+                <button
+                  key={type}
+                  onClick={() => setTypeFilter(type)}
+                  className={`px-3 py-1 text-xs border transition-colors ${typeFilter === type ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
+                >
+                  {labels[type] ?? type} {type === "all" ? "" : `(${count})`}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {isDemoMode && (
           <div className="mb-6 px-4 py-3 border border-border/50 bg-muted/10 text-xs text-muted-foreground flex items-center gap-2">
             <Bell className="w-3.5 h-3.5 flex-shrink-0" />
@@ -280,7 +301,7 @@ export function Notifications() {
           </div>
         ) : (
           <div className="border border-border bg-card">
-            {notifications.map((n) => (
+            {notifications.filter(n => typeFilter === "all" || n.type === typeFilter).map((n) => (
               <div
                 key={`${n._source ?? "auth"}-${n.id}`}
                 className={cn(

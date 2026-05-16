@@ -1,7 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
 
 const ADMIN_EMAILS = new Set(
-  (process.env.ADMIN_EMAILS ?? "kingsfordkojo7@gmail.com,kingsfordkojo7@icloud.com")
+  (process.env.ADMIN_EMAILS ?? "kingsfordkojo7@gmail.com,kingsfordkojo7@icloud.com,photographer@affuaa.com")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean)

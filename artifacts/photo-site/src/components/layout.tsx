@@ -4,7 +4,7 @@ import {
   Menu, X, LayoutDashboard, MessageSquare, Upload, User, Settings, Bell,
   LogOut, Activity, BookOpen, Layout as LayoutIcon, Sun, Shield,
   Crown, Lock, Telescope, Search, Tag, ArrowRight, ImageIcon,
-  Home, Compass, FolderOpen, Sparkles, CloudUpload,
+  Home, Compass, FolderOpen, Sparkles, CloudUpload, Moon, Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./notifications";
@@ -966,6 +966,40 @@ function MaintenanceSplash({ config }: { config: MaintenanceConfig }) {
   );
 }
 
+function ThemeToggleRow() {
+  const { theme, setTheme } = useTheme();
+  const themes: { value: Theme; label: string; icon: React.ElementType }[] = [
+    { value: "light", label: "Light", icon: Sun },
+    { value: "dark", label: "Dark", icon: Moon },
+    { value: "sepia", label: "Sepia", icon: Palette },
+  ];
+  return (
+    <div className="border-t border-border/60 p-2">
+      <div className="px-3 py-2">
+        <p className="text-[11px] uppercase tracking-widest text-muted-foreground/50 mb-2">Appearance</p>
+        <div className="flex gap-1">
+          {themes.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              onClick={() => setTheme(value)}
+              title={label}
+              className={cn(
+                "flex-1 flex flex-col items-center gap-1 py-2 rounded-lg text-xs transition-colors",
+                theme === value
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+              )}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1187,6 +1221,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                             );
                           })}
                         </div>
+                        <ThemeToggleRow />
                         <div className="border-t border-border/60 p-2">
                           <button
                             onClick={handleSignOut}

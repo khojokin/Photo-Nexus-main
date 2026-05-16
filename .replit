@@ -90,3 +90,4 @@ externalPort = 3000
 
 [userenv.shared]
 APP_URL = "https://02ce8757-d86a-4a32-b611-5e4756453c1d-00-3kappoerlou8j.spock.replit.dev"
+ADMIN_EMAILS = "photographer@affuaa.com,kingsfordkojo7@gmail.com,kingsfordkojo7@icloud.com"

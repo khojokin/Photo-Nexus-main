@@ -16,18 +16,144 @@ import {
   Heart, Download, Calendar, Maximize2, Share2, Check,
   MessageSquare, Trash2, Send, BookmarkPlus, ChevronDown, Plus, FolderOpen,
   Camera, Aperture, Clock, Zap, Ruler, Shield, Eye, Flag, Code, X,
-  DollarSign, Coffee, Maximize, Minimize, Keyboard,
+  DollarSign, Coffee, Maximize, Minimize, Keyboard, Printer,
   BookOpen, ChevronLeft, ChevronRight, Crown, Lock,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
+import { toast } from "sonner";
 import { useSubscription } from "@/hooks/use-subscription";
 import { usePremiumGate } from "@/hooks/use-premium-gate";
 import { PremiumGateModal } from "@/components/premium-gate-modal";
 import { AdInterstitialModal } from "@/components/ad-interstitial-modal";
 
+const DOWNLOAD_SIZES = [
+  { label: "Small", suffix: "800px", quality: "web-small" },
+  { label: "Medium", suffix: "1600px", quality: "web" },
+  { label: "Large", suffix: "2400px", quality: "hd" },
+  { label: "Original", suffix: "Full res", quality: "original" },
+] as const;
+
+function DownloadSizeSelector({
+  photo,
+  onDownload,
+  isPending,
+  isPremium,
+  isAdmin,
+  adsEnabled,
+}: {
+  photo: { isPremiumOnly?: boolean; width: number; height: number };
+  onDownload: () => void;
+  isPending: boolean;
+  isPremium: boolean;
+  isAdmin: boolean;
+  adsEnabled: boolean;
+}) {
+  const [selectedSize, setSelectedSize] = useState<number>(3);
+  const [showSizes, setShowSizes] = useState(false);
+  const extPhoto = photo as typeof photo & { isPremiumOnly?: boolean };
+  const locked = extPhoto.isPremiumOnly && !isPremium && !isAdmin;
+
+  const sizeLabel = DOWNLOAD_SIZES[selectedSize]?.label ?? "Original";
+  const needsPremium = selectedSize >= 2 && !isPremium && !isAdmin;
+
+  function handleClick() {
+    if (needsPremium) {
+      toast.info("HD downloads require Premium. Downloading web size instead.");
+      return;
+    }
+    onDownload();
+    setShowSizes(false);
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex">
+        <button
+          onClick={handleClick}
+          disabled={isPending || locked}
+          className={cn(
+            "flex-1 h-12 flex items-center justify-center gap-2 text-sm border transition-all disabled:opacity-50",
+            locked
+              ? "border-border/50 text-muted-foreground cursor-not-allowed"
+              : needsPremium
+              ? "border-amber-500/40 text-amber-400 hover:bg-amber-500/5"
+              : "border-border text-foreground hover:bg-accent"
+          )}
+        >
+          {locked ? (
+            <><Lock className="w-4 h-4" /> Premium Only</>
+          ) : needsPremium ? (
+            <><Crown className="w-4 h-4" /> {sizeLabel} (Premium)</>
+          ) : (
+            <><Download className="w-4 h-4" /> Download {sizeLabel}</>
+          )}
+        </button>
+        <button
+          onClick={() => setShowSizes((s) => !s)}
+          className="border border-l-0 border-border px-3 h-12 text-muted-foreground hover:text-foreground hover:bg-accent transition-all"
+          title="Choose size"
+        >
+          <ChevronDown className={cn("w-4 h-4 transition-transform", showSizes && "rotate-180")} />
+        </button>
+      </div>
+      {showSizes && (
+        <div className="absolute top-full left-0 right-0 z-10 bg-background border border-t-0 border-border shadow-xl">
+          {DOWNLOAD_SIZES.map((size, i) => {
+            const isHD = i >= 2;
+            const requiresPremium = isHD && !isPremium && !isAdmin;
+            return (
+              <button
+                key={size.quality}
+                onClick={() => { setSelectedSize(i); setShowSizes(false); if (!requiresPremium) onDownload(); }}
+                className={cn(
+                  "w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors",
+                  selectedSize === i ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  {requiresPremium && <Crown className="w-3.5 h-3.5 text-amber-400" />}
+                  {size.label}
+                </span>
+                <span className="text-xs opacity-60">{size.suffix}</span>
+              </button>
+            );
+          })}
+          <div className="border-t border-border/40 px-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              {photo.width} × {photo.height} original
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const REACTION_EMOJIS = ["❤️", "🔥", "✨", "😮", "🎉"];
+
+function ReadingProgressBar() {
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    function onScroll() {
+      const el = document.documentElement;
+      const scrollable = el.scrollHeight - el.clientHeight;
+      const scrolled = el.scrollTop || document.body.scrollTop;
+      setProgress(scrollable > 0 ? Math.min(100, (scrolled / scrollable) * 100) : 0);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return (
+    <div className="fixed top-0 left-0 right-0 z-[100] h-0.5 bg-transparent pointer-events-none">
+      <div
+        className="h-full bg-foreground/60 transition-all duration-100"
+        style={{ width: `${progress}%` }}
+      />
+    </div>
+  );
+}
 
 function ReactionsPanel({ photoId }: { photoId: number }) {
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -193,8 +319,12 @@ function CommentsSection({ photoId }: { photoId: number }) {
     setSubmitError(null);
     try {
       const ok = await postComment(draft.trim());
-      if (ok) setDraft("");
-      else setSubmitError("Failed to post comment. Please try again.");
+      if (ok) {
+        setDraft("");
+        toast.success("Comment posted!");
+      } else {
+        setSubmitError("Failed to post comment. Please try again.");
+      }
     } catch {
       setSubmitError("Network error.");
     } finally {
@@ -688,6 +818,101 @@ function ColorPalette({ imageUrl }: { imageUrl: string }) {
   );
 }
 
+function RelatedCollections({ photoId }: { photoId: number }) {
+  const [cols, setCols] = useState<Array<{ id: number; name: string; description?: string | null; coverImageUrl?: string | null; photoCount: number }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/collections/for-photo/${photoId}`)
+      .then((r) => r.json())
+      .then((d: { collections?: typeof cols }) => setCols(d.collections ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [photoId]);
+
+  if (!loading && cols.length === 0) return null;
+
+  return (
+    <div className="border-t border-border/30 pt-8 mt-8">
+      <h3 className="text-sm uppercase tracking-widest text-muted-foreground mb-4">Part of</h3>
+      {loading ? (
+        <div className="flex gap-3">
+          {Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-14 w-40" />)}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-3">
+          {cols.map((col) => (
+            <Link
+              key={col.id}
+              href={`/collections/${col.id}`}
+              className="flex items-center gap-3 border border-border/50 hover:border-foreground/40 px-3 py-2 transition-colors group"
+            >
+              {col.coverImageUrl && (
+                <img src={col.coverImageUrl} alt={col.name} className="w-10 h-10 object-cover flex-shrink-0" />
+              )}
+              <div>
+                <p className="text-sm font-medium group-hover:text-muted-foreground transition-colors">{col.name}</p>
+                <p className="text-xs text-muted-foreground">{col.photoCount} photos</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MoreByPhotographer({ photographerName, excludeId }: { photographerName: string; excludeId: number }) {
+  const [photos, setPhotos] = useState<Array<{ id: number; title: string; imageUrl: string; photographerName: string; likes: number; downloads: number; tags: string[]; views: number; width: number; height: number; aspectRatio: string; license: string; status: string; isFeatured: boolean; description?: string | null; camera?: string | null; lens?: string | null; aperture?: string | null; shutterSpeed?: string | null; iso?: number | null; focalLength?: string | null; createdAt: string }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/photos/by-photographer/${encodeURIComponent(photographerName)}?limit=6&excludeId=${excludeId}`)
+      .then((r) => r.json())
+      .then((d: { photos: typeof photos }) => setPhotos(d.photos ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [photographerName, excludeId]);
+
+  if (!loading && photos.length === 0) return null;
+
+  return (
+    <div className="border-t border-border bg-background py-16">
+      <div className="container mx-auto px-4">
+        <div className="flex items-end justify-between mb-8">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Camera className="w-4 h-4 text-muted-foreground" />
+              <h2 className="text-2xl font-serif">More by {photographerName}</h2>
+            </div>
+            <p className="text-sm text-muted-foreground">Other work from this photographer</p>
+          </div>
+          <Link href={`/profile/${encodeURIComponent(photographerName)}`} className="text-sm border-b border-primary pb-1 hover:text-muted-foreground transition-colors">
+            View full portfolio &rarr;
+          </Link>
+        </div>
+        {loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {Array(6).fill(0).map((_, i) => <Skeleton key={i} className="w-full h-[160px]" />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {photos.map((p) => (
+              <Link key={p.id} href={`/photos/${p.id}`} className="group relative overflow-hidden block aspect-square">
+                <img src={p.imageUrl} alt={p.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-end p-2 opacity-0 group-hover:opacity-100">
+                  <p className="text-white text-xs font-medium line-clamp-1">{p.title}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function PhotoDetail() {
   const { id } = useParams<{ id: string }>();
   const photoId = parseInt(id, 10);
@@ -726,7 +951,11 @@ export function PhotoDetail() {
   const handleLike = () => {
     if (!photo) return;
     likeMutation.mutate({ id: photo.id }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetPhotoQueryKey(photo.id) })
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: getGetPhotoQueryKey(photo.id) });
+        toast.success("Photo liked!");
+      },
+      onError: () => toast.error("Couldn't like photo"),
     });
   };
 
@@ -742,9 +971,24 @@ export function PhotoDetail() {
     const doDownload = () => {
       downloadMutation.mutate({ id: photo.id }, {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetPhotoQueryKey(photo.id) });
-          window.open(photo.imageUrl, "_blank");
-        }
+          void queryClient.invalidateQueries({ queryKey: getGetPhotoQueryKey(photo.id) });
+          // Download with attribution filename
+          const slug = photo.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+          const ext = photo.imageUrl.split("?")[0].split(".").pop()?.toLowerCase() || "jpg";
+          const filename = `${slug}-by-${photo.photographerName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-affuaa.${ext}`;
+          fetch(photo.imageUrl)
+            .then(r => r.blob())
+            .then(blob => {
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = filename;
+              a.click();
+              URL.revokeObjectURL(a.href);
+            })
+            .catch(() => window.open(photo.imageUrl, "_blank"));
+          toast.success("Download started!");
+        },
+        onError: () => toast.error("Couldn't download photo"),
       });
     };
 
@@ -765,21 +1009,41 @@ export function PhotoDetail() {
   const handleShare = async () => {
     const url = window.location.href;
     try {
-      if (navigator.share) {
-        await navigator.share({ title: photo?.title, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success("Link copied to clipboard!");
+      setTimeout(() => setCopied(false), 2000);
     } catch {
-      try {
-        await navigator.clipboard.writeText(url);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch { /* ignore */ }
+      toast.error("Couldn't copy link");
     }
   };
+
+  const handleShareTwitter = () => {
+    const url = encodeURIComponent(window.location.href);
+    const text = encodeURIComponent(`Check out "${photo?.title}" on Affuaa`);
+    window.open(`https://x.com/intent/tweet?text=${text}&url=${url}`, "_blank");
+  };
+
+  const handleShareWhatsApp = () => {
+    const url = encodeURIComponent(window.location.href);
+    const text = encodeURIComponent(`Check out "${photo?.title}" on Affuaa: `);
+    window.open(`https://wa.me/?text=${text}${url}`, "_blank");
+  };
+
+  useEffect(() => {
+    if (photo) {
+      const prev = document.title;
+      document.title = `${photo.title} by ${photo.photographerName} · Affuaa`;
+      try {
+        const RECENT_KEY = "affuaa_recently_viewed";
+        const item = { id: photo.id, title: photo.title, imageUrl: photo.imageUrl, photographerName: photo.photographerName };
+        const prev2: Array<{ id: number; title: string; imageUrl: string; photographerName: string }> = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
+        const next2 = [item, ...prev2.filter((p) => p.id !== item.id)].slice(0, 12);
+        localStorage.setItem(RECENT_KEY, JSON.stringify(next2));
+      } catch {}
+      return () => { document.title = prev; };
+    }
+  }, [photo]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -788,10 +1052,17 @@ export function PhotoDetail() {
       if (e.key === "l" || e.key === "L") { if (photo) handleLike(); }
       if (e.key === "Escape") { setFocusMode(false); setShowShortcuts(false); }
       if (e.key === "?") setShowShortcuts((v) => !v);
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        const direction = e.key === "ArrowLeft" ? "prev" : "next";
+        fetch(`/api/photos/adjacent?id=${photoId}&direction=${direction}`)
+          .then((r) => r.ok ? r.json() as Promise<{ id: number } | null> : null)
+          .then((adj) => { if (adj?.id) window.location.href = `/photos/${adj.id}`; })
+          .catch(() => {});
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [photo]);
+  }, [photo, photoId]);
 
   if (isLoading) {
     return (
@@ -826,6 +1097,7 @@ export function PhotoDetail() {
 
   return (
     <Layout>
+      <ReadingProgressBar />
       <PremiumGateModal open={gateOpen} onClose={closeGate} feature={activeFeature} />
       <AdInterstitialModal
         open={adOpen}
@@ -863,7 +1135,7 @@ export function PhotoDetail() {
               <button onClick={() => setShowShortcuts(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
             </div>
             <div className="space-y-2 text-sm">
-              {[["F", "Focus / immersive mode"], ["L", "Like this photo"], ["?", "Show shortcuts"], ["ESC", "Exit / close"]].map(([k, d]) => (
+              {[["F", "Focus / immersive mode"], ["L", "Like this photo"], ["← →", "Prev / next photo"], ["?", "Show shortcuts"], ["ESC", "Exit / close"]].map(([k, d]) => (
                 <div key={k} className="flex items-center justify-between">
                   <span className="text-muted-foreground">{d}</span>
                   <kbd className="px-2 py-0.5 border border-border bg-muted text-xs font-mono">{k}</kbd>
@@ -878,7 +1150,22 @@ export function PhotoDetail() {
         <SeriesPanel seriesId={photo.seriesId} currentPhotoId={photo.id} />
       )}
 
-      <div className="bg-black border-b border-border min-h-[70vh] flex items-center justify-center p-4 md:p-12">
+      <div className="bg-black border-b border-border min-h-[70vh] flex items-center justify-center p-4 md:p-12 relative">
+        <button
+          className="absolute left-3 top-1/2 -translate-y-1/2 z-10 bg-black/40 hover:bg-black/70 text-white/60 hover:text-white p-2 transition-all opacity-0 hover:opacity-100 focus:opacity-100 group-hover:opacity-100"
+          title="Previous photo (←)"
+          onClick={() => {
+            fetch(`/api/photos/adjacent?id=${photoId}&direction=prev`)
+              .then((r) => r.ok ? r.json() as Promise<{ id: number } | null> : null)
+              .then((adj) => { if (adj?.id) window.location.href = `/photos/${adj.id}`; })
+              .catch(() => {});
+          }}
+          style={{ opacity: 0.6 }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.6")}
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
         <div className="relative max-w-6xl w-full group image-glow">
           <img src={photo.imageUrl} alt={photo.title} className="w-full h-auto max-h-[80vh] object-contain mx-auto shadow-2xl" />
           <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
@@ -893,6 +1180,21 @@ export function PhotoDetail() {
             <div className="absolute top-4 left-4 bg-amber-500/90 text-black text-xs font-semibold px-3 py-1">DRAFT</div>
           )}
         </div>
+        <button
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-10 bg-black/40 hover:bg-black/70 text-white/60 hover:text-white p-2 transition-all"
+          title="Next photo (→)"
+          onClick={() => {
+            fetch(`/api/photos/adjacent?id=${photoId}&direction=next`)
+              .then((r) => r.ok ? r.json() as Promise<{ id: number } | null> : null)
+              .then((adj) => { if (adj?.id) window.location.href = `/photos/${adj.id}`; })
+              .catch(() => {});
+          }}
+          style={{ opacity: 0.6 }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.6")}
+        >
+          <ChevronRight className="w-6 h-6" />
+        </button>
       </div>
 
       <div className="container mx-auto px-4 py-16">
@@ -956,26 +1258,34 @@ export function PhotoDetail() {
                 </div>
               </div>
 
-              <div className="mt-6 flex items-center gap-4 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5"><Eye className="w-3.5 h-3.5" /> {photo.views.toLocaleString()} views</span>
-                <span className="flex items-center gap-1.5"><Heart className="w-3.5 h-3.5" /> {photo.likes} likes</span>
-                <span className="flex items-center gap-1.5"><Download className="w-3.5 h-3.5" /> {photo.downloads} downloads</span>
+              <div className="mt-6 flex flex-col gap-3">
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5"><Eye className="w-3.5 h-3.5" /> {photo.views.toLocaleString()} views</span>
+                  <span className="flex items-center gap-1.5"><Heart className="w-3.5 h-3.5" /> {photo.likes} likes</span>
+                  <span className="flex items-center gap-1.5"><Download className="w-3.5 h-3.5" /> {photo.downloads} downloads</span>
+                </div>
+                {photo.likes > 0 && (
+                  <p className="text-xs text-muted-foreground/70 italic">
+                    {photo.likes === 1
+                      ? "1 photographer loves this image."
+                      : `${photo.likes} photographers love this image.`}
+                  </p>
+                )}
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <Button onClick={handleLike} disabled={likeMutation.isPending} className={cn("rounded-none h-12 border transition-all", photo.likes > 0 ? "bg-white text-black hover:bg-white/90" : "bg-transparent text-foreground border-border hover:bg-accent")}>
+              <div className="mt-4 space-y-3">
+                <Button onClick={handleLike} disabled={likeMutation.isPending} className={cn("rounded-none h-12 border w-full transition-all", photo.likes > 0 ? "bg-white text-black hover:bg-white/90" : "bg-transparent text-foreground border-border hover:bg-accent")}>
                   <Heart className={cn("w-4 h-4 mr-2", photo.likes > 0 && "fill-black")} />
                   Like
                 </Button>
-                <Button onClick={handleDownload} disabled={downloadMutation.isPending} className="rounded-none h-12 bg-transparent text-foreground border border-border hover:bg-accent transition-all">
-                  {(() => {
-                    const extPhoto = photo as typeof photo & { isPremiumOnly?: boolean };
-                    if (extPhoto.isPremiumOnly && !isPremium && !isAdmin) return <><Lock className="w-4 h-4 mr-2" />Premium Only</>;
-                    if (isPremium || isAdmin) return <><Download className="w-4 h-4 mr-2" />Download</>;
-                    if (adsEnabled) return <><Download className="w-4 h-4 mr-2" />Free Download</>;
-                    return <><Crown className="w-4 h-4 mr-2" />Premium Download</>;
-                  })()}
-                </Button>
+                <DownloadSizeSelector
+                  photo={photo}
+                  onDownload={handleDownload}
+                  isPending={downloadMutation.isPending}
+                  isPremium={isPremium}
+                  isAdmin={isAdmin}
+                  adsEnabled={adsEnabled}
+                />
               </div>
               {!isPremium && !isAdmin && (() => {
                 const extPhoto = photo as typeof photo & { isPremiumOnly?: boolean };
@@ -986,13 +1296,31 @@ export function PhotoDetail() {
 
               <div className="mt-3 space-y-2">
                 <SaveToCollectionButton photoId={photoId} />
-                <Button
-                  onClick={() => void handleShare()}
-                  variant="outline"
-                  className={cn("w-full rounded-none h-11 border transition-all", copied ? "border-green-500/50 text-green-400 bg-green-500/10" : "border-border text-muted-foreground hover:text-foreground hover:bg-accent")}
-                >
-                  {copied ? <><Check className="w-4 h-4 mr-2" />Link copied!</> : <><Share2 className="w-4 h-4 mr-2" />Share</>}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => void handleShare()}
+                    variant="outline"
+                    className={cn("flex-1 rounded-none h-11 border transition-all", copied ? "border-green-500/50 text-green-400 bg-green-500/10" : "border-border text-muted-foreground hover:text-foreground hover:bg-accent")}
+                  >
+                    {copied ? <><Check className="w-4 h-4 mr-2" />Copied!</> : <><Share2 className="w-4 h-4 mr-2" />Share</>}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleShareTwitter}
+                    className="rounded-none h-11 px-3 border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+                    title="Share on X / Twitter"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.735-8.835L2 2.25h6.926l4.265 5.64 5.053-5.64Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleShareWhatsApp}
+                    className="rounded-none h-11 px-3 border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+                    title="Share on WhatsApp"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  </Button>
+                </div>
               </div>
 
               <ReactionsPanel photoId={photoId} />
@@ -1005,6 +1333,18 @@ export function PhotoDetail() {
                   title="Keyboard shortcuts"
                 >
                   <Keyboard className="w-3.5 h-3.5" /> Shortcuts
+                </button>
+                <button
+                  onClick={() => {
+                    if (!photo) return;
+                    const win = window.open("", "_blank");
+                    if (!win) return;
+                    win.document.write(`<!DOCTYPE html><html><head><title>${photo.title}</title><style>body{margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh}img{max-width:100%;max-height:100vh;object-fit:contain}@media print{body{background:#fff}}</style></head><body><img src="${photo.imageUrl}" alt="${photo.title}" onload="setTimeout(()=>window.print(),300)" /></body></html>`);
+                    win.document.close();
+                  }}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Print
                 </button>
                 <button
                   onClick={() => {
@@ -1025,6 +1365,7 @@ export function PhotoDetail() {
 
             <ExifPanel photo={photo} />
             <ColorPalette imageUrl={photo.imageUrl} />
+            <RelatedCollections photoId={photoId} />
             <TipSection photographerName={photo.photographerName} />
           </div>
         </div>
@@ -1035,6 +1376,8 @@ export function PhotoDetail() {
         photoTags={photo.tags}
         primaryTag={photo.tags[0]}
       />
+
+      <MoreByPhotographer photographerName={photo.photographerName} excludeId={photoId} />
 
       <CommentsSection photoId={photoId} />
     </Layout>

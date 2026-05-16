@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { Layout } from "@/components/layout";
 import { useTheme } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -179,6 +180,7 @@ export function Settings() {
     window.dispatchEvent(new CustomEvent("affuaa-settings-changed", { detail: toSave }));
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+    toast.success("Settings saved");
   }
 
   function handleChooseProfileImage() {

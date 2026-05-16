@@ -1,6 +1,8 @@
+import React, { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/auth-context";
 import { ThemeProvider } from "@/components/layout";
@@ -47,6 +49,81 @@ const queryClient = new QueryClient({
   },
 });
 
+const SETTINGS_KEY = "affuaa_settings";
+
+function AppInit() {
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (!raw) {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify({ displayName: "Alex Morgan" }));
+      } else {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (!parsed["displayName"]) {
+          parsed["displayName"] = "Alex Morgan";
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(parsed));
+        }
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement;
+      const inInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+      if (e.key === "/" && !inInput) {
+        e.preventDefault();
+        const searchBtn = document.querySelector<HTMLElement>("[aria-label='Open search']");
+        if (searchBtn) searchBtn.click();
+      }
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, []);
+
+  return null;
+}
+
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center max-w-md px-4">
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4">Error</p>
+            <h1 className="text-2xl font-serif mb-4">Something went wrong</h1>
+            <p className="text-muted-foreground text-sm mb-8">
+              {this.state.error?.message ?? "An unexpected error occurred."}
+            </p>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false });
+                window.location.href = "/";
+              }}
+              className="px-8 py-2.5 bg-foreground text-background text-sm hover:opacity-80 transition-opacity"
+            >
+              Return Home
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function Router() {
   return (
     <Switch>
@@ -87,22 +164,26 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <ThemeProvider>
-            <TasteProfileProvider>
-              <UploadProgressProvider>
-                <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-                  <Router />
-                </WouterRouter>
-              </UploadProgressProvider>
-            </TasteProfileProvider>
-          </ThemeProvider>
-        </AuthProvider>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AuthProvider>
+            <ThemeProvider>
+              <TasteProfileProvider>
+                <UploadProgressProvider>
+                  <AppInit />
+                  <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                    <Router />
+                  </WouterRouter>
+                </UploadProgressProvider>
+              </TasteProfileProvider>
+            </ThemeProvider>
+          </AuthProvider>
+          <Toaster />
+          <Sonner position="bottom-right" richColors closeButton />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, ilike, sql, or, and } from "drizzle-orm";
+import { eq, desc, ilike, sql, or, and, ne } from "drizzle-orm";
 import { db, photosTable, notificationsTable, photographerProfilesTable } from "@workspace/db";
 import { requireAdmin } from "../middlewares/adminMiddleware";
 import {
@@ -32,7 +32,8 @@ router.get("/photos", async (req, res): Promise<void> => {
   const { page, limit, tag, search, sort } = parsed.data;
   const offset = (page - 1) * limit;
 
-  let whereClause = undefined;
+  // Exclude pending photos from public view
+  const notPending = ne(photosTable.status, "pending");
 
   const searchCondition = search
     ? or(
@@ -42,15 +43,15 @@ router.get("/photos", async (req, res): Promise<void> => {
       )
     : undefined;
 
+  let whereClause;
   if (searchCondition && tag) {
-    whereClause = and(
-      searchCondition,
-      sql`${photosTable.tags} @> ARRAY[${tag}]::text[]`
-    );
+    whereClause = and(notPending, searchCondition, sql`${photosTable.tags} @> ARRAY[${tag}]::text[]`);
   } else if (searchCondition) {
-    whereClause = searchCondition;
+    whereClause = and(notPending, searchCondition);
   } else if (tag) {
-    whereClause = sql`${photosTable.tags} @> ARRAY[${tag}]::text[]`;
+    whereClause = and(notPending, sql`${photosTable.tags} @> ARRAY[${tag}]::text[]`);
+  } else {
+    whereClause = notPending;
   }
 
   let orderBy;
@@ -346,6 +347,25 @@ router.post("/photos/:id/download", async (req, res): Promise<void> => {
   res.json(DownloadPhotoResponse.parse(photo));
 });
 
+router.get("/photos/adjacent", async (req, res): Promise<void> => {
+  const id = parseInt(req.query["id"] as string, 10);
+  const direction = req.query["direction"] as string;
+  if (isNaN(id) || !["prev", "next"].includes(direction)) {
+    res.status(400).json({ error: "Invalid params" });
+    return;
+  }
+  const allIds = await db
+    .select({ id: photosTable.id })
+    .from(photosTable)
+    .where(sql`${photosTable.status} = 'published'`)
+    .orderBy(photosTable.id);
+  const idx = allIds.findIndex((p) => p.id === id);
+  if (idx === -1) { res.status(404).json(null); return; }
+  const adjIdx = direction === "next" ? idx + 1 : idx - 1;
+  const adj = allIds[adjIdx];
+  res.json(adj ?? null);
+});
+
 router.get("/photos/random", async (_req, res): Promise<void> => {
   const [photo] = await db
     .select()
@@ -378,6 +398,37 @@ router.get("/photos/:id/analytics", async (req, res): Promise<void> => {
     engagement: photo.likes + photo.downloads,
     score: photo.likes + photo.downloads * 2 + Math.floor(photo.views / 10),
   });
+});
+
+router.get("/photos/by-photographer/:name", async (req, res): Promise<void> => {
+  const name = decodeURIComponent(req.params.name);
+  const limit = Math.min(Number(req.query.limit ?? 12), 24);
+  const excludeId = req.query.excludeId ? Number(req.query.excludeId) : null;
+
+  const photos = await db
+    .select()
+    .from(photosTable)
+    .where(
+      and(
+        ne(photosTable.status, "pending"),
+        ilike(photosTable.photographerName, name),
+      )
+    )
+    .orderBy(desc(photosTable.likes))
+    .limit(limit + (excludeId ? 1 : 0));
+
+  const filtered = excludeId ? photos.filter((p) => p.id !== excludeId) : photos;
+  res.json({ photos: filtered.slice(0, limit) });
+});
+
+router.get("/admin/photos", requireAdmin, async (req, res): Promise<void> => {
+  const limit = Math.min(Number(req.query.limit ?? 500), 500);
+  const photos = await db
+    .select()
+    .from(photosTable)
+    .orderBy(desc(photosTable.createdAt))
+    .limit(limit);
+  res.json({ photos, total: photos.length });
 });
 
 router.get("/users/me/photos", async (req, res): Promise<void> => {

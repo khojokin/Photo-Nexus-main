@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { desc } from "drizzle-orm";
+import { desc, ne } from "drizzle-orm";
 import { db, photosTable } from "@workspace/db";
 
 const router = Router();
@@ -8,6 +8,7 @@ router.get("/activity", async (_req, res): Promise<void> => {
   const recentPhotos = await db
     .select()
     .from(photosTable)
+    .where(ne(photosTable.status, "pending"))
     .orderBy(desc(photosTable.createdAt))
     .limit(40);
 

@@ -89,8 +89,8 @@ function formatGiB(bytes: number): string {
 const NAV: { id: Section; label: string; icon: React.ElementType; badge?: string }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
-  { id: "photos", label: "Photos", icon: Image, badge: "33" },
-  { id: "users", label: "Users", icon: Users, badge: "8" },
+  { id: "photos", label: "Photos", icon: Image },
+  { id: "users", label: "Users", icon: Users },
   { id: "collections", label: "Collections", icon: FolderOpen },
   { id: "moderation", label: "Moderation", icon: Shield },
   { id: "tags", label: "Tags", icon: Tag },
@@ -291,6 +291,8 @@ export function Admin() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [userSearch, setUserSearch] = useState("");
   const [photoSearch, setPhotoSearch] = useState("");
+  const [photoStatusFilter, setPhotoStatusFilter] = useState<"all" | "published" | "pending" | "draft">("all");
+  const [approvingPhotos, setApprovingPhotos] = useState<Set<number>>(new Set());
   const [selectedPhotos, setSelectedPhotos] = useState<Set<number>>(new Set());
   const [analyticsData, setAnalyticsData] = useState<{ dailyStats: DailyStat[]; photographerStats: PhotographerStat[] } | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
@@ -640,7 +642,16 @@ export function Admin() {
   });
 
   const { data: summary } = useGetSiteSummary();
-  const { data: photosData } = useListPhotos({ limit: 50 });
+  const { data: photosDataPublic } = useListPhotos({ limit: 200 });
+  const [adminPhotosData, setAdminPhotosData] = useState<{ photos: Photo[]; total: number } | null>(null);
+  const photosRefetch = useCallback(async () => {
+    try {
+      const r = await fetch("/api/admin/photos?limit=500", { credentials: "include" });
+      if (r.ok) setAdminPhotosData(await r.json() as { photos: Photo[]; total: number });
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { void photosRefetch(); }, [photosRefetch]);
+  const photosData = adminPhotosData ?? photosDataPublic;
   const { data: collectionsData } = useListCollections();
   const { data: tagsData } = useListTags();
   const { data: trendingData } = useGetTrendingPhotos();
@@ -1002,6 +1013,31 @@ export function Admin() {
     }
   }
 
+  async function approvePhoto(photoId: number) {
+    setApprovingPhotos(prev => new Set(prev).add(photoId));
+    try {
+      await fetch(`/api/photos/${photoId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ status: "published" }),
+      });
+      photosRefetch?.();
+    } catch { /* ignore */ } finally {
+      setApprovingPhotos(prev => { const n = new Set(prev); n.delete(photoId); return n; });
+    }
+  }
+
+  async function rejectPhoto(photoId: number) {
+    setApprovingPhotos(prev => new Set(prev).add(photoId));
+    try {
+      const r = await fetch(`/api/photos/${photoId}`, { method: "DELETE", credentials: "include" });
+      if (r.ok || r.status === 204) {
+        setDeletedPhotoIds(prev => new Set(prev).add(photoId));
+      }
+    } catch { /* ignore */ } finally {
+      setApprovingPhotos(prev => { const n = new Set(prev); n.delete(photoId); return n; });
+    }
+  }
+
   async function createCollection() {
     if (!newCollForm.name.trim()) return;
     setSavingColl(true);
@@ -1197,8 +1233,12 @@ export function Admin() {
     const title = String((p as { title?: unknown }).title ?? "").toLowerCase();
     const photographerName = String((p as { photographerName?: unknown }).photographerName ?? "").toLowerCase();
     const query = photoSearch.toLowerCase();
-    return title.includes(query) || photographerName.includes(query);
+    const matchesQuery = title.includes(query) || photographerName.includes(query);
+    const matchesStatus = photoStatusFilter === "all" || (p as { status?: string }).status === photoStatusFilter;
+    return matchesQuery && matchesStatus;
   });
+  const pendingPhotos = displayPhotos.filter(p => (p as { status?: string }).status === "pending");
+  const pendingPhotoCount = pendingPhotos.length;
   const displayCollections = [
     ...pendingCollections,
     ...collections
@@ -1206,9 +1246,9 @@ export function Admin() {
       .map(c => editedCollections.has(c.id) ? { ...c, ...editedCollections.get(c.id) } as Collection : c),
   ];
   const selectedList = Array.from(selectedPhotos);
-  const dailyUploads = analyticsData?.dailyStats.map(d => d.uploads) ?? [];
-  const dailyDownloads = analyticsData?.dailyStats.map(d => d.downloads) ?? [];
-  const dailyLikes = analyticsData?.dailyStats.map(d => d.likes) ?? [];
+  const dailyUploads = analyticsData?.dailyStats?.map(d => d.uploads) ?? [];
+  const dailyDownloads = analyticsData?.dailyStats?.map(d => d.downloads) ?? [];
+  const dailyLikes = analyticsData?.dailyStats?.map(d => d.likes) ?? [];
   const photographerStats = analyticsData?.photographerStats ?? [];
   const maxPhotographerScore = photographerStats.reduce((m, p) => Math.max(m, p.total_likes + p.total_downloads), 1);
   const spotlightCandidates = users.filter(u => u.status === "active");
@@ -1268,7 +1308,7 @@ export function Admin() {
         {NAV.map(item => {
           const Icon = item.icon;
           const active = section === item.id;
-          const badgeVal = item.id === "moderation" ? pending.length : undefined;
+          const badgeVal = item.id === "moderation" ? pending.length : item.id === "photos" ? pendingPhotoCount : undefined;
           return (
             <button key={item.id} onClick={() => { setSection(item.id); setMobileSidebarOpen(false); }}
               className={cn(
@@ -1600,6 +1640,28 @@ export function Admin() {
           {section === "photos" && (
             <div>
               <SectionTitle sub="Browse, feature, and manage all submitted photos">Photos</SectionTitle>
+
+              {/* Status filter tabs */}
+              <div className="flex items-center gap-1 mb-5 border-b border-border">
+                {(["all", "published", "pending", "draft"] as const).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setPhotoStatusFilter(s)}
+                    className={cn(
+                      "px-4 py-2 text-xs uppercase tracking-widest transition-colors relative",
+                      photoStatusFilter === s
+                        ? "text-foreground border-b-2 border-foreground -mb-px"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+                    {s === "pending" && pendingPhotoCount > 0 && (
+                      <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold">{pendingPhotoCount}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
               <div className="flex items-center gap-3 mb-5 flex-wrap">
                 <div className="relative flex-1 min-w-48">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -1769,8 +1831,25 @@ export function Admin() {
                             </button>
                           </td>
                           <td className="px-4 py-2.5 flex items-center gap-2">
-                            <button onClick={() => setEditingPhotoId(editingPhotoId === p.id ? null : p.id)}
-                              className="text-muted-foreground hover:text-foreground transition-colors"><Edit3 className="w-3.5 h-3.5" /></button>
+                            {(p as { status?: string }).status === "pending" ? (
+                              <>
+                                <button
+                                  onClick={() => void approvePhoto(p.id)}
+                                  disabled={approvingPhotos.has(p.id)}
+                                  title="Approve — publish this photo"
+                                  className={cn("text-green-400/70 hover:text-green-400 transition-colors", approvingPhotos.has(p.id) && "opacity-40")}
+                                ><Check className="w-3.5 h-3.5" /></button>
+                                <button
+                                  onClick={() => setConfirm({ title: "Reject this photo?", desc: `"${String((p as {title?:unknown}).title ?? p.id)}" will be permanently removed.`, confirmLabel: "Reject", onConfirm: () => void rejectPhoto(p.id) })}
+                                  disabled={approvingPhotos.has(p.id)}
+                                  title="Reject — delete this photo"
+                                  className={cn("text-red-400/70 hover:text-red-400 transition-colors", approvingPhotos.has(p.id) && "opacity-40")}
+                                ><X className="w-3.5 h-3.5" /></button>
+                              </>
+                            ) : (
+                              <button onClick={() => setEditingPhotoId(editingPhotoId === p.id ? null : p.id)}
+                                className="text-muted-foreground hover:text-foreground transition-colors"><Edit3 className="w-3.5 h-3.5" /></button>
+                            )}
                             <button
                               onClick={() => setConfirm({ title: "Delete this photo?", desc: `"${String((p as {title?:unknown}).title ?? p.id)}" will be permanently removed.`, confirmLabel: "Delete", onConfirm: () => void deletePhoto(p.id) })}
                               disabled={deletingPhotoIds.has(p.id)}

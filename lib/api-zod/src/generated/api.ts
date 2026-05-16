@@ -71,7 +71,7 @@ export const ListPhotosResponse = zod.object({
         .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
         .default(listPhotosResponsePhotosItemLicenseDefault),
       status: zod
-        .enum(["draft", "published"])
+        .enum(["draft", "published", "pending"])
         .default(listPhotosResponsePhotosItemStatusDefault),
     }),
   ),
@@ -102,7 +102,7 @@ export const CreatePhotoBody = zod.object({
   license: zod
     .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
     .optional(),
-  status: zod.enum(["draft", "published"]).optional(),
+  status: zod.enum(["draft", "published", "pending"]).optional(),
 });
 
 /**
@@ -150,7 +150,7 @@ export const GetPhotoResponse = zod.object({
     .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
     .default(getPhotoResponseLicenseDefault),
   status: zod
-    .enum(["draft", "published"])
+    .enum(["draft", "published", "pending"])
     .default(getPhotoResponseStatusDefault),
 });
 
@@ -181,7 +181,7 @@ export const UpdatePhotoBody = zod.object({
   license: zod
     .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
     .optional(),
-  status: zod.enum(["draft", "published"]).optional(),
+  status: zod.enum(["draft", "published", "pending"]).optional(),
 });
 
 export const updatePhotoResponseLicenseDefault = `cc0`;
@@ -222,7 +222,7 @@ export const UpdatePhotoResponse = zod.object({
     .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
     .default(updatePhotoResponseLicenseDefault),
   status: zod
-    .enum(["draft", "published"])
+    .enum(["draft", "published", "pending"])
     .default(updatePhotoResponseStatusDefault),
 });
 
@@ -300,7 +300,7 @@ export const SetPotdPhotoResponse = zod.object({
     .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
     .default(setPotdPhotoResponseLicenseDefault),
   status: zod
-    .enum(["draft", "published"])
+    .enum(["draft", "published", "pending"])
     .default(setPotdPhotoResponseStatusDefault),
 });
 
@@ -349,7 +349,7 @@ export const UnsetPotdPhotoResponse = zod.object({
     .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
     .default(unsetPotdPhotoResponseLicenseDefault),
   status: zod
-    .enum(["draft", "published"])
+    .enum(["draft", "published", "pending"])
     .default(unsetPotdPhotoResponseStatusDefault),
 });
 
@@ -402,7 +402,7 @@ export const SetHomepageHeroResponse = zod.object({
     .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
     .default(setHomepageHeroResponseLicenseDefault),
   status: zod
-    .enum(["draft", "published"])
+    .enum(["draft", "published", "pending"])
     .default(setHomepageHeroResponseStatusDefault),
 });
 
@@ -448,7 +448,7 @@ export const GetHomepageHeroResponse = zod.union([
       .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
       .default(getHomepageHeroResponseOneLicenseDefault),
     status: zod
-      .enum(["draft", "published"])
+      .enum(["draft", "published", "pending"])
       .default(getHomepageHeroResponseOneStatusDefault),
   }),
   zod.null(),
@@ -499,7 +499,7 @@ export const LikePhotoResponse = zod.object({
     .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
     .default(likePhotoResponseLicenseDefault),
   status: zod
-    .enum(["draft", "published"])
+    .enum(["draft", "published", "pending"])
     .default(likePhotoResponseStatusDefault),
 });
 
@@ -548,7 +548,7 @@ export const DownloadPhotoResponse = zod.object({
     .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
     .default(downloadPhotoResponseLicenseDefault),
   status: zod
-    .enum(["draft", "published"])
+    .enum(["draft", "published", "pending"])
     .default(downloadPhotoResponseStatusDefault),
 });
 
@@ -626,7 +626,7 @@ export const GetCollectionResponse = zod.object({
         .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
         .default(getCollectionResponsePhotosItemLicenseDefault),
       status: zod
-        .enum(["draft", "published"])
+        .enum(["draft", "published", "pending"])
         .default(getCollectionResponsePhotosItemStatusDefault),
     }),
   ),
@@ -711,7 +711,7 @@ export const GetFollowingFeedResponse = zod.object({
         .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
         .default(getFollowingFeedResponsePhotosItemLicenseDefault),
       status: zod
-        .enum(["draft", "published"])
+        .enum(["draft", "published", "pending"])
         .default(getFollowingFeedResponsePhotosItemStatusDefault),
     }),
   ),
@@ -761,7 +761,7 @@ export const GetFeaturedPhotosResponseItem = zod.object({
     .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
     .default(getFeaturedPhotosResponseLicenseDefault),
   status: zod
-    .enum(["draft", "published"])
+    .enum(["draft", "published", "pending"])
     .default(getFeaturedPhotosResponseStatusDefault),
 });
 export const GetFeaturedPhotosResponse = zod.array(
@@ -809,7 +809,7 @@ export const GetTrendingPhotosResponseItem = zod.object({
     .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
     .default(getTrendingPhotosResponseLicenseDefault),
   status: zod
-    .enum(["draft", "published"])
+    .enum(["draft", "published", "pending"])
     .default(getTrendingPhotosResponseStatusDefault),
 });
 export const GetTrendingPhotosResponse = zod.array(
@@ -878,7 +878,7 @@ export const GetMyPhotosResponse = zod.object({
         .enum(["cc0", "cc-by", "cc-by-sa", "editorial", "all-rights-reserved"])
         .default(getMyPhotosResponsePhotosItemLicenseDefault),
       status: zod
-        .enum(["draft", "published"])
+        .enum(["draft", "published", "pending"])
         .default(getMyPhotosResponsePhotosItemStatusDefault),
     }),
   ),

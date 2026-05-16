@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import { Link, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import {
@@ -263,13 +264,17 @@ export function Upload() {
       if (r.ok || r.status === 201) {
         const data = await r.json() as { id: number };
         updateItem(id, { status: "done", photoId: data.id });
+        toast.success("Photo published successfully");
         if (data.id) navigate(`/photos/${data.id}`);
       } else {
         const data = await r.json().catch(() => ({})) as { error?: string };
-        updateItem(id, { status: "ready", errorMsg: data.error ?? "Publish failed" });
+        const errMsg = data.error ?? "Publish failed";
+        updateItem(id, { status: "ready", errorMsg: errMsg });
+        toast.error(errMsg);
       }
     } catch {
       updateItem(id, { status: "ready", errorMsg: "Network error" });
+      toast.error("Network error — could not publish");
     }
   }
 

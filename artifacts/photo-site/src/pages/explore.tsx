@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import {
   Search, LayoutGrid, Rows, X, Shuffle, Clock, History,
-  RectangleVertical, RectangleHorizontal, Square, Layers,
+  RectangleVertical, RectangleHorizontal, Square, Layers, ArrowUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -81,6 +81,39 @@ function matchesTime(photo: Photo, time: TimeFilter): boolean {
   return tags.some(t => keywords.some(k => t.toLowerCase().includes(k)));
 }
 
+function TrendingTagsRow({
+  tags,
+  activeSearch,
+  onTagClick,
+}: {
+  tags: Array<{ name: string; photoCount: number }>;
+  activeSearch: string;
+  onTagClick: (tag: string) => void;
+}) {
+  if (tags.length === 0) return null;
+  const top = tags.slice(0, 14);
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap mt-1">
+      <span className="text-xs text-muted-foreground mr-0.5">Popular:</span>
+      {top.map((t) => (
+        <button
+          key={t.name}
+          onClick={() => onTagClick(t.name)}
+          className={cn(
+            "px-2.5 py-1 text-xs border transition-colors",
+            activeSearch === t.name
+              ? "border-foreground text-foreground bg-foreground/5"
+              : "border-border/40 text-muted-foreground hover:text-foreground hover:border-border"
+          )}
+        >
+          {t.name}
+          <span className="ml-1 opacity-40 text-[10px]">{t.photoCount}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Explore() {
   const [match, params] = useRoute("/tags/:tag");
   const activeTag = match ? params.tag : null;
@@ -98,7 +131,9 @@ export function Explore() {
   // Search history
   const [searchHistory, setSearchHistory] = useState<string[]>(() => loadSearchHistory());
   const [showHistory, setShowHistory] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!activeMood) { setMoodPhotos([]); return; }
@@ -135,6 +170,7 @@ export function Explore() {
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevKey = useRef<string>("");
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   function handleSearchChange(value: string) {
     setInputValue(value);
@@ -172,6 +208,26 @@ export function Explore() {
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // Keyboard shortcut: / focuses search input on this page
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== "/") return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
+
+  // Back-to-top scroll tracking
+  useEffect(() => {
+    function onScroll() { setShowBackToTop(window.scrollY > 600); }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   const filterKey = `${search}|${sort}|${activeTag ?? ""}`;
@@ -237,6 +293,20 @@ export function Explore() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [lightboxIndex, filteredPhotos.length]);
 
+  // Infinite scroll
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el || !hasMore || isFetching) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) setPage((p) => p + 1);
+      },
+      { rootMargin: "400px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, isFetching]);
+
   const isFirstLoad = loadingPhotos && page === 1;
   const hasActiveClientFilter = aspectRatio !== "all" || season !== "all" || timeOfDay !== "all";
 
@@ -253,6 +323,7 @@ export function Explore() {
             <div className="relative w-full md:w-96" ref={searchContainerRef}>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
               <Input
+                ref={searchInputRef}
                 placeholder="Search by title, photographer, or tag…"
                 value={inputValue}
                 onChange={(e) => handleSearchChange(e.target.value)}
@@ -417,6 +488,20 @@ export function Explore() {
                 ))}
               </div>
 
+              {/* Popular Tags */}
+              {Array.isArray(tags) && tags.length > 0 && (
+                <TrendingTagsRow
+                  tags={tags}
+                  activeSearch={search}
+                  onTagClick={(tag) => {
+                    setInputValue(tag);
+                    setSearch(tag);
+                    saveSearchHistory(tag);
+                    setSearchHistory(loadSearchHistory());
+                  }}
+                />
+              )}
+
               {hasActiveClientFilter && (
                 <button
                   onClick={() => { setAspectRatio("all"); setSeason("all"); setTimeOfDay("all"); }}
@@ -526,21 +611,20 @@ export function Explore() {
             )}
 
             {hasMore && (
-              <div className="mt-16 text-center">
-                <button
-                  onClick={handleLoadMore}
-                  disabled={isFetching}
-                  className="inline-flex items-center justify-center border border-input bg-transparent px-10 py-3 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
-                >
-                  {isFetching ? (
-                    <span className="flex items-center gap-2">
-                      <span className="w-4 h-4 rounded-full border-2 border-muted border-t-foreground animate-spin" />
-                      Loading…
-                    </span>
-                  ) : (
-                    `Load More (${totalPhotos - allPhotos.length} remaining)`
-                  )}
-                </button>
+              <div ref={loadMoreRef} className="mt-16 py-8 flex flex-col items-center gap-3">
+                {isFetching && (
+                  <>
+                    <div className="w-5 h-5 rounded-full border-2 border-muted border-t-foreground animate-spin" />
+                    <p className="text-xs text-muted-foreground">Loading more photographs…</p>
+                  </>
+                )}
+              </div>
+            )}
+            {!hasMore && allPhotos.length > 0 && (
+              <div className="mt-16 py-10 text-center border-t border-border/30">
+                <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                  You've seen all {totalPhotos} photographs
+                </p>
               </div>
             )}
           </>
@@ -553,6 +637,17 @@ export function Explore() {
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
         />
+      )}
+
+      {/* Back to top */}
+      {showBackToTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-8 right-8 z-40 w-10 h-10 bg-foreground text-background flex items-center justify-center shadow-lg hover:opacity-80 transition-opacity"
+          title="Back to top"
+        >
+          <ArrowUp className="w-4 h-4" />
+        </button>
       )}
     </Layout>
   );

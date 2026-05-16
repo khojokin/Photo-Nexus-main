@@ -176,4 +176,31 @@ router.post("/collections/:id/photos", async (req, res): Promise<void> => {
   });
 });
 
+router.get("/collections/for-photo/:photoId", async (req, res): Promise<void> => {
+  const photoId = parseInt(req.params.photoId ?? "", 10);
+  if (isNaN(photoId)) {
+    res.status(400).json({ error: "Invalid photoId" });
+    return;
+  }
+
+  const collections = await db
+    .select({
+      id: collectionsTable.id,
+      name: collectionsTable.name,
+      description: collectionsTable.description,
+      coverImageUrl: collectionsTable.coverImageUrl,
+      photoCount: sql<number>`count(cp2.photo_id)::int`,
+    })
+    .from(collectionPhotosTable)
+    .innerJoin(collectionsTable, eq(collectionPhotosTable.collectionId, collectionsTable.id))
+    .leftJoin(
+      sql`collection_photos as cp2`,
+      sql`cp2.collection_id = ${collectionsTable.id}`
+    )
+    .where(eq(collectionPhotosTable.photoId, photoId))
+    .groupBy(collectionsTable.id, collectionsTable.name, collectionsTable.description, collectionsTable.coverImageUrl);
+
+  res.json({ collections });
+});
+
 export default router;

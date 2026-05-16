@@ -759,7 +759,7 @@ components:
           default: cc0
         status:
           type: string
-          enum: [draft, published]
+          enum: [draft, published, pending]
           default: published
       required:
         - id
@@ -837,7 +837,7 @@ components:
           enum: [cc0, cc-by, cc-by-sa, editorial, all-rights-reserved]
         status:
           type: string
-          enum: [draft, published]
+          enum: [draft, published, pending]
       required:
         - title
         - imageUrl
@@ -888,7 +888,7 @@ components:
           enum: [cc0, cc-by, cc-by-sa, editorial, all-rights-reserved]
         status:
           type: string
-          enum: [draft, published]
+          enum: [draft, published, pending]
 
     Collection:
       type: object

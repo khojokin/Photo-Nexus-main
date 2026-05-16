@@ -9,11 +9,12 @@ import type { Photo } from "@workspace/api-client-react";
 import {
   BadgeCheck, Camera, MapPin, Globe, MessageSquare, Calendar,
   Instagram, Twitter, UserPlus, UserCheck, Loader2, Users,
-  Trophy, Award, Star, Zap, TrendingUp, X, BookOpen,
+  Trophy, Award, Star, Zap, TrendingUp, X, BookOpen, Briefcase,
 } from "lucide-react";
 import { SeriesManagerTab } from "@/components/series-manager-tab";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const SETTINGS_KEY = "affuaa_settings";
 
@@ -25,6 +26,10 @@ interface ProfileSettings {
   website: string;
   instagram: string;
   twitter: string;
+  availableForHire: boolean;
+  styleTags: string;
+  equipment: string;
+  hireMeUrl: string;
 }
 
 function loadSettings(): ProfileSettings {
@@ -40,10 +45,14 @@ function loadSettings(): ProfileSettings {
         website: (parsed.website as string) ?? "",
         instagram: (parsed.instagram as string) ?? "",
         twitter: (parsed.twitter as string) ?? "",
+        availableForHire: (parsed.availableForHire as boolean) ?? false,
+        styleTags: (parsed.styleTags as string) ?? "",
+        equipment: (parsed.equipment as string) ?? "",
+        hireMeUrl: (parsed.hireMeUrl as string) ?? "",
       };
     }
   } catch { /* ignore */ }
-  return { profileImageDataUrl: "", displayName: "", bio: "", location: "", website: "", instagram: "", twitter: "" };
+  return { profileImageDataUrl: "", displayName: "", bio: "", location: "", website: "", instagram: "", twitter: "", availableForHire: false, styleTags: "", equipment: "", hireMeUrl: "" };
 }
 
 const VERIFIED_PHOTOGRAPHERS = [
@@ -162,7 +171,11 @@ function useFollowStats(name: string) {
       if (res.ok || res.status === 201) {
         const data = await res.json() as { followerCount: number };
         setFollowerCount(data.followerCount);
-        setIsFollowing((prev) => !prev);
+        setIsFollowing((prev) => {
+          const next = !prev;
+          toast.success(next ? `Following ${name}` : `Unfollowed ${name}`);
+          return next;
+        });
       }
     } finally {
       setToggling(false);
@@ -692,19 +705,33 @@ export function Profile() {
                     Verified
                   </span>
                 )}
+                {settings.availableForHire && (
+                  <span className="flex items-center gap-1 bg-green-500/10 border border-green-500/30 text-green-400 text-xs px-2 py-0.5">
+                    <Briefcase className="w-3 h-3" />
+                    Available for Hire
+                  </span>
+                )}
               </div>
 
-              {isOwnProfile && settings.bio && (
+              {settings.bio && (
                 <p className="text-muted-foreground text-sm mb-4 max-w-xl">{settings.bio}</p>
               )}
 
+              {/* Equipment line */}
+              {isOwnProfile && settings.equipment && (
+                <p className="text-xs text-muted-foreground/60 mb-3 flex items-center gap-1.5">
+                  <span className="uppercase tracking-widest text-[10px]">Gear:</span>
+                  {settings.equipment}
+                </p>
+              )}
+
               <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground mb-5">
-                {isOwnProfile && settings.location && (
+                {settings.location && (
                   <span className="flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5" /> {settings.location}
                   </span>
                 )}
-                {isOwnProfile && settings.website && (
+                {settings.website && (
                   <a
                     href={settings.website}
                     target="_blank"
@@ -715,7 +742,7 @@ export function Profile() {
                     {settings.website.replace(/^https?:\/\//, "")}
                   </a>
                 )}
-                {isOwnProfile && settings.instagram && (
+                {settings.instagram && (
                   <a
                     href={`https://instagram.com/${settings.instagram}`}
                     target="_blank"
@@ -726,7 +753,7 @@ export function Profile() {
                     @{settings.instagram}
                   </a>
                 )}
-                {isOwnProfile && settings.twitter && (
+                {settings.twitter && (
                   <a
                     href={`https://x.com/${settings.twitter}`}
                     target="_blank"
@@ -744,6 +771,17 @@ export function Profile() {
                   </span>
                 )}
               </div>
+
+              {/* Style tags / specialties chips */}
+              {settings.styleTags && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {settings.styleTags.split(",").map(s => s.trim()).filter(Boolean).map(spec => (
+                    <span key={spec} className="px-3 py-1 bg-muted/30 border border-border/40 text-xs text-muted-foreground">
+                      {spec}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {/* Stats row */}
               <div className="flex items-center gap-6 mb-6 flex-wrap">
@@ -837,6 +875,13 @@ export function Profile() {
                       <MessageSquare className="w-3.5 h-3.5" />
                       Message
                     </Link>
+                    <a
+                      href={`mailto:${displayName.toLowerCase().replace(/\s+/g, ".")}@photographers.affuaa.com?subject=Hire%20Inquiry%20via%20Affuaa&body=Hi%20${encodeURIComponent(displayName)},%0A%0AI%20came%20across%20your%20portfolio%20on%20Affuaa%20and%20would%20love%20to%20discuss%20a%20potential%20project.%0A%0A`}
+                      className="inline-flex items-center gap-2 border border-border/50 bg-foreground/5 hover:bg-foreground/10 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                    >
+                      <Briefcase className="w-3.5 h-3.5" />
+                      Hire
+                    </a>
                   </>
                 )}
                 {isOwnProfile && (
