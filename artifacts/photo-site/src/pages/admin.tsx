@@ -323,11 +323,6 @@ export function Admin() {
   const [savingProvider, setSavingProvider] = useState<IntegrationProvider | null>(null);
   const [testingProvider, setTestingProvider] = useState<IntegrationProvider | null>(null);
   const [editingPhotoId, setEditingPhotoId] = useState<number | null>(null);
-  const [spotlightIdx, setSpotlightIdx] = useState(0);
-  const [featuredThisMonth, setFeaturedThisMonth] = useState<string | null>(() => {
-    try { return localStorage.getItem("affuaa_featured_spotlight"); } catch { return null; }
-  });
-  const [spotlightMsg, setSpotlightMsg] = useState<string | null>(null);
 
   // ── Hidden Pages ───────────────────────────────────────────────────────────
   const HIDDEN_PAGES_KEY = "affuaa_hidden_pages";
@@ -1251,10 +1246,7 @@ export function Admin() {
   const dailyLikes = analyticsData?.dailyStats?.map(d => d.likes) ?? [];
   const photographerStats = analyticsData?.photographerStats ?? [];
   const maxPhotographerScore = photographerStats.reduce((m, p) => Math.max(m, p.total_likes + p.total_downloads), 1);
-  const spotlightCandidates = users.filter(u => u.status === "active");
-  const spotlightUser = spotlightCandidates.length > 0
-    ? spotlightCandidates[spotlightIdx % spotlightCandidates.length]
-    : null;
+
   const auditEntries = reports.slice(0, 6).map((report) => ({
     id: report.id,
     actor: report.reporterName || "User",
@@ -1906,47 +1898,6 @@ export function Admin() {
             <div>
               <SectionTitle sub="Manage photographer accounts, roles, and access">Users</SectionTitle>
 
-              {/* Creator Spotlight */}
-              <div className="border border-border bg-card p-5 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium flex items-center gap-2"><Star className="w-4 h-4 text-amber-400" /> Creator Spotlight</h3>
-                  <div className="flex gap-2">
-                    <button onClick={() => setSpotlightIdx(i => i - 1)} className="text-xs px-2 py-1 border border-border text-muted-foreground hover:text-foreground">←</button>
-                    <button onClick={() => setSpotlightIdx(i => i + 1)} className="text-xs px-2 py-1 border border-border text-muted-foreground hover:text-foreground">→</button>
-                  </div>
-                </div>
-                {spotlightMsg && (
-                  <p className="text-xs text-green-400 mb-3 flex items-center gap-1"><Check className="w-3 h-3" />{spotlightMsg}</p>
-                )}
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-purple-900/60 to-blue-900/60 flex items-center justify-center text-xl font-serif border border-border">
-                    {spotlightUser?.name.charAt(0)}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{spotlightUser?.name}</p>
-                      {spotlightUser?.verified && <BadgeCheck className="w-4 h-4 text-blue-400" />}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{spotlightUser?.handle} · {spotlightUser?.photos} photos</p>
-                    <p className="text-xs text-green-400 mt-0.5">Earnings: {spotlightUser?.earnings}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => {
-                      if (!spotlightUser) return;
-                      const id = spotlightUser.id;
-                      localStorage.setItem("affuaa_featured_spotlight", String(id));
-                      setFeaturedThisMonth(id);
-                      setSpotlightMsg(`${spotlightUser.name} is now featured this month.`);
-                      setTimeout(() => setSpotlightMsg(null), 3000);
-                    }} className={cn("text-xs px-3 py-1.5 hover:opacity-90 transition-opacity", featuredThisMonth === spotlightUser?.id ? "bg-green-600 text-white" : "bg-foreground text-background")}>
-                      {featuredThisMonth === spotlightUser?.id ? "✓ Featured" : "Feature this month"}
-                    </button>
-                    <Link href={`/profile/${encodeURIComponent(spotlightUser?.name ?? "")}`} className="text-xs px-3 py-1.5 border border-border text-muted-foreground hover:text-foreground flex items-center gap-1">
-                      <ExternalLink className="w-3 h-3" /> View profile
-                    </Link>
-                  </div>
-                </div>
-              </div>
 
               <div className="flex items-center gap-3 mb-5">
                 <div className="relative flex-1 max-w-sm">
@@ -3319,7 +3270,7 @@ export function Admin() {
                   </div>
                   <div className="border border-border bg-card p-5">
                     <h3 className="text-sm font-medium mb-3">Template Library</h3>
-                    {["Weekly curations digest", "New feature announcement", "Creator spotlight", "Platform update", "Welcome email", "Monthly recap"].map(t => (
+                    {["Weekly curations digest", "New feature announcement", "Platform update", "Welcome email", "Monthly recap"].map(t => (
                       <button key={t}
                         className="w-full text-left text-xs text-muted-foreground hover:text-foreground py-2.5 border-b border-border last:border-0 flex items-center gap-2 transition-colors">
                         <Mail className="w-3 h-3" /> {t}
