@@ -1,7 +1,7 @@
 import type { RequestHandler, Request, Response, NextFunction } from "express";
 import * as client from "openid-client";
 import { createSession, setSessionCookie, clearSession, getSessionId, getSession } from "../lib/auth";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, notificationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { AuthUser } from "../lib/authUser";
 
@@ -103,6 +103,8 @@ export const callbackHandler: RequestHandler = async (req: Request, res: Respons
 
     let [existing] = await db.select().from(usersTable).where(eq(usersTable.id, replId)).limit(1);
 
+    const isNewUser = !existing;
+
     if (!existing) {
       const [created] = await db.insert(usersTable).values({
         id: replId,
@@ -118,6 +120,24 @@ export const callbackHandler: RequestHandler = async (req: Request, res: Respons
         .where(eq(usersTable.id, replId))
         .returning();
       existing = updated;
+    }
+
+    // Send welcome notification to new users
+    if (isNewUser) {
+      await db.insert(notificationsTable).values({
+        recipientId: replId,
+        type: "welcome",
+        actorName: "Affuaa",
+        photoTitle: "",
+      }).catch(() => {});
+    } else {
+      // Notify returning users of a new login for security awareness
+      await db.insert(notificationsTable).values({
+        recipientId: replId,
+        type: "new_device_login",
+        actorName: "Affuaa Security",
+        photoTitle: "",
+      }).catch(() => {});
     }
 
     const authUser: AuthUser = {

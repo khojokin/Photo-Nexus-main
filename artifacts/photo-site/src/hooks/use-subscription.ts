@@ -21,17 +21,6 @@ export function useSubscription() {
   const [isLoading, setIsLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    if (isAdmin) {
-      setState({
-        status: "active",
-        isPremium: true,
-        currentPeriodEnd: null,
-        hasBilling: false,
-      });
-      setIsLoading(false);
-      return;
-    }
-
     if (!user) {
       setState(FREE_STATE);
       setIsLoading(false);

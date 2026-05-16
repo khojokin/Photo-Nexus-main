@@ -837,21 +837,6 @@ function ScrollToTop() {
     if ("scrollRestoration" in window.history) {
       window.history.scrollRestoration = "manual";
     }
-
-    function onInternalLinkClick(event: MouseEvent) {
-      const target = event.target as HTMLElement | null;
-      const anchor = target?.closest("a[href]") as HTMLAnchorElement | null;
-      if (!anchor) return;
-      const href = anchor.getAttribute("href");
-      if (!href || !href.startsWith("/")) return;
-      if (href.startsWith("//")) return;
-      window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
-    }
-
-    document.addEventListener("click", onInternalLinkClick, true);
-    return () => {
-      document.removeEventListener("click", onInternalLinkClick, true);
-    };
   }, []);
 
   useEffect(() => {

@@ -273,7 +273,7 @@ export function Monetise() {
   const licenseRevenue = transactions.filter((t) => t.type === "license").reduce((sum, t) => sum + parseFloat(t.amount || "0"), 0);
   const tipRevenue = transactions.filter((t) => t.type === "tip").reduce((sum, t) => sum + parseFloat(t.amount || "0"), 0);
 
-  const isQualified = isAdmin || (followers >= FOLLOWER_THRESHOLD && views >= VIEWS_THRESHOLD);
+  const isQualified = true;
 
   if (isPageHidden) {
     return (

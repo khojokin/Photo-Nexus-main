@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
-import { Bell, Heart, MessageSquare, UserPlus, CheckCheck, Inbox, BookOpen } from "lucide-react";
+import { Bell, Heart, MessageSquare, UserPlus, CheckCheck, Inbox, BookOpen, Sparkles, Shield, Coffee } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -64,6 +64,24 @@ function NotifIcon({ type }: { type: string }) {
         <BookOpen className="w-3.5 h-3.5 text-amber-400" />
       </div>
     );
+  if (type === "welcome")
+    return (
+      <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+      </div>
+    );
+  if (type === "new_device_login")
+    return (
+      <div className="w-8 h-8 rounded-full bg-yellow-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Shield className="w-3.5 h-3.5 text-yellow-400" />
+      </div>
+    );
+  if (type === "tip")
+    return (
+      <div className="w-8 h-8 rounded-full bg-orange-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Coffee className="w-3.5 h-3.5 text-orange-400" />
+      </div>
+    );
   return (
     <div className="w-8 h-8 rounded-full bg-violet-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
       <MessageSquare className="w-3.5 h-3.5 text-violet-400" />
@@ -84,6 +102,12 @@ function notifText(n: Notification) {
         to <span className="text-amber-400/90">"{n.seriesName}"</span>
       </>
     );
+  if (n.type === "welcome")
+    return <>Welcome to <span className="font-medium">Affuaa</span> — your darkroom for discovering and sharing extraordinary photography.</>;
+  if (n.type === "new_device_login")
+    return <>A new sign-in to your account was detected. If this was you, no action is needed.</>;
+  if (n.type === "tip")
+    return <><span className="font-medium">{n.actorName}</span> sent you a tip — thank you for your craft!</>;
   return <><span className="font-medium">{n.actorName}</span> commented on <span className="text-muted-foreground">"{n.photoTitle}"</span></>;
 }
 
@@ -201,6 +225,9 @@ export function Notifications() {
   function notifLink(n: Notification) {
     if (n.type === "series_update" && n.seriesId) return `/series/${n.seriesId}`;
     if (n.type === "follow") return `/profile/${encodeURIComponent(n.actorName)}`;
+    if (n.type === "welcome") return "/photos";
+    if (n.type === "new_device_login") return "/settings";
+    if (n.type === "tip") return "/monetise";
     if (n.photoId) return `/photos/${n.photoId}`;
     return "/notifications";
   }
@@ -255,10 +282,10 @@ export function Notifications() {
         {/* Type filter chips */}
         {notifications.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-6">
-            {(["all", "like", "comment", "follow", "series_update"] as const).map((type) => {
+            {(["all", "like", "comment", "follow", "series_update", "welcome", "new_device_login", "tip"] as const).map((type) => {
               const count = type === "all" ? notifications.length : notifications.filter(n => n.type === type).length;
               if (count === 0 && type !== "all") return null;
-              const labels: Record<string, string> = { all: "All", like: "Likes", comment: "Comments", follow: "Follows", series_update: "Series" };
+              const labels: Record<string, string> = { all: "All", like: "Likes", comment: "Comments", follow: "Follows", series_update: "Series", welcome: "Welcome", new_device_login: "Security", tip: "Tips" };
               return (
                 <button
                   key={type}
