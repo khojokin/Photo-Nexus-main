@@ -51,81 +51,6 @@ function AnimatedNumber({ value }: { value: number | undefined }) {
   return <span>{display.toLocaleString()}</span>;
 }
 
-interface SpotlightPhotographer {
-  photographerName: string;
-  photoCount: number;
-  totalLikes: number;
-  topPhoto: { id: number; imageUrl: string; title: string } | null;
-  photographerAvatarUrl?: string | null;
-}
-
-function PhotographerSpotlight() {
-  const [photographers, setPhotographers] = useState<SpotlightPhotographer[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/leaderboard?metric=liked&limit=6")
-      .then((r) => r.json())
-      .then((d: { leaderboard?: SpotlightPhotographer[] }) => setPhotographers(d.leaderboard ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (!loading && photographers.length === 0) return null;
-
-  return (
-    <section className="py-24 border-t border-border/40">
-      <div className="container mx-auto px-4">
-        <div className="flex items-end justify-between mb-12">
-          <div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">Community</p>
-            <h2 className="text-4xl font-serif">Photographer Spotlight</h2>
-          </div>
-          <Link
-            href="/leaderboard"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group mb-1"
-          >
-            Full leaderboard <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </Link>
-        </div>
-
-        {loading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {Array(6).fill(0).map((_, i) => <Skeleton key={i} className="h-48 w-full" />)}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {photographers.map((p, i) => (
-              <Link key={p.photographerName} href={`/profile/${encodeURIComponent(p.photographerName)}`} className="group block">
-                <div className="relative overflow-hidden bg-muted aspect-[3/4] mb-3">
-                  {p.photographerAvatarUrl ? (
-                    <img
-                      src={p.photographerAvatarUrl}
-                      alt={p.photographerName}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-muted flex items-center justify-center">
-                      <Camera className="w-8 h-8 text-muted-foreground/30" />
-                    </div>
-                  )}
-                  {i < 3 && (
-                    <div className="absolute top-2 left-2 bg-foreground text-background text-[10px] px-1.5 py-0.5 font-medium">
-                      #{i + 1}
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
-                </div>
-                <p className="text-sm font-medium group-hover:text-muted-foreground transition-colors truncate">{p.photographerName}</p>
-                <p className="text-xs text-muted-foreground">{p.photoCount} photos · {(p.totalLikes ?? 0).toLocaleString()} likes</p>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
 
 const RECENT_KEY = "affuaa_recently_viewed";
 type RecentPhoto = { id: number; title: string; imageUrl: string; photographerName: string };
@@ -614,9 +539,6 @@ export function Home() {
 
       {/* ── Recently Viewed ─────────────────────────────────────────────── */}
       <RecentlyViewedSection />
-
-      {/* ── Photographer Spotlight ───────────────────────────────────────── */}
-      <PhotographerSpotlight />
 
       {/* ── For You ──────────────────────────────────────────────────────── */}
       <div className="border-t border-border/40">

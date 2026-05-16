@@ -181,10 +181,10 @@ export function PhotoCard({ photo, className, priority = false, onOpen }: PhotoC
       onMouseLeave={() => setIsHovered(false)}
     >
       <Link
-        href={isLocked ? "/premium" : `/photos/${photo.id}`}
+        href={`/photos/${photo.id}`}
         data-testid={`link-photo-${photo.id}`}
         onClick={(e) => {
-          if (onOpen && !isLocked) {
+          if (onOpen) {
             e.preventDefault();
             onOpen(photo);
           }
@@ -197,18 +197,15 @@ export function PhotoCard({ photo, className, priority = false, onOpen }: PhotoC
           className={cn(
             "w-full h-auto object-cover transition-transform duration-700 ease-out",
             isHovered ? "scale-105" : "scale-100",
-            isLocked && "blur-sm scale-105",
           )}
           style={{ aspectRatio: `${photo.width}/${photo.height}` }}
         />
 
-        {/* Premium lock overlay */}
+        {/* Premium badge — viewable but download-restricted */}
         {isLocked && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10">
-            <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mb-2 backdrop-blur-sm">
-              <Lock className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-[10px] uppercase tracking-widest text-white/70 font-medium">Premium</span>
+          <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-2 py-1 border border-white/10">
+            <Lock className="w-2.5 h-2.5 text-white/70" />
+            <span className="text-[9px] uppercase tracking-widest text-white/70 font-medium">Premium</span>
           </div>
         )}
 
