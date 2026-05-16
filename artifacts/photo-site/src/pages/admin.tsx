@@ -292,7 +292,7 @@ export function Admin() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [userSearch, setUserSearch] = useState("");
   const [photoSearch, setPhotoSearch] = useState("");
-  const [photoStatusFilter, setPhotoStatusFilter] = useState<"all" | "published" | "pending" | "draft">("all");
+  const [photoStatusFilter, setPhotoStatusFilter] = useState<"all" | "published" | "pending" | "draft" | "illustrations">("all");
   const [approvingPhotos, setApprovingPhotos] = useState<Set<number>>(new Set());
   const [selectedPhotos, setSelectedPhotos] = useState<Set<number>>(new Set());
   const [artTagOpen, setArtTagOpen] = useState(false);
@@ -1254,6 +1254,11 @@ export function Admin() {
     const photographerName = String((p as { photographerName?: unknown }).photographerName ?? "").toLowerCase();
     const query = photoSearch.toLowerCase();
     const matchesQuery = title.includes(query) || photographerName.includes(query);
+    if (photoStatusFilter === "illustrations") {
+      const tags: string[] = (p as { tags?: string[] }).tags ?? [];
+      const isArt = ART_TAGS.some(t => tags.some(pt => pt.toLowerCase().includes(t)) || title.includes(t));
+      return matchesQuery && isArt;
+    }
     const matchesStatus = photoStatusFilter === "all" || (p as { status?: string }).status === photoStatusFilter;
     return matchesQuery && matchesStatus;
   });
@@ -1659,13 +1664,13 @@ export function Admin() {
               <SectionTitle sub="Browse, feature, and manage all submitted photos">Photos</SectionTitle>
 
               {/* Status filter tabs */}
-              <div className="flex items-center gap-1 mb-5 border-b border-border">
+              <div className="flex items-center gap-1 mb-5 border-b border-border overflow-x-auto">
                 {(["all", "published", "pending", "draft"] as const).map(s => (
                   <button
                     key={s}
                     onClick={() => setPhotoStatusFilter(s)}
                     className={cn(
-                      "px-4 py-2 text-xs uppercase tracking-widest transition-colors relative",
+                      "px-4 py-2 text-xs uppercase tracking-widest transition-colors relative whitespace-nowrap flex-shrink-0",
                       photoStatusFilter === s
                         ? "text-foreground border-b-2 border-foreground -mb-px"
                         : "text-muted-foreground hover:text-foreground"
@@ -1677,6 +1682,28 @@ export function Admin() {
                     )}
                   </button>
                 ))}
+                <button
+                  onClick={() => setPhotoStatusFilter("illustrations")}
+                  className={cn(
+                    "px-4 py-2 text-xs uppercase tracking-widest transition-colors relative whitespace-nowrap flex-shrink-0 flex items-center gap-1.5",
+                    photoStatusFilter === "illustrations"
+                      ? "text-violet-400 border-b-2 border-violet-400 -mb-px"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Palette className="w-3 h-3" />
+                  Illustrations
+                  {(() => {
+                    const count = displayPhotos.filter(p => {
+                      const tags: string[] = (p as { tags?: string[] }).tags ?? [];
+                      const t = String((p as { title?: unknown }).title ?? "").toLowerCase();
+                      return ART_TAGS.some(a => tags.some(pt => pt.toLowerCase().includes(a)) || t.includes(a));
+                    }).length;
+                    return count > 0 ? (
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-violet-500/20 text-violet-400 text-[10px] font-bold">{count}</span>
+                    ) : null;
+                  })()}
+                </button>
               </div>
 
               <div className="flex items-center gap-3 mb-5 flex-wrap">
