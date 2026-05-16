@@ -9,8 +9,9 @@ import type { Photo } from "@workspace/api-client-react";
 import {
   BadgeCheck, Camera, MapPin, Globe, MessageSquare, Calendar,
   Instagram, Twitter, UserPlus, UserCheck, Loader2, Users,
-  Trophy, Award, Star, Zap, TrendingUp, X, BookOpen, Briefcase,
+  Trophy, Award, Star, Zap, TrendingUp, X, BookOpen, Briefcase, Coffee,
 } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
 import { SeriesManagerTab } from "@/components/series-manager-tab";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -616,6 +617,8 @@ export function Profile() {
   const displayName = viewingName || "Unknown Photographer";
   const initial = displayName.charAt(0).toUpperCase();
 
+  const { user } = useAuth();
+
   const [showVerify, setShowVerify] = useState(false);
   const [verifyStep, setVerifyStep] = useState<"form" | "pending" | "done">("form");
   const [verifyName, setVerifyName] = useState("");
@@ -623,6 +626,53 @@ export function Profile() {
   const [activeTab, setActiveTab] = useState<"published" | "drafts" | "series">("published");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [followModal, setFollowModal] = useState<"followers" | "following" | null>(null);
+
+  // Tip state
+  const [tipOpen, setTipOpen] = useState(false);
+  const [tipPreset, setTipPreset] = useState<number>(5);
+  const [tipCustom, setTipCustom] = useState("");
+  const [tipMessage, setTipMessage] = useState("");
+  const [tipping, setTipping] = useState(false);
+
+  const handleTip = async () => {
+    const raw = tipCustom.trim();
+    const amount = raw ? parseFloat(raw) : tipPreset;
+    if (!amount || isNaN(amount) || amount <= 0) {
+      toast.error("Enter a valid tip amount");
+      return;
+    }
+    if (!user) {
+      toast.error("Sign in to send a tip");
+      return;
+    }
+    setTipping(true);
+    try {
+      const res = await fetch("/api/payouts/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          photographerName: displayName,
+          type: "tip",
+          description: tipMessage.trim() || `Tip from a fan`,
+          amount,
+          paymentMethod: "paypal",
+        }),
+      });
+      if (res.ok) {
+        toast.success(`Tip of $${amount.toFixed(2)} sent to ${displayName} — thank you!`);
+        setTipOpen(false);
+        setTipCustom("");
+        setTipMessage("");
+        setTipPreset(5);
+      } else {
+        toast.error("Couldn't send tip — please try again");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setTipping(false);
+    }
+  };
 
   interface ProfileSeries {
     id: number; name: string; description: string | null;
@@ -882,6 +932,13 @@ export function Profile() {
                       <Briefcase className="w-3.5 h-3.5" />
                       Hire
                     </a>
+                    <button
+                      onClick={() => setTipOpen(true)}
+                      className="inline-flex items-center gap-2 border border-amber-500/40 text-amber-500 hover:bg-amber-500/10 hover:border-amber-500/70 px-4 py-2 text-sm transition-colors"
+                    >
+                      <Coffee className="w-3.5 h-3.5" />
+                      Send a Tip
+                    </button>
                   </>
                 )}
                 {isOwnProfile && (
@@ -1229,6 +1286,109 @@ export function Profile() {
           myName={myName ?? ""}
           onClose={() => setFollowModal(null)}
         />
+      )}
+
+      {/* ── Tip Dialog ────────────────────────────────────────────────────── */}
+      {tipOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setTipOpen(false); }}
+        >
+          <div className="w-full max-w-sm bg-background border border-border shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Coffee className="w-4 h-4 text-amber-500" />
+                <h2 className="text-sm font-medium">Support {displayName}</h2>
+              </div>
+              <button
+                onClick={() => setTipOpen(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-5 py-5 space-y-5">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Tips go directly to the creator. Show your appreciation for their craft.
+              </p>
+
+              {/* Preset amounts */}
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Choose an amount</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {[3, 5, 10, 25].map((amt) => (
+                    <button
+                      key={amt}
+                      onClick={() => { setTipPreset(amt); setTipCustom(""); }}
+                      className={cn(
+                        "py-2 text-sm border transition-colors",
+                        tipPreset === amt && !tipCustom
+                          ? "border-amber-500 text-amber-500 bg-amber-500/10"
+                          : "border-border text-muted-foreground hover:border-foreground hover:text-foreground"
+                      )}
+                    >
+                      ${amt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom amount */}
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Or enter custom</p>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="0.00"
+                    value={tipCustom}
+                    onChange={(e) => setTipCustom(e.target.value)}
+                    className="w-full bg-muted/20 border border-border pl-7 pr-3 py-2 text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Optional message */}
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Message (optional)</p>
+                <textarea
+                  rows={2}
+                  placeholder="Your work is incredible…"
+                  value={tipMessage}
+                  onChange={(e) => setTipMessage(e.target.value)}
+                  maxLength={200}
+                  className="w-full bg-muted/20 border border-border px-3 py-2 text-sm resize-none focus:outline-none focus:border-foreground/30 transition-colors placeholder:text-muted-foreground/50"
+                />
+              </div>
+
+              {/* Submit */}
+              <button
+                onClick={() => void handleTip()}
+                disabled={tipping || (!tipCustom && !tipPreset)}
+                className="w-full bg-amber-500 hover:bg-amber-400 text-black font-medium py-2.5 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {tipping ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Coffee className="w-4 h-4" />
+                    Send ${tipCustom || tipPreset}
+                  </>
+                )}
+              </button>
+
+              {!user && (
+                <p className="text-center text-xs text-muted-foreground">
+                  <Link href="/signin" className="underline underline-offset-2 hover:text-foreground transition-colors">Sign in</Link> to send a tip
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </Layout>
   );
