@@ -6,7 +6,7 @@ import {
   Upload as UploadIcon, ImagePlus, X, Loader2, ArrowLeft,
   Trash2, ChevronDown, ChevronUp, Camera, Aperture, Clock, Zap, Ruler,
   CloudUpload, AlertCircle, ExternalLink, CheckCircle2, RefreshCw, Sparkles,
-  RotateCcw, RotateCw, SunMedium, Contrast, Palette, Sliders, RotateCw as ResetIcon,
+  RotateCcw, RotateCw, SunMedium, Contrast, Palette, Sliders, RotateCw as ResetIcon, Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
@@ -40,6 +40,10 @@ interface ImageAdjustments {
   brightness: number;
   contrast: number;
   saturation: number;
+  watermark: boolean;
+  watermarkText: string;
+  watermarkPosition: "bottom-right" | "bottom-left" | "center" | "bottom-center";
+  watermarkOpacity: number;
 }
 
 interface QueueItem {
@@ -109,7 +113,10 @@ function makeItem(file: File, defaultName: string): QueueItem {
     contentWarning: false,
     exifOpen: false,
     editorOpen: false,
-    adjustments: { rotation: 0, brightness: 100, contrast: 100, saturation: 100 },
+    adjustments: {
+      rotation: 0, brightness: 100, contrast: 100, saturation: 100,
+      watermark: false, watermarkText: "", watermarkPosition: "bottom-right", watermarkOpacity: 70,
+    },
   };
 }
 
@@ -578,6 +585,79 @@ function ImageEditorPanel({ adjustments, previewUrl, onUpdate }: ImageEditorPane
             />
           </div>
         </div>
+      </div>
+
+      {/* ── Watermark ── */}
+      <div className="border-t border-border/50 pt-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Watermark</span>
+          </div>
+          <button
+            onClick={() => onUpdate({ watermark: !adjustments.watermark })}
+            className={cn(
+              "relative inline-flex h-4 w-8 items-center rounded-full transition-colors",
+              adjustments.watermark ? "bg-foreground" : "bg-muted"
+            )}
+          >
+            <span className={cn(
+              "inline-block h-3 w-3 transform rounded-full bg-background transition-transform",
+              adjustments.watermark ? "translate-x-4.5" : "translate-x-0.5"
+            )} />
+          </button>
+        </div>
+
+        {adjustments.watermark && (
+          <div className="space-y-3 pl-1">
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Watermark text</label>
+              <input
+                type="text"
+                value={adjustments.watermarkText}
+                onChange={(e) => onUpdate({ watermarkText: e.target.value })}
+                placeholder="© Your Name"
+                maxLength={60}
+                className="w-full bg-transparent border border-border px-3 py-1.5 text-xs focus:outline-none focus:border-foreground/50 transition-colors"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Position</label>
+                <select
+                  value={adjustments.watermarkPosition}
+                  onChange={(e) => onUpdate({ watermarkPosition: e.target.value as ImageAdjustments["watermarkPosition"] })}
+                  className="w-full bg-background border border-border px-2 py-1.5 text-xs focus:outline-none focus:border-foreground/50 appearance-none cursor-pointer"
+                >
+                  <option value="bottom-right">Bottom Right</option>
+                  <option value="bottom-left">Bottom Left</option>
+                  <option value="bottom-center">Bottom Center</option>
+                  <option value="center">Center</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Opacity</label>
+                  <span className="text-[10px] font-mono text-muted-foreground">{adjustments.watermarkOpacity}%</span>
+                </div>
+                <input
+                  type="range" min={10} max={100} step={5}
+                  value={adjustments.watermarkOpacity}
+                  onChange={(e) => onUpdate({ watermarkOpacity: Number(e.target.value) })}
+                  className="w-full h-1.5 accent-foreground cursor-pointer mt-2"
+                />
+              </div>
+            </div>
+
+            {adjustments.watermarkText && (
+              <p className="text-[10px] text-amber-400/80 flex items-center gap-1">
+                <Shield className="w-3 h-3" /> Watermark will be baked into the image before upload.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <p className="text-[10px] text-muted-foreground/60 flex items-center gap-1">

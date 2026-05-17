@@ -28,6 +28,10 @@ interface LivePayoutTransaction {
   amount: string;
   requestedAt: string;
   status: string;
+  stripePaymentIntentId?: string | null;
+  stripeTransferId?: string | null;
+  stripeChargeId?: string | null;
+  currency?: string;
 }
 
 const PRINT_SIZES = [
@@ -345,30 +349,75 @@ export function Monetise() {
 
             <div className="border border-border bg-card">
               <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-                <h2 className="text-sm font-medium">Recent Transactions</h2>
-                <button className="text-xs text-muted-foreground hover:text-foreground">View all</button>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-sm font-medium">Recent Transactions</h2>
+                  {/* Stripe regulated badge */}
+                  <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 border border-violet-500/30 text-violet-400 bg-violet-500/5 font-medium tracking-wide">
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z"/></svg>
+                    Regulated by Stripe
+                  </span>
+                </div>
+                <button className="text-xs text-muted-foreground hover:text-foreground transition-colors">View all</button>
               </div>
               <div className="divide-y divide-border">
-                {transactions.slice(0, 8).map(tx => (
-                  <div key={tx.id} className="px-5 py-3 flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="text-sm truncate">{tx.description}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(tx.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {tx.type}</p>
+                {transactions.slice(0, 8).map(tx => {
+                  const txType = tx.type === "print" ? "Print Sale" : tx.type === "license" ? "License" : tx.type === "tip" ? "Tip" : tx.type === "premium_download" ? "Premium DL" : tx.type;
+                  const statusColor =
+                    tx.status === "paid" ? "text-green-400" :
+                    tx.status === "pending" || tx.status === "approved" ? "text-amber-400" :
+                    tx.status === "rejected" ? "text-red-400" : "text-muted-foreground";
+                  return (
+                    <div key={tx.id} className="px-5 py-3 flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm truncate">{tx.description}</p>
+                          <span className="text-[10px] px-1.5 py-0.5 border border-border text-muted-foreground flex-shrink-0">{txType}</span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(tx.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                          </p>
+                          <span className={cn("text-xs font-medium", statusColor)}>{tx.status}</span>
+                          {(tx.stripePaymentIntentId || tx.stripeTransferId || tx.stripeChargeId) && (
+                            <span className="text-[10px] text-muted-foreground/50 font-mono truncate max-w-[160px]">
+                              #{(tx.stripePaymentIntentId ?? tx.stripeTransferId ?? tx.stripeChargeId ?? "").slice(-12)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm font-medium text-green-400">
+                          +{(tx.currency ?? "USD") === "USD" ? "$" : tx.currency}{parseFloat(tx.amount || "0").toFixed(2)}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/50 uppercase">{tx.currency ?? "USD"}</p>
+                      </div>
                     </div>
-                    <span className="text-sm font-medium text-green-400 flex-shrink-0">+${parseFloat(tx.amount || "0").toFixed(2)}</span>
-                  </div>
-                ))}
+                  );
+                })}
                 {transactions.length === 0 && (
-                  <div className="px-5 py-4 text-sm text-muted-foreground">No live transactions yet.</div>
+                  <div className="px-5 py-8 text-center">
+                    <DollarSign className="w-8 h-8 text-muted-foreground/20 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">No transactions yet.</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Your Stripe-processed earnings will appear here.</p>
+                  </div>
                 )}
               </div>
+              {transactions.length > 0 && (
+                <div className="px-5 py-3 border-t border-border/50 flex items-center justify-between bg-muted/10">
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z"/></svg>
+                    All payments processed and regulated by Stripe — amounts shown in {transactions[0]?.currency ?? "USD"}.
+                  </div>
+                  <Lock className="w-3 h-3 text-muted-foreground/40" />
+                </div>
+              )}
             </div>
 
             <div className="border border-border/40 bg-muted/20 p-5 flex items-start gap-3">
               <Info className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium mb-1">Next payout: May 15, 2026</p>
-                <p className="text-xs text-muted-foreground">Affuaa processes payouts on the 15th of each month. Minimum payout threshold is $20.00. Earnings below this roll over to the next cycle.</p>
+                <p className="text-sm font-medium mb-1">Next payout: 15th of each month</p>
+                <p className="text-xs text-muted-foreground">Affuaa processes payouts via Stripe on the 15th of each month. Minimum threshold is $20.00 — earnings below this roll over. All amounts are subject to Stripe's standard processing fees.</p>
               </div>
             </div>
           </div>

@@ -203,18 +203,18 @@ export function Illustrations() {
           </div>
 
           {/* Search */}
-          <div className="relative flex-shrink-0 w-full sm:w-56">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <div className="flex items-center border border-border bg-background focus-within:border-foreground/40 transition-colors flex-shrink-0 w-full sm:w-56">
+            <Search className="w-3.5 h-3.5 text-muted-foreground ml-3 flex-shrink-0" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search art…"
-              className="w-full bg-background border border-border pl-9 pr-8 py-2 text-sm focus:outline-none focus:border-foreground/30 transition-colors"
+              className="flex-1 bg-transparent px-2 py-2 text-sm focus:outline-none min-w-0"
             />
             {search && (
               <button
                 onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                className="mr-2.5 flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
