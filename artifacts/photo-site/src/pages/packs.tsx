@@ -332,21 +332,6 @@ export function Packs() {
           )}
         </div>
 
-        {/* Benefits */}
-        <div className="grid grid-cols-3 gap-4 mb-10">
-          {[
-            { icon: Package, title: "Bundled value", desc: "Multiple curated photos at a discounted bundle price." },
-            { icon: Shield, title: "Secure payments", desc: "All payments are encrypted and securely processed." },
-            { icon: Download, title: "Instant access", desc: "High-resolution files available immediately after purchase." },
-          ].map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="border border-border bg-card p-4 text-center space-y-2">
-              <Icon className="w-5 h-5 text-muted-foreground mx-auto" />
-              <p className="text-xs font-medium">{title}</p>
-              <p className="text-[10px] text-muted-foreground leading-relaxed">{desc}</p>
-            </div>
-          ))}
-        </div>
-
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {Array(6).fill(0).map((_, i) => (

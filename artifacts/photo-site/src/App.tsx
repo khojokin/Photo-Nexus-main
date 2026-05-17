@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "sonner";
@@ -129,9 +129,19 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location]);
+  return null;
+}
+
 function Router() {
   return (
-    <Switch>
+    <>
+      <ScrollToTop />
+      <Switch>
       <Route path="/" component={Home} />
       <Route path="/photos" component={Explore} />
       <Route path="/photos/:id" component={PhotoDetail} />
@@ -169,6 +179,7 @@ function Router() {
       <Route path="/p/:username" component={PhotographerPortfolio} />
       <Route component={NotFound} />
     </Switch>
+    </>
   );
 }
 
