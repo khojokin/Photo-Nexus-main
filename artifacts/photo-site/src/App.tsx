@@ -40,8 +40,9 @@ import { CheckoutPage } from "@/pages/checkout";
 import { Terms } from "@/pages/terms";
 import { Privacy } from "@/pages/privacy";
 import { Illustrations } from "@/pages/illustrations";
-import { Challenges } from "@/pages/challenges";
 import { Packs } from "@/pages/packs";
+import { About } from "@/pages/about";
+import { Contact } from "@/pages/contact";
 import { PhotographerPortfolio } from "@/pages/photographer-portfolio";
 
 const queryClient = new QueryClient({
@@ -162,8 +163,9 @@ function Router() {
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/illustrations" component={Illustrations} />
-      <Route path="/challenges" component={Challenges} />
       <Route path="/packs" component={Packs} />
+      <Route path="/about" component={About} />
+      <Route path="/contact" component={Contact} />
       <Route path="/p/:username" component={PhotographerPortfolio} />
       <Route component={NotFound} />
     </Switch>

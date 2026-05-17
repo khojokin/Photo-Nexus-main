@@ -173,10 +173,10 @@ function QualificationGate({ followers, views }: { followers: number; views: num
           <h3 className="text-sm uppercase tracking-widest text-muted-foreground">How to reach the threshold</h3>
           {[
             { tip: "Upload consistently — aim for 2–3 quality photos per week" },
-            { tip: "Engage with other photographers: comment, follow, participate in challenges" },
+            { tip: "Engage with other photographers: comment, follow, and be part of the community" },
             { tip: "Use relevant tags so your photos appear in searches" },
             { tip: "Share your profile link on social media and photography forums" },
-            { tip: "Submit to weekly photo challenges to gain visibility" },
+            { tip: "Post consistently to build an audience that keeps coming back" },
           ].map(({ tip }) => (
             <div key={tip} className="flex items-start gap-2 text-sm text-muted-foreground">
               <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
@@ -189,8 +189,8 @@ function QualificationGate({ followers, views }: { followers: number; views: num
           <Link href="/upload" className="flex-1 text-center py-3 bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity">
             Upload Photos
           </Link>
-          <Link href="/challenges" className="flex-1 text-center py-3 border border-border text-sm text-muted-foreground hover:text-foreground transition-colors">
-            Join Challenges
+          <Link href="/leaderboard" className="flex-1 text-center py-3 border border-border text-sm text-muted-foreground hover:text-foreground transition-colors">
+            View Leaderboard
           </Link>
         </div>
 

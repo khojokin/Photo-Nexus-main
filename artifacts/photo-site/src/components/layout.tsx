@@ -5,7 +5,7 @@ import {
   LogOut, Activity, BookOpen, Layout as LayoutIcon, Sun, Shield,
   Crown, Lock, Telescope, Search, Tag, ArrowRight, ImageIcon,
   Home, Compass, FolderOpen, Sparkles, CloudUpload, Moon, Palette,
-  Award, Package,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./notifications";
@@ -237,7 +237,7 @@ function NavSearch() {
           aria-label="Open search"
         >
           <Search className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="text-xs">Search photos, tags, photographers…</span>
+          <span className="text-xs">Search</span>
           <kbd className="ml-auto text-[10px] px-1.5 py-0.5 border border-border/50 text-muted-foreground/60 hidden xl:inline">
             /
           </kbd>
@@ -251,7 +251,7 @@ function NavSearch() {
             value={query}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            placeholder="Search photos, tags, photographers…"
+            placeholder="Search"
             className="flex-1 bg-transparent px-3 py-2 text-sm focus:outline-none placeholder:text-muted-foreground/50"
             autoComplete="off"
             spellCheck={false}
@@ -483,7 +483,7 @@ function MobileSearch() {
                   go(`/photos?search=${encodeURIComponent(query.trim())}`);
                 }
               }}
-              placeholder="Search photos, tags, photographers…"
+              placeholder="Search"
               className="flex-1 bg-transparent text-base focus:outline-none placeholder:text-muted-foreground/50"
               autoComplete="off"
             />
@@ -622,7 +622,6 @@ const PRIMARY_LINKS = [
   { href: "/illustrations", label: "Illustrations" },
   { href: "/collections", label: "Collections" },
   { href: "/series", label: "Series" },
-  { href: "/challenges", label: "Challenges" },
   { href: "/packs", label: "Packs" },
   { href: "/discover", label: "Today's Edit" },
 ];
@@ -634,7 +633,6 @@ const MENU_LINKS = [
   { href: "/upload", label: "Upload", icon: Upload },
   { href: "/moodboard", label: "Mood Board", icon: LayoutIcon },
   { href: "/series", label: "Series", icon: BookOpen },
-  { href: "/challenges", label: "Challenges", icon: Award },
   { href: "/packs", label: "Download Packs", icon: Package },
   { href: "/photo-of-the-day", label: "Photo of the Day", icon: Sun },
   { href: "/activity", label: "Activity", icon: Activity },
@@ -1357,11 +1355,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div>
               <p className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-4">Community</p>
               <ul className="space-y-2.5 text-sm text-muted-foreground">
-                <li><Link href="/dashboard" className="hover:text-foreground transition-colors">Your Dashboard</Link></li>
                 <li><Link href="/upload" className="hover:text-foreground transition-colors">Upload a Photo</Link></li>
                 <li><Link href="/premium" className="hover:text-foreground transition-colors">Go Premium</Link></li>
-                <li><Link href="/monetise" className="hover:text-foreground transition-colors">Earn as a Photographer</Link></li>
-                <li><Link href="/messages" className="hover:text-foreground transition-colors">Messages</Link></li>
+                <li><Link href="/leaderboard" className="hover:text-foreground transition-colors">Leaderboard</Link></li>
+                <li><Link href="/photo-of-the-day" className="hover:text-foreground transition-colors">Photo of the Day</Link></li>
+                <li><Link href="/packs" className="hover:text-foreground transition-colors">Download Packs</Link></li>
               </ul>
             </div>
 
@@ -1370,8 +1368,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <p className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-4">Company</p>
               <ul className="space-y-2.5 text-sm text-muted-foreground">
                 <li><Link href="/about" className="hover:text-foreground transition-colors">About Affuaa</Link></li>
-                <li><Link href="/blog" className="hover:text-foreground transition-colors">The Edit (Blog)</Link></li>
-                <li><a href="mailto:hello@affuaa.com" className="hover:text-foreground transition-colors">Contact Us</a></li>
+                <li><Link href="/contact" className="hover:text-foreground transition-colors">Contact Us</Link></li>
                 <li><Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
                 <li><Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
               </ul>

@@ -176,7 +176,7 @@ function PackDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 `${photos.length} high-resolution photos`,
                 "Commercial license included",
                 "Instant download after purchase",
-                "Regulated by Stripe",
+                "Secure payment processing",
               ].map(f => (
                 <div key={f} className="flex items-center gap-2">
                   <Check className="w-3 h-3 text-green-400 flex-shrink-0" />
@@ -203,7 +203,7 @@ function PackDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 </button>
                 <div className="flex items-center gap-1.5 justify-center text-[10px] text-muted-foreground/60">
                   <Shield className="w-3 h-3" />
-                  Secured & regulated by Stripe
+                  Secure &amp; encrypted payment
                 </div>
               </>
             )}
@@ -336,7 +336,7 @@ export function Packs() {
         <div className="grid grid-cols-3 gap-4 mb-10">
           {[
             { icon: Package, title: "Bundled value", desc: "Multiple curated photos at a discounted bundle price." },
-            { icon: Shield, title: "Stripe secured", desc: "All payments processed and regulated by Stripe." },
+            { icon: Shield, title: "Secure payments", desc: "All payments are encrypted and securely processed." },
             { icon: Download, title: "Instant access", desc: "High-resolution files available immediately after purchase." },
           ].map(({ icon: Icon, title, desc }) => (
             <div key={title} className="border border-border bg-card p-4 text-center space-y-2">
