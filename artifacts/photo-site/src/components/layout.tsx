@@ -5,6 +5,7 @@ import {
   LogOut, Activity, BookOpen, Layout as LayoutIcon, Sun, Shield,
   Crown, Lock, Telescope, Search, Tag, ArrowRight, ImageIcon,
   Home, Compass, FolderOpen, Sparkles, CloudUpload, Moon, Palette,
+  Award, Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./notifications";
@@ -621,6 +622,8 @@ const PRIMARY_LINKS = [
   { href: "/illustrations", label: "Illustrations" },
   { href: "/collections", label: "Collections" },
   { href: "/series", label: "Series" },
+  { href: "/challenges", label: "Challenges" },
+  { href: "/packs", label: "Packs" },
   { href: "/discover", label: "Today's Edit" },
 ];
 
@@ -631,6 +634,8 @@ const MENU_LINKS = [
   { href: "/upload", label: "Upload", icon: Upload },
   { href: "/moodboard", label: "Mood Board", icon: LayoutIcon },
   { href: "/series", label: "Series", icon: BookOpen },
+  { href: "/challenges", label: "Challenges", icon: Award },
+  { href: "/packs", label: "Download Packs", icon: Package },
   { href: "/photo-of-the-day", label: "Photo of the Day", icon: Sun },
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },

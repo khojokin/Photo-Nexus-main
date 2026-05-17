@@ -23,6 +23,64 @@ const TAG_SUGGESTIONS = [
   "wildlife", "aerial", "macro", "documentary", "fine art",
 ];
 
+const AI_TAG_LIBRARY: Record<string, string[]> = {
+  nature: ["nature", "outdoors", "landscape", "wildlife", "botanical", "earth"],
+  forest: ["forest", "nature", "trees", "green", "landscape"],
+  mountain: ["mountain", "landscape", "nature", "aerial", "adventure"],
+  ocean: ["ocean", "water", "seascape", "blue", "travel"],
+  sea: ["ocean", "seascape", "water", "coastal", "travel"],
+  beach: ["beach", "ocean", "travel", "coastal", "summer"],
+  city: ["urban", "street", "architecture", "cityscape", "travel"],
+  urban: ["urban", "street", "cityscape", "architecture"],
+  street: ["street", "urban", "documentary", "candid"],
+  portrait: ["portrait", "people", "face", "human"],
+  person: ["portrait", "people", "human", "lifestyle"],
+  woman: ["portrait", "people", "human", "lifestyle"],
+  man: ["portrait", "people", "human", "lifestyle"],
+  architecture: ["architecture", "building", "design", "urban"],
+  building: ["architecture", "building", "urban", "design"],
+  interior: ["interior", "architecture", "design", "minimal"],
+  abstract: ["abstract", "art", "pattern", "texture"],
+  light: ["light", "minimal", "abstract", "photography"],
+  shadow: ["shadow", "minimal", "abstract", "monochrome"],
+  black: ["black & white", "monochrome", "minimal", "film"],
+  white: ["minimal", "clean", "light", "airy"],
+  night: ["night", "dark", "urban", "long-exposure"],
+  sunset: ["sunset", "golden-hour", "landscape", "travel"],
+  sunrise: ["sunrise", "golden-hour", "landscape", "peaceful"],
+  golden: ["golden-hour", "warm", "landscape"],
+  flower: ["botanical", "nature", "macro", "spring"],
+  rain: ["rain", "moody", "street", "documentary"],
+  snow: ["snow", "winter", "landscape", "minimal"],
+  travel: ["travel", "adventure", "documentary", "lifestyle"],
+  food: ["food", "lifestyle", "macro", "editorial"],
+  animal: ["wildlife", "nature", "animal", "documentary"],
+  bird: ["wildlife", "nature", "bird", "aerial"],
+  macro: ["macro", "detail", "nature", "pattern"],
+  minimal: ["minimal", "clean", "abstract", "design"],
+  film: ["film", "analogue", "grain", "documentary"],
+  vintage: ["vintage", "retro", "film", "analogue"],
+  dark: ["dark", "moody", "dramatic", "night"],
+  aerial: ["aerial", "landscape", "travel", "drone"],
+};
+
+function suggestTagsFromTitle(title: string): string[] {
+  const words = title.toLowerCase().split(/\s+/);
+  const suggestions = new Set<string>();
+  for (const word of words) {
+    for (const [keyword, tags] of Object.entries(AI_TAG_LIBRARY)) {
+      if (word.includes(keyword) || keyword.includes(word)) {
+        tags.forEach(t => suggestions.add(t));
+      }
+    }
+  }
+  if (suggestions.size === 0) {
+    const fallback = ["photography", "art", "visual", "creative"];
+    fallback.forEach(t => suggestions.add(t));
+  }
+  return Array.from(suggestions).slice(0, 8);
+}
+
 const LICENSE_OPTIONS = [
   { value: "cc0", label: "CC0 — Public Domain", desc: "No rights reserved. Anyone can use freely." },
   { value: "cc-by", label: "CC BY 4.0", desc: "Credit required. Commercial use allowed." },
@@ -908,11 +966,29 @@ function QueueCard({ item, isPremium, onUpdate, onRemove, onPublish, onRetry, on
 
             {/* Tags */}
             <div className="space-y-2 sm:col-span-2">
-              <div className="flex items-baseline justify-between">
+              <div className="flex items-baseline justify-between flex-wrap gap-2">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-medium">
                   Tags <span className="text-destructive">*</span>
                 </label>
-                <span className="text-xs text-muted-foreground/60">{item.tags.length}/12</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground/60">{item.tags.length}/12</span>
+                  {item.title && item.tags.length < 12 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const suggested = suggestTagsFromTitle(item.title);
+                        const newTags = [...item.tags];
+                        for (const t of suggested) {
+                          if (!newTags.includes(t) && newTags.length < 12) newTags.push(t);
+                        }
+                        onUpdate({ tags: newTags });
+                      }}
+                      className="flex items-center gap-1 text-[10px] px-2 py-0.5 border border-dashed border-foreground/30 text-muted-foreground hover:text-foreground hover:border-foreground/60 transition-colors"
+                    >
+                      <Sparkles className="w-2.5 h-2.5" /> AI Suggest
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="border border-border px-3 py-2 min-h-[40px] flex flex-wrap gap-2 items-center focus-within:border-foreground transition-colors">
                 {item.tags.map((tag) => (

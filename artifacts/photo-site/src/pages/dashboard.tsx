@@ -199,12 +199,41 @@ function OverviewTab({ user, summary, trending, payoutStats }: {
 }
 
 // ─── Analytics Tab ────────────────────────────────────────────────────────────
+interface MyAnalytics {
+  totals: { views: number; likes: number; downloads: number; photos: number };
+  photos: Array<{ id: number; title: string; image_url: string; views: number; likes: number; downloads: number; created_at: string }>;
+  daily: Array<{ label: string; date: string; views: number; likes: number; downloads: number }>;
+}
+
+function Sparkline({ values, color = "currentColor" }: { values: number[]; color?: string }) {
+  if (values.length < 2) return <span className="text-[10px] text-muted-foreground/40">—</span>;
+  const max = Math.max(...values, 1);
+  const w = 64; const h = 20;
+  const pts = values.map((v, i) => `${(i / (values.length - 1)) * w},${h - (v / max) * h}`).join(" ");
+  return (
+    <svg width={w} height={h} className="inline-block opacity-70">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function AnalyticsTab({ summary, trending, latest, tags }: {
   summary: { totalPhotos: number; totalLikes: number; totalDownloads: number; totalCollections: number } | undefined;
   trending: Photo[] | undefined;
   latest: { photos: Photo[] } | undefined;
   tags: Array<{ name: string; photoCount: number }> | undefined;
 }) {
+  const [myStats, setMyStats] = useState<MyAnalytics | null>(null);
+  const [myLoading, setMyLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/analytics/my", { credentials: "include" })
+      .then(r => r.json())
+      .then((d: MyAnalytics) => setMyStats(d))
+      .catch(() => {})
+      .finally(() => setMyLoading(false));
+  }, []);
+
   const popular = trending ?? [];
 
   const topPhotographers = (() => {
@@ -221,6 +250,71 @@ function AnalyticsTab({ summary, trending, latest, tags }: {
 
   return (
     <div className="space-y-10">
+      {/* ── My Portfolio Stats ── */}
+      <div>
+        <h3 className="text-xs uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
+          <BarChart3 className="w-3.5 h-3.5" /> My Portfolio Analytics
+        </h3>
+        {myLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {Array(4).fill(0).map((_, i) => <div key={i} className="border border-border bg-card p-6 h-24 animate-pulse" />)}
+          </div>
+        ) : !myStats || (myStats.totals.photos === 0) ? (
+          <div className="border border-border bg-card p-6 text-sm text-muted-foreground">
+            No photos published under your account yet.{" "}
+            <a href="/upload" className="underline hover:text-foreground transition-colors">Upload your first photo</a>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "My Photos", value: myStats.totals.photos, key: "views" as const },
+                { label: "Total Views", value: myStats.totals.views, key: "views" as const },
+                { label: "Total Likes", value: myStats.totals.likes, key: "likes" as const },
+                { label: "Total Downloads", value: myStats.totals.downloads, key: "downloads" as const },
+              ].map(({ label, value }) => (
+                <div key={label} className="border border-border bg-card p-5 space-y-2">
+                  <p className="text-xs uppercase tracking-widest text-muted-foreground">{label}</p>
+                  <p className="text-3xl font-serif">{value.toLocaleString()}</p>
+                  {myStats.daily.length > 1 && (
+                    <Sparkline values={myStats.daily.map(d => label.includes("Views") ? d.views : label.includes("Likes") ? d.likes : label.includes("Downloads") ? d.downloads : 0)} />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Top performing photos */}
+            {myStats.photos.length > 0 && (
+              <div className="border border-border bg-card">
+                <div className="border-b border-border px-5 py-3 flex items-center gap-2">
+                  <Star className="w-4 h-4 text-muted-foreground" />
+                  <h3 className="text-sm font-medium">Top Performing Photos</h3>
+                </div>
+                <div className="divide-y divide-border">
+                  {myStats.photos.slice(0, 8).map((photo, i) => (
+                    <a key={photo.id} href={`/photos/${photo.id}`}
+                      className="flex items-center gap-4 px-5 py-3 hover:bg-muted/30 transition-colors group">
+                      <span className="w-5 text-center text-xs font-mono text-muted-foreground flex-shrink-0">{i + 1}</span>
+                      <div className="w-12 h-9 bg-muted overflow-hidden flex-shrink-0">
+                        <img src={photo.image_url} alt={photo.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{photo.title}</p>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-shrink-0">
+                        <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{photo.views}</span>
+                        <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{photo.likes}</span>
+                        <span className="flex items-center gap-1"><Download className="w-3 h-3" />{photo.downloads}</span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Headline stats */}
       <div>
         <h3 className="text-xs uppercase tracking-widest text-muted-foreground mb-4">Platform Metrics</h3>

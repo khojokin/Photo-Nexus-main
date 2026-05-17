@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 
-type Tab = "overview" | "prints" | "commissions" | "tips" | "licensing" | "payouts";
+type Tab = "overview" | "prints" | "commissions" | "tips" | "licensing" | "payouts" | "referral";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "overview", label: "Overview", icon: TrendingUp },
@@ -19,6 +19,7 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "tips", label: "Tips", icon: Coffee },
   { id: "licensing", label: "Licensing", icon: FileText },
   { id: "payouts", label: "Payouts", icon: CreditCard },
+  { id: "referral", label: "Referral", icon: Users },
 ];
 
 interface LivePayoutTransaction {
@@ -603,8 +604,125 @@ export function Monetise() {
 
         {/* ── Payouts ── */}
         {tab === "payouts" && <PayoutsTab displayName={displayName} user={user} />}
+
+        {/* ── Referral ── */}
+        {tab === "referral" && <ReferralTab />}
       </div>
     </Layout>
+  );
+}
+
+// ─── Referral Tab ─────────────────────────────────────────────────────────────
+function ReferralTab() {
+  const [loading, setLoading] = useState(true);
+  const [code, setCode] = useState<string | null>(null);
+  const [link, setLink] = useState<string | null>(null);
+  const [conversions, setConversions] = useState(0);
+  const [earnings, setEarnings] = useState("0.00");
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/referrals/my", { credentials: "include" })
+      .then(r => r.json())
+      .then((d: { code?: string; link?: string; conversions?: number; totalEarnings?: string; error?: string }) => {
+        if (d.error) { setError(d.error); return; }
+        setCode(d.code ?? null);
+        setLink(d.link ?? null);
+        setConversions(d.conversions ?? 0);
+        setEarnings(d.totalEarnings ?? "0.00");
+      })
+      .catch(() => setError("Could not load referral data."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function copyLink() {
+    if (!link) return;
+    await navigator.clipboard.writeText(link).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-serif mb-1">Referral & Affiliate Programme</h2>
+        <p className="text-sm text-muted-foreground">Earn $5.00 for every photographer you refer who joins Affuaa.</p>
+      </div>
+
+      {loading ? (
+        <div className="border border-border bg-card p-8 animate-pulse h-40" />
+      ) : error ? (
+        <div className="border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">{error} — Sign in to access referrals.</div>
+      ) : (
+        <>
+          {/* Stats row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="border border-border bg-card p-6 space-y-2">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" /> Conversions
+              </p>
+              <p className="text-3xl font-serif">{conversions}</p>
+              <p className="text-xs text-muted-foreground">Photographers who signed up with your link</p>
+            </div>
+            <div className="border border-foreground/20 bg-foreground/5 p-6 space-y-2">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                <DollarSign className="w-3.5 h-3.5" /> Total Earned
+              </p>
+              <p className="text-3xl font-serif">${earnings}</p>
+              <p className="text-xs text-muted-foreground">$5.00 per successful referral</p>
+            </div>
+          </div>
+
+          {/* Referral code */}
+          <div className="border border-border bg-card p-6 space-y-4">
+            <div>
+              <h3 className="text-sm font-medium mb-1">Your Referral Code</h3>
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-2xl tracking-widest text-foreground border border-dashed border-foreground/30 px-4 py-2">
+                  {code}
+                </span>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium mb-1">Your Referral Link</h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <code className="flex-1 min-w-0 text-xs text-muted-foreground bg-muted px-3 py-2 truncate">{link}</code>
+                <button onClick={() => void copyLink()}
+                  className="flex items-center gap-1.5 px-4 py-2 border border-border text-sm hover:border-foreground/50 transition-colors flex-shrink-0">
+                  <Check className={cn("w-3.5 h-3.5 transition-opacity", copied ? "opacity-100 text-green-400" : "opacity-0")} />
+                  {copied ? "Copied!" : "Copy Link"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* How it works */}
+          <div className="border border-border bg-card p-6">
+            <h3 className="text-sm font-medium mb-4">How it works</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              {[
+                { step: "01", title: "Share your link", desc: "Share your unique referral link or code with other photographers." },
+                { step: "02", title: "They sign up", desc: "When someone joins Affuaa using your link, the referral is tracked automatically." },
+                { step: "03", title: "You earn $5", desc: "A $5.00 commission is credited to your account for each successful referral." },
+              ].map(({ step, title, desc }) => (
+                <div key={step} className="space-y-2">
+                  <span className="text-xs font-mono text-muted-foreground">{step}</span>
+                  <h4 className="text-sm font-medium">{title}</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Terms */}
+          <div className="flex items-start gap-2 text-xs text-muted-foreground/70">
+            <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+            <span>Referral commissions are paid out alongside your regular payouts. Minimum payout threshold applies. Self-referrals are not permitted.</span>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

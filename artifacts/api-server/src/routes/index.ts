@@ -31,6 +31,9 @@ import adminSeedRouter from "./admin-seed";
 import adminSecurityEventsRouter from "./admin-security-events";
 import settingsRouter from "./settings";
 import photographersRouter from "./photographers";
+import challengesRouter from "./challenges";
+import referralsRouter from "./referrals";
+import packsRouter from "./packs";
 
 const router: IRouter = Router();
 
@@ -66,5 +69,8 @@ router.use(adminSeedRouter);
 router.use(adminSecurityEventsRouter);
 router.use(settingsRouter);
 router.use(photographersRouter);
+router.use(challengesRouter);
+router.use(referralsRouter);
+router.use(packsRouter);
 
 export default router;
