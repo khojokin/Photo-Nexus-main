@@ -1262,23 +1262,132 @@ export function Layout({ children }: { children: React.ReactNode }) {
         ) : children}
       </main>
 
-      <footer className="border-t border-border py-12 mt-20 mb-16 md:mb-0">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-center sm:text-left">
-              <p className="font-serif text-2xl mb-1">Affuaa.</p>
-              <p className="text-muted-foreground text-sm">Curated photography. Respect the craft.</p>
-              <p className="text-muted-foreground/70 text-xs mt-1">© {new Date().getFullYear()} Affuaa. All rights reserved.</p>
+      <footer className="border-t border-border mt-20 mb-16 md:mb-0">
+        <div className="container mx-auto px-4 py-14">
+
+          {/* ── Top row: brand + columns ────────────────────────────────── */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-12">
+
+            {/* Brand */}
+            <div className="col-span-2 md:col-span-1">
+              <p className="font-serif text-2xl mb-2">Affuaa.</p>
+              <p className="text-muted-foreground text-sm leading-relaxed mb-5 max-w-[18ch]">
+                Curated photography.<br />Respect the craft.
+              </p>
+              {/* Social icons */}
+              <div className="flex items-center gap-3">
+                {/* Instagram */}
+                <a
+                  href="https://instagram.com/affuaa"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Affuaa on Instagram"
+                  className="w-8 h-8 border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+                >
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+                    <circle cx="12" cy="12" r="4"/>
+                    <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" stroke="none"/>
+                  </svg>
+                </a>
+                {/* X / Twitter */}
+                <a
+                  href="https://x.com/affuaa"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Affuaa on X"
+                  className="w-8 h-8 border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+                >
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                  </svg>
+                </a>
+                {/* Pinterest */}
+                <a
+                  href="https://pinterest.com/affuaa"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Affuaa on Pinterest"
+                  className="w-8 h-8 border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+                >
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+                    <path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 01.083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.632-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/>
+                  </svg>
+                </a>
+                {/* YouTube */}
+                <a
+                  href="https://youtube.com/@affuaa"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Affuaa on YouTube"
+                  className="w-8 h-8 border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+                >
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+                    <path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                  </svg>
+                </a>
+                {/* Behance */}
+                <a
+                  href="https://behance.net/affuaa"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Affuaa on Behance"
+                  className="w-8 h-8 border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+                >
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+                    <path d="M7.799 5.698c.589 0 1.12.051 1.606.156.482.104.894.274 1.237.507.344.235.612.546.804.938.188.392.284.871.284 1.435 0 .614-.138 1.129-.417 1.542-.278.411-.686.754-1.218 1.025.73.212 1.275.586 1.638 1.123.362.538.544 1.187.544 1.949 0 .621-.12 1.161-.358 1.618-.239.458-.566.833-.985 1.122-.416.289-.897.503-1.441.639-.547.135-1.12.202-1.713.202H0V5.698h7.799zm-.447 4.942c.508 0 .921-.119 1.237-.358.315-.238.474-.625.474-1.159 0-.296-.053-.541-.158-.741a1.157 1.157 0 00-.432-.47 1.84 1.84 0 00-.646-.249 3.994 3.994 0 00-.793-.076H2.616v3.053h4.736zm.207 5.189c.301 0 .583-.028.847-.084.263-.056.494-.152.692-.288.198-.135.357-.315.474-.543.117-.228.176-.516.176-.865 0-.692-.199-1.189-.594-1.491-.397-.302-.921-.453-1.573-.453H2.616v3.724h4.943zM20.671 18.07c-.408.407-.878.714-1.411.915-.533.204-1.107.305-1.718.305-.64 0-1.219-.107-1.735-.322-.516-.214-.957-.518-1.326-.914-.367-.395-.65-.867-.851-1.415-.2-.549-.3-1.156-.3-1.818 0-.636.1-1.228.3-1.771.2-.545.484-1.014.851-1.406.368-.393.81-.697 1.326-.911.516-.215 1.095-.322 1.735-.322.61 0 1.154.112 1.631.334.476.223.878.532 1.209.927.329.394.579.856.745 1.388.166.531.25 1.103.25 1.717v.585H16.04c.05.68.273 1.207.666 1.584.394.374.891.562 1.493.562.477 0 .877-.107 1.203-.322.327-.215.57-.5.73-.858l1.54.543zm-2.011-4.887c-.281-.302-.684-.453-1.213-.453-.359 0-.658.06-.896.18-.239.12-.432.271-.58.454-.148.183-.251.384-.311.602-.061.217-.097.434-.11.647h3.673c-.045-.617-.282-1.127-.563-1.43zm-3.456-5.047h4.52V6.786h-4.52v1.35z"/>
+                  </svg>
+                </a>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-              <Link href="/photos" className="hover:text-foreground transition-colors">Explore</Link>
-              <Link href="/illustrations" className="hover:text-foreground transition-colors">Illustrations</Link>
-              <Link href="/collections" className="hover:text-foreground transition-colors">Collections</Link>
-              <Link href="/premium" className="hover:text-foreground transition-colors">Premium</Link>
-              <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
-              <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+
+            {/* Discover */}
+            <div>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-4">Discover</p>
+              <ul className="space-y-2.5 text-sm text-muted-foreground">
+                <li><Link href="/photos" className="hover:text-foreground transition-colors">Explore Gallery</Link></li>
+                <li><Link href="/illustrations" className="hover:text-foreground transition-colors">Illustrations</Link></li>
+                <li><Link href="/collections" className="hover:text-foreground transition-colors">Collections</Link></li>
+                <li><Link href="/series" className="hover:text-foreground transition-colors">Photo Series</Link></li>
+                <li><Link href="/tags" className="hover:text-foreground transition-colors">Browse Tags</Link></li>
+              </ul>
+            </div>
+
+            {/* Community */}
+            <div>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-4">Community</p>
+              <ul className="space-y-2.5 text-sm text-muted-foreground">
+                <li><Link href="/dashboard" className="hover:text-foreground transition-colors">Your Dashboard</Link></li>
+                <li><Link href="/upload" className="hover:text-foreground transition-colors">Upload a Photo</Link></li>
+                <li><Link href="/premium" className="hover:text-foreground transition-colors">Go Premium</Link></li>
+                <li><Link href="/monetise" className="hover:text-foreground transition-colors">Earn as a Photographer</Link></li>
+                <li><Link href="/messages" className="hover:text-foreground transition-colors">Messages</Link></li>
+              </ul>
+            </div>
+
+            {/* Company */}
+            <div>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-4">Company</p>
+              <ul className="space-y-2.5 text-sm text-muted-foreground">
+                <li><Link href="/about" className="hover:text-foreground transition-colors">About Affuaa</Link></li>
+                <li><Link href="/blog" className="hover:text-foreground transition-colors">The Edit (Blog)</Link></li>
+                <li><a href="mailto:hello@affuaa.com" className="hover:text-foreground transition-colors">Contact Us</a></li>
+                <li><Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
+                <li><Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
+              </ul>
             </div>
           </div>
+
+          {/* ── Bottom bar ─────────────────────────────────────────────────── */}
+          <div className="border-t border-border/40 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground/60">
+              © {new Date().getFullYear()} Affuaa. All rights reserved.
+            </p>
+            <p className="text-xs text-muted-foreground/40 tracking-wide">
+              Gallery-quality curation &nbsp;·&nbsp; Darkroom aesthetic &nbsp;·&nbsp; Photographers first
+            </p>
+          </div>
+
         </div>
       </footer>
       {aiChatEnabled && <LiveChat />}
