@@ -5,7 +5,7 @@ import {
   DollarSign, Printer, MessageSquare, Coffee, FileText, CreditCard,
   TrendingUp, Download, Heart, Eye, Check, ChevronRight, Star,
   AlertCircle, Plus, X, ExternalLink, Zap, Shield, Info, Lock,
-  Users, BarChart3, ArrowRight, Crown,
+  Users, BarChart3, ArrowRight, Crown, KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
@@ -577,6 +577,85 @@ interface PremiumEarnings {
   availableBalance: string;
 }
 
+// ─── Payout Confirmation Dialog ───────────────────────────────────────────────
+function PayoutConfirmDialog({
+  amount, method, destination, onConfirm, onCancel, submitting,
+}: {
+  amount: string; method: string; destination: string;
+  onConfirm: () => void; onCancel: () => void; submitting: boolean;
+}) {
+  const [confirmInput, setConfirmInput] = useState("");
+  const CONFIRM_PHRASE = "CONFIRM PAYOUT";
+  const isMatch = confirmInput.trim().toUpperCase() === CONFIRM_PHRASE;
+
+  return (
+    <div className="fixed inset-0 bg-background/90 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+      <div className="w-full max-w-md border border-amber-500/30 bg-card shadow-2xl">
+        <div className="px-6 py-5 border-b border-border">
+          <div className="flex items-center gap-3 mb-1">
+            <KeyRound className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <h3 className="font-serif text-lg">Confirm Payout Request</h3>
+          </div>
+          <p className="text-xs text-muted-foreground">Please review your payout details carefully before confirming.</p>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <div className="border border-border bg-muted/10 p-4 space-y-2.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Amount</span>
+              <span className="font-medium">${parseFloat(amount || "0").toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Method</span>
+              <span className="font-medium capitalize">{method.replace("_", " ")}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Send to</span>
+              <span className="font-medium font-mono text-xs">{destination || "—"}</span>
+            </div>
+          </div>
+
+          <div className="border border-amber-500/20 bg-amber-500/5 p-3 flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-400/90 leading-relaxed">
+              Once submitted, this request will be reviewed by the Affuaa team. Funds are released after manual verification — typically 1–3 business days.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs text-muted-foreground block">
+              Type <span className="font-mono font-medium text-foreground">{CONFIRM_PHRASE}</span> to confirm
+            </label>
+            <input
+              type="text"
+              value={confirmInput}
+              onChange={e => setConfirmInput(e.target.value)}
+              placeholder={CONFIRM_PHRASE}
+              autoFocus
+              className="w-full bg-transparent border border-border px-3 py-2.5 text-sm focus:outline-none focus:border-foreground transition-colors font-mono tracking-wider"
+            />
+          </div>
+        </div>
+        <div className="px-6 pb-5 flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 text-sm border border-border text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!isMatch || submitting}
+            className="flex-1 py-2.5 text-sm bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+          >
+            {submitting && <span className="w-3 h-3 border border-background/40 border-t-background rounded-full animate-spin" />}
+            {submitting ? "Submitting…" : "Submit Request"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PayoutsTab({ displayName, user }: { displayName: string; user: { firstName?: string | null; email?: string | null } | null }) {
   const [payoutMethod, setPayoutMethod] = useState<"paypal" | "bank_transfer">("paypal");
   const [paypalEmail, setPaypalEmail] = useState("");
@@ -591,6 +670,7 @@ function PayoutsTab({ displayName, user }: { displayName: string; user: { firstN
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<PayoutRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const [premEarnings, setPremEarnings] = useState<PremiumEarnings | null>(null);
   const [premPayoutMethod, setPremPayoutMethod] = useState<"paypal" | "bank_transfer">("paypal");
@@ -603,6 +683,7 @@ function PayoutsTab({ displayName, user }: { displayName: string; user: { firstN
   const [premError, setPremError] = useState<string | null>(null);
   const [premSuccess, setPremSuccess] = useState(false);
   const [showPremForm, setShowPremForm] = useState(false);
+  const [showPremConfirm, setShowPremConfirm] = useState(false);
 
   useEffect(() => {
     fetch("/api/payouts/my")
@@ -640,16 +721,27 @@ function PayoutsTab({ displayName, user }: { displayName: string; user: { firstN
       if (!res.ok) { setPremError(data.message ?? "Request failed. Please try again."); return; }
       setPremSuccess(v => !v);
       setShowPremForm(false);
+      setShowPremConfirm(false);
       setPremPaypalEmail(""); setPremBankHolder(""); setPremBankName(""); setPremBankAccount(""); setPremBankRouting("");
     } catch { setPremError("Failed to submit request. Please try again."); }
     finally { setPremSubmitting(false); }
   }
 
-  async function submitRequest() {
+  function validateRequest(): string | null {
+    if (!amount || parseFloat(amount) < 20) return "Minimum payout is $20.00";
+    if (payoutMethod === "paypal" && !paypalEmail) return "Please enter your PayPal email.";
+    if (payoutMethod === "bank_transfer" && (!bankHolder || !bankAccount)) return "Please complete all bank details.";
+    return null;
+  }
+
+  function handleRequestPayoutClick() {
+    const err = validateRequest();
+    if (err) { setError(err); return; }
     setError(null);
-    if (!amount || parseFloat(amount) < 20) { setError("Minimum payout is $20.00"); return; }
-    if (payoutMethod === "paypal" && !paypalEmail) { setError("Please enter your PayPal email."); return; }
-    if (payoutMethod === "bank_transfer" && (!bankHolder || !bankAccount || !bankAccount)) { setError("Please complete all bank details."); return; }
+    setShowConfirm(true);
+  }
+
+  async function submitRequest() {
     setSubmitting(true);
     try {
       const acct = bankAccount.replace(/\s/g, "");
@@ -669,9 +761,10 @@ function PayoutsTab({ displayName, user }: { displayName: string; user: { firstN
       };
       const res = await fetch("/api/payouts/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) throw new Error("Request failed");
+      setShowConfirm(false);
       setSubmitted(v => !v);
       setAmount(""); setDescription(""); setPaypalEmail(""); setBankHolder(""); setBankName(""); setBankAccount(""); setBankRouting("");
-    } catch { setError("Failed to submit request. Please try again."); }
+    } catch { setError("Failed to submit request. Please try again."); setShowConfirm(false); }
     finally { setSubmitting(false); }
   }
 
@@ -683,6 +776,28 @@ function PayoutsTab({ displayName, user }: { displayName: string; user: { firstN
 
   return (
     <div className="space-y-8">
+      {/* Payout confirmation dialog */}
+      {showConfirm && (
+        <PayoutConfirmDialog
+          amount={amount}
+          method={payoutMethod}
+          destination={payoutMethod === "paypal" ? paypalEmail : bankHolder ? `${bankHolder} · ${bankName}` : ""}
+          onConfirm={() => void submitRequest()}
+          onCancel={() => setShowConfirm(false)}
+          submitting={submitting}
+        />
+      )}
+      {/* Premium payout confirmation dialog */}
+      {showPremConfirm && premEarnings && (
+        <PayoutConfirmDialog
+          amount={premEarnings.availableBalance}
+          method={premPayoutMethod}
+          destination={premPayoutMethod === "paypal" ? premPaypalEmail : premBankHolder ? `${premBankHolder} · ${premBankName}` : ""}
+          onConfirm={() => void submitPremiumPayoutRequest()}
+          onCancel={() => setShowPremConfirm(false)}
+          submitting={premSubmitting}
+        />
+      )}
 
       {/* ── Premium Earnings Panel ── */}
       {premEarnings && (
@@ -786,10 +901,17 @@ function PayoutsTab({ displayName, user }: { displayName: string; user: { firstN
                     )}
                   </div>
                   {premError && <p className="text-xs text-red-400">{premError}</p>}
-                  <button onClick={() => void submitPremiumPayoutRequest()} disabled={premSubmitting}
+                  <button
+                    onClick={() => {
+                      if (premPayoutMethod === "paypal" && !premPaypalEmail) { setPremError("Please enter your PayPal email."); return; }
+                      if (premPayoutMethod === "bank_transfer" && (!premBankHolder || !premBankAccount)) { setPremError("Please complete all bank details."); return; }
+                      setPremError(null);
+                      setShowPremConfirm(true);
+                    }}
+                    disabled={premSubmitting}
                     className="flex items-center gap-2 px-5 py-2.5 bg-foreground text-background text-sm hover:opacity-90 disabled:opacity-40 transition-opacity">
-                    {premSubmitting && <span className="w-3 h-3 border border-background/40 border-t-background rounded-full animate-spin" />}
-                    {premSubmitting ? "Submitting…" : "Submit Payout Request"}
+                    <KeyRound className="w-3.5 h-3.5" />
+                    Request Payout
                   </button>
                 </div>
               )}
@@ -876,10 +998,10 @@ function PayoutsTab({ displayName, user }: { displayName: string; user: { firstN
         {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
 
         <div className="flex items-center gap-3">
-          <button onClick={() => void submitRequest()} disabled={submitting}
+          <button onClick={handleRequestPayoutClick} disabled={submitting}
             className="px-5 py-2.5 bg-foreground text-background text-sm hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-2">
-            {submitting && <span className="w-3 h-3 border border-background/40 border-t-background rounded-full animate-spin" />}
-            {submitting ? "Submitting…" : "Submit Payout Request"}
+            <KeyRound className="w-3.5 h-3.5" />
+            Request Payout
           </button>
         </div>
 

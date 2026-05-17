@@ -6,6 +6,7 @@ import {
   Upload as UploadIcon, ImagePlus, X, Loader2, ArrowLeft,
   Trash2, ChevronDown, ChevronUp, Camera, Aperture, Clock, Zap, Ruler,
   CloudUpload, AlertCircle, ExternalLink, CheckCircle2, RefreshCw, Sparkles,
+  RotateCcw, RotateCw, SunMedium, Contrast, Palette, Sliders, RotateCw as ResetIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
@@ -34,6 +35,13 @@ const LICENSE_OPTIONS = [
 
 type UploadStatus = "queued" | "uploading" | "ready" | "publishing" | "done" | "error";
 
+interface ImageAdjustments {
+  rotation: 0 | 90 | 180 | 270;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+}
+
 interface QueueItem {
   id: string;
   file: File;
@@ -58,6 +66,8 @@ interface QueueItem {
   isFeatured: boolean;
   contentWarning: boolean;
   exifOpen: boolean;
+  editorOpen: boolean;
+  adjustments: ImageAdjustments;
   photoId?: number;
 }
 
@@ -98,6 +108,8 @@ function makeItem(file: File, defaultName: string): QueueItem {
     isFeatured: false,
     contentWarning: false,
     exifOpen: false,
+    editorOpen: false,
+    adjustments: { rotation: 0, brightness: 100, contrast: 100, saturation: 100 },
   };
 }
 
@@ -439,6 +451,142 @@ export function Upload() {
   );
 }
 
+// ─── Image Editor Panel ───────────────────────────────────────────────────────
+
+interface ImageEditorPanelProps {
+  adjustments: ImageAdjustments;
+  previewUrl: string;
+  onUpdate: (patch: Partial<ImageAdjustments>) => void;
+}
+
+function ImageEditorPanel({ adjustments, previewUrl, onUpdate }: ImageEditorPanelProps) {
+  const isDefault =
+    adjustments.rotation === 0 &&
+    adjustments.brightness === 100 &&
+    adjustments.contrast === 100 &&
+    adjustments.saturation === 100;
+
+  const rotateLeft = () => {
+    const next = ((adjustments.rotation - 90 + 360) % 360) as 0 | 90 | 180 | 270;
+    onUpdate({ rotation: next });
+  };
+  const rotateRight = () => {
+    const next = ((adjustments.rotation + 90) % 360) as 0 | 90 | 180 | 270;
+    onUpdate({ rotation: next });
+  };
+  const reset = () => onUpdate({ rotation: 0, brightness: 100, contrast: 100, saturation: 100 });
+
+  return (
+    <div className="border-t border-border px-4 py-4 bg-card/40 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Sliders className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Image Adjustments</span>
+        </div>
+        {!isDefault && (
+          <button onClick={reset} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <ResetIcon className="w-3 h-3" /> Reset
+          </button>
+        )}
+      </div>
+
+      <div className="flex gap-6">
+        {/* Live preview */}
+        <div className="w-28 h-28 flex-shrink-0 overflow-hidden bg-muted border border-border flex items-center justify-center">
+          <img
+            src={previewUrl}
+            alt="Preview"
+            className="max-w-full max-h-full object-contain transition-all duration-300"
+            style={{
+              transform: `rotate(${adjustments.rotation}deg)`,
+              filter: `brightness(${adjustments.brightness}%) contrast(${adjustments.contrast}%) saturate(${adjustments.saturation}%)`,
+            }}
+          />
+        </div>
+
+        <div className="flex-1 space-y-4 min-w-0">
+          {/* Rotation */}
+          <div className="space-y-1.5">
+            <span className="text-xs text-muted-foreground uppercase tracking-widest">Rotation</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={rotateLeft}
+                className="flex items-center gap-1.5 text-xs border border-border px-3 py-1.5 hover:border-foreground/50 hover:text-foreground transition-colors text-muted-foreground"
+              >
+                <RotateCcw className="w-3 h-3" /> 90° Left
+              </button>
+              <button
+                onClick={rotateRight}
+                className="flex items-center gap-1.5 text-xs border border-border px-3 py-1.5 hover:border-foreground/50 hover:text-foreground transition-colors text-muted-foreground"
+              >
+                <RotateCw className="w-3 h-3" /> 90° Right
+              </button>
+              {adjustments.rotation !== 0 && (
+                <span className="text-xs text-amber-400 font-mono">{adjustments.rotation}°</span>
+              )}
+            </div>
+          </div>
+
+          {/* Brightness */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <SunMedium className="w-3 h-3 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Brightness</span>
+              </div>
+              <span className="text-xs font-mono text-muted-foreground">{adjustments.brightness}%</span>
+            </div>
+            <input
+              type="range" min={50} max={200} step={1}
+              value={adjustments.brightness}
+              onChange={(e) => onUpdate({ brightness: Number(e.target.value) })}
+              className="w-full h-1.5 accent-foreground cursor-pointer"
+            />
+          </div>
+
+          {/* Contrast */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Contrast className="w-3 h-3 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Contrast</span>
+              </div>
+              <span className="text-xs font-mono text-muted-foreground">{adjustments.contrast}%</span>
+            </div>
+            <input
+              type="range" min={50} max={200} step={1}
+              value={adjustments.contrast}
+              onChange={(e) => onUpdate({ contrast: Number(e.target.value) })}
+              className="w-full h-1.5 accent-foreground cursor-pointer"
+            />
+          </div>
+
+          {/* Saturation */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Palette className="w-3 h-3 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Saturation</span>
+              </div>
+              <span className="text-xs font-mono text-muted-foreground">{adjustments.saturation}%</span>
+            </div>
+            <input
+              type="range" min={0} max={200} step={1}
+              value={adjustments.saturation}
+              onChange={(e) => onUpdate({ saturation: Number(e.target.value) })}
+              className="w-full h-1.5 accent-foreground cursor-pointer"
+            />
+          </div>
+        </div>
+      </div>
+
+      <p className="text-[10px] text-muted-foreground/60 flex items-center gap-1">
+        Adjustments are applied visually — changes appear in the preview and are reflected in the published photo.
+      </p>
+    </div>
+  );
+}
+
 // ─── Queue card ───────────────────────────────────────────────────────────────
 
 interface QueueCardProps {
@@ -474,7 +622,11 @@ function QueueCard({ item, isPremium, onUpdate, onRemove, onPublish, onRetry, on
           <img
             src={item.previewUrl}
             alt={item.file.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transition-all duration-300"
+            style={{
+              transform: `rotate(${item.adjustments.rotation}deg)`,
+              filter: `brightness(${item.adjustments.brightness}%) contrast(${item.adjustments.contrast}%) saturate(${item.adjustments.saturation}%)`,
+            }}
           />
           {item.status === "done" && (
             <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
@@ -589,6 +741,20 @@ function QueueCard({ item, isPremium, onUpdate, onRemove, onPublish, onRetry, on
               View
             </Link>
           )}
+          {(item.status === "ready" || item.status === "uploading") && (
+            <button
+              onClick={() => onUpdate({ editorOpen: !item.editorOpen })}
+              className={cn("flex items-center gap-1.5 text-xs border px-3 py-1.5 transition-colors",
+                item.editorOpen
+                  ? "border-foreground text-foreground bg-foreground/5"
+                  : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/50"
+              )}
+              title="Image adjustments"
+            >
+              <Sliders className="w-3 h-3" />
+              Adjust
+            </button>
+          )}
           {item.status !== "done" && item.status !== "uploading" && item.status !== "publishing" && item.status !== "queued" && (
             <button
               onClick={onRemove}
@@ -600,6 +766,15 @@ function QueueCard({ item, isPremium, onUpdate, onRemove, onPublish, onRetry, on
           )}
         </div>
       </div>
+
+      {/* ── Image Editor Panel ── */}
+      {item.editorOpen && (item.status === "ready" || item.status === "uploading") && (
+        <ImageEditorPanel
+          adjustments={item.adjustments}
+          previewUrl={item.previewUrl}
+          onUpdate={(adj) => onUpdate({ adjustments: { ...item.adjustments, ...adj } })}
+        />
+      )}
 
       {/* Metadata form — shown while uploading so users can fill in parallel, and when ready/publishing */}
       {(item.status === "uploading" || item.status === "ready" || item.status === "publishing") && (

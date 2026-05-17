@@ -1,122 +1,146 @@
 import { Router, type IRouter } from "express";
-import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
+import { securityEventsTable, blockedIpsTable } from "@workspace/db";
+import { desc, eq, gte, sql, count } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/adminMiddleware";
+import { z } from "zod";
 
 const router: IRouter = Router();
 
-interface SecurityEventRow {
-  id: number;
-  event_type: string;
-  severity: string;
-  ip_address: string | null;
-  user_id: string | null;
-  path: string | null;
-  method: string | null;
-  status_code: number | null;
-  message: string;
-  created_at: string;
-}
-
-interface MetricsRow {
-  total: number;
-  critical: number;
-  errors: number;
-  warnings: number;
-  top_ip: string | null;
-  rate_limit_hits: number;
-}
+// ── Security events log ──────────────────────────────────────────────────────
 
 router.get("/admin/security-events", requireAdmin, async (_req, res): Promise<void> => {
   try {
-    // Check if the security_events table exists first
-    const tableCheck = await db.execute<{ exists: boolean }>(sql`
-      SELECT EXISTS (
-        SELECT 1 FROM information_schema.tables
-        WHERE table_schema = 'public'
-          AND table_name = 'security_events'
-      ) AS exists
-    `);
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    const tableExists = tableCheck?.rows?.[0]?.exists === true;
+    const events = await db
+      .select()
+      .from(securityEventsTable)
+      .where(gte(securityEventsTable.createdAt, since))
+      .orderBy(desc(securityEventsTable.createdAt))
+      .limit(300);
 
-    if (!tableExists) {
-      // Table not yet created — return empty data with a note
-      res.json({
-        events: [],
-        metrics: {
-          total: 0,
-          critical: 0,
-          errors: 0,
-          warnings: 0,
-          topIp: null,
-          rateLimitHits: 0,
-        },
-        note: "security_events table not found. Run sql/affuaa-supabase-full-schema.sql to create it.",
-      });
-      return;
-    }
+    const [metrics] = await db
+      .select({
+        total: count(),
+        critical: sql<number>`COUNT(*) FILTER (WHERE severity = 'critical')`,
+        errors: sql<number>`COUNT(*) FILTER (WHERE severity = 'error')`,
+        warnings: sql<number>`COUNT(*) FILTER (WHERE severity = 'warn')`,
+        rateLimitHits: sql<number>`COUNT(*) FILTER (WHERE event_type = 'rate_limited')`,
+      })
+      .from(securityEventsTable)
+      .where(gte(securityEventsTable.createdAt, since));
 
-    // Fetch recent events (last 7 days)
-    const eventsResult = await db.execute<SecurityEventRow>(sql`
-      SELECT
-        id, event_type, severity, ip_address, user_id,
-        path, method, status_code, message, created_at
+    const topIpResult = await db.execute<{ ip_address: string; cnt: number }>(sql`
+      SELECT ip_address, COUNT(*) AS cnt
       FROM security_events
-      WHERE created_at > now() - interval '7 days'
-      ORDER BY created_at DESC
-      LIMIT 200
+      WHERE ip_address IS NOT NULL
+        AND created_at > NOW() - INTERVAL '7 days'
+      GROUP BY ip_address
+      ORDER BY cnt DESC
+      LIMIT 1
     `);
-
-    // Aggregate metrics
-    const metricsResult = await db.execute<MetricsRow>(sql`
-      SELECT
-        COUNT(*)                                              AS total,
-        COUNT(*) FILTER (WHERE severity = 'critical')        AS critical,
-        COUNT(*) FILTER (WHERE severity = 'error')           AS errors,
-        COUNT(*) FILTER (WHERE severity = 'warn')            AS warnings,
-        (
-          SELECT ip_address FROM security_events
-          WHERE ip_address IS NOT NULL
-            AND created_at > now() - interval '7 days'
-          GROUP BY ip_address
-          ORDER BY COUNT(*) DESC
-          LIMIT 1
-        )                                                     AS top_ip,
-        COUNT(*) FILTER (WHERE event_type = 'rate_limited')  AS rate_limit_hits
-      FROM security_events
-      WHERE created_at > now() - interval '7 days'
-    `);
-
-    const metrics = metricsResult?.rows?.[0];
-
-    const events = (eventsResult?.rows ?? []).map((r) => ({
-      id: r.id,
-      eventType: r.event_type,
-      severity: r.severity,
-      ipAddress: r.ip_address,
-      userId: r.user_id,
-      path: r.path,
-      method: r.method,
-      statusCode: r.status_code,
-      message: r.message,
-      createdAt: r.created_at,
-    }));
 
     res.json({
-      events,
+      events: events.map((e) => ({
+        id: e.id,
+        eventType: e.eventType,
+        severity: e.severity,
+        ipAddress: e.ipAddress,
+        userId: e.userId,
+        path: e.path,
+        method: e.method,
+        statusCode: e.statusCode,
+        message: e.message,
+        createdAt: e.createdAt,
+      })),
       metrics: {
         total: Number(metrics?.total ?? 0),
         critical: Number(metrics?.critical ?? 0),
         errors: Number(metrics?.errors ?? 0),
         warnings: Number(metrics?.warnings ?? 0),
-        topIp: metrics?.top_ip ?? null,
-        rateLimitHits: Number(metrics?.rate_limit_hits ?? 0),
+        topIp: topIpResult.rows[0]?.ip_address ?? null,
+        rateLimitHits: Number(metrics?.rateLimitHits ?? 0),
       },
     });
   } catch (err) {
     console.error("Security events fetch error:", err);
     res.status(500).json({ error: "Failed to load security events." });
+  }
+});
+
+// ── IP blocking ──────────────────────────────────────────────────────────────
+
+const BlockIpBody = z.object({
+  ipAddress: z.string().min(1).max(64),
+  reason: z.string().min(1).max(300),
+  expiresInHours: z.number().int().min(1).max(8760).optional(),
+});
+
+router.get("/admin/blocked-ips", requireAdmin, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(blockedIpsTable)
+    .orderBy(desc(blockedIpsTable.createdAt));
+  res.json({ blockedIps: rows });
+});
+
+router.post("/admin/blocked-ips", requireAdmin, async (req, res): Promise<void> => {
+  const parsed = BlockIpBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body" });
+    return;
+  }
+  const { ipAddress, reason, expiresInHours } = parsed.data;
+  const expiresAt = expiresInHours
+    ? new Date(Date.now() + expiresInHours * 60 * 60 * 1000)
+    : null;
+
+  const [row] = await db
+    .insert(blockedIpsTable)
+    .values({ ipAddress, reason, blockedBy: req.authUser?.id ?? null, expiresAt })
+    .onConflictDoUpdate({ target: blockedIpsTable.ipAddress, set: { reason, expiresAt, blockedBy: req.authUser?.id ?? null } })
+    .returning();
+
+  res.status(201).json(row);
+});
+
+router.delete("/admin/blocked-ips/:ip", requireAdmin, async (req, res): Promise<void> => {
+  const ip = decodeURIComponent(req.params["ip"] as string);
+  await db.delete(blockedIpsTable).where(eq(blockedIpsTable.ipAddress, ip));
+  res.sendStatus(204);
+});
+
+// ── Active sessions count ─────────────────────────────────────────────────────
+
+router.get("/admin/active-sessions", requireAdmin, async (_req, res): Promise<void> => {
+  try {
+    const [row] = await db.execute<{ count: number }>(sql`
+      SELECT COUNT(*) AS count FROM sessions WHERE expire > NOW()
+    `);
+    res.json({ activeSessions: Number(row?.count ?? 0) });
+  } catch {
+    res.json({ activeSessions: 0 });
+  }
+});
+
+router.delete("/admin/sessions/purge-expired", requireAdmin, async (_req, res): Promise<void> => {
+  try {
+    await db.execute(sql`DELETE FROM sessions WHERE expire <= NOW()`);
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Failed to purge sessions." });
+  }
+});
+
+// ── Security events cleanup ───────────────────────────────────────────────────
+
+router.delete("/admin/security-events/clear", requireAdmin, async (_req, res): Promise<void> => {
+  try {
+    await db.execute(sql`DELETE FROM security_events WHERE created_at < NOW() - INTERVAL '30 days'`);
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Failed to clear old events." });
   }
 });
 

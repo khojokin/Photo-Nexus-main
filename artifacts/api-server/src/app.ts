@@ -9,6 +9,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import { logSecurityEvent } from "./lib/securityLogger";
+import { ipBlockMiddleware } from "./middlewares/ipBlockMiddleware";
 
 const app: Express = express();
 
@@ -184,6 +185,14 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 app.use(authMiddleware);
+
+// ── IP block enforcement ──────────────────────────────────────────────────────
+// Runs after auth so we always log the IP; admin routes are exempt from blocking
+app.use("/api", async (req, res, next) => {
+  // Exempt admin routes from IP blocking (so admins can unblock themselves)
+  if (req.path.startsWith("/admin")) { next(); return; }
+  await ipBlockMiddleware(req, res, next);
+});
 
 // ── 401/403 response interceptor ─────────────────────────────────────────────
 // Hooks into responses AFTER routes run, capturing auth failures & forbidden access.

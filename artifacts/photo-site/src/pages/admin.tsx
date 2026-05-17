@@ -549,19 +549,37 @@ export function Admin() {
     total: 0, critical: 0, errors: 0, warnings: 0,
     topIp: null as string | null, rateLimitHits: 0,
   });
+  interface BlockedIp { id: number; ipAddress: string; reason: string; blockedBy: string | null; expiresAt: string | null; createdAt: string; }
+  const [blockedIps, setBlockedIps] = useState<BlockedIp[]>([]);
+  const [blockIpInput, setBlockIpInput] = useState("");
+  const [blockReasonInput, setBlockReasonInput] = useState("");
+  const [blockExpiresHours, setBlockExpiresHours] = useState("");
+  const [blockSubmitting, setBlockSubmitting] = useState(false);
+  const [activeSessions, setActiveSessions] = useState<number | null>(null);
+  const [purgeLoading, setPurgeLoading] = useState(false);
+  const [clearEventsLoading, setClearEventsLoading] = useState(false);
 
-  useEffect(() => {
-    if (section !== "security") return;
+  function fetchSecurityData() {
     setSecurityLoading(true);
     fetch("/api/admin/security-events", { credentials: "include" })
       .then(r => r.ok ? r.json() as Promise<{ events: SecurityEvent[]; metrics: typeof securityMetrics }> : Promise.reject())
-      .then(d => {
-        setSecurityEvents(d.events ?? []);
-        if (d.metrics) setSecurityMetrics(d.metrics);
-      })
+      .then(d => { setSecurityEvents(d.events ?? []); if (d.metrics) setSecurityMetrics(d.metrics); })
       .catch(() => {})
       .finally(() => setSecurityLoading(false));
-  }, [section]);
+    fetch("/api/admin/blocked-ips", { credentials: "include" })
+      .then(r => r.ok ? r.json() as Promise<{ blockedIps: BlockedIp[] }> : Promise.reject())
+      .then(d => setBlockedIps(d.blockedIps ?? []))
+      .catch(() => {});
+    fetch("/api/admin/active-sessions", { credentials: "include" })
+      .then(r => r.ok ? r.json() as Promise<{ activeSessions: number }> : Promise.reject())
+      .then(d => setActiveSessions(d.activeSessions))
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    if (section !== "security") return;
+    fetchSecurityData();
+  }, [section]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── PIN Config ─────────────────────────────────────────────────────────────
   const PIN_STORE = "affuaa_admin_pin_v2";
@@ -3684,51 +3702,41 @@ export function Admin() {
 
           {/* ── Security Monitor ─────────────────────────────────────────── */}
           {section === "security" && (
-            <div>
-              <div className="mb-8">
-                <h2 className="text-2xl font-serif mb-1">Security Monitor</h2>
+            <div className="space-y-8">
+              <div>
+                <h2 className="text-2xl font-serif mb-1">Security Centre</h2>
                 <p className="text-sm text-muted-foreground">
-                  Rate limiting, suspicious requests, security headers, and event log.
+                  Monitor threats, block IPs, manage sessions, and review the full audit log.
                 </p>
               </div>
 
-              {/* Status bar — helmet + rate limit */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+              {/* Protection status row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
-                  {
-                    label: "Security Headers",
-                    status: "Helmet — Active",
-                    detail: "CSP · HSTS · X-Frame-Options",
-                  },
-                  {
-                    label: "Rate Limiting",
-                    status: "200 req / IP / min",
-                    detail: "Uploads: 20/hr · Auth: 30/min",
-                  },
-                  {
-                    label: "Input Filtering",
-                    status: "SQL + XSS — Active",
-                    detail: "Pattern detection on all inputs",
-                  },
-                ].map(({ label, status, detail }) => (
-                  <div key={label} className="border border-green-500/30 bg-green-500/5 p-4 flex items-center gap-3">
-                    <div className="w-2.5 h-2.5 rounded-full bg-green-400 flex-shrink-0 animate-pulse" />
+                  { label: "Security Headers", status: "Helmet Active", detail: "CSP · HSTS · X-Frame-Options · CORP", ok: true },
+                  { label: "Rate Limiting", status: "Enforced", detail: "200/min global · 30/min auth · 20/hr uploads", ok: true },
+                  { label: "Input Filtering", status: "SQL + XSS Blocked", detail: "Pattern detection on every request body", ok: true },
+                  { label: "IP Blocking", status: `${blockedIps.length} IP${blockedIps.length !== 1 ? "s" : ""} blocked`, detail: "Persistent blocklist with auto-expiry", ok: blockedIps.length === 0 },
+                ].map(({ label, status, detail, ok }) => (
+                  <div key={label} className={cn("border p-4 flex items-start gap-3", ok ? "border-green-500/30 bg-green-500/5" : "border-amber-500/30 bg-amber-500/5")}>
+                    <div className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 animate-pulse", ok ? "bg-green-400" : "bg-amber-400")} />
                     <div>
-                      <p className="text-xs uppercase tracking-widest text-green-400 mb-0.5">{label}</p>
+                      <p className={cn("text-xs uppercase tracking-widest mb-0.5", ok ? "text-green-400" : "text-amber-400")}>{label}</p>
                       <p className="text-sm font-medium">{status}</p>
-                      <p className="text-xs text-muted-foreground">{detail}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{detail}</p>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Event metrics */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              {/* Event metrics + sessions */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
                   { label: "Total Events", value: securityMetrics.total, color: "text-foreground" },
                   { label: "Critical", value: securityMetrics.critical, color: "text-red-400" },
                   { label: "Errors", value: securityMetrics.errors, color: "text-orange-400" },
                   { label: "Warnings", value: securityMetrics.warnings, color: "text-yellow-400" },
+                  { label: "Rate Limit Hits", value: securityMetrics.rateLimitHits, color: "text-blue-400" },
                 ].map(({ label, value, color }) => (
                   <div key={label} className="border border-border bg-card p-4">
                     <p className="text-xs text-muted-foreground uppercase tracking-widest mb-2">{label}</p>
@@ -3737,50 +3745,194 @@ export function Admin() {
                 ))}
               </div>
 
-              {/* Filter chips + refresh */}
-              <div className="flex items-center gap-2 mb-4 flex-wrap">
-                {(["all", "warn", "error", "critical"] as const).map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setSecurityFilter(f)}
-                    className={cn(
-                      "px-3 py-1 text-xs border transition-colors",
-                      securityFilter === f
-                        ? "bg-foreground text-background border-foreground"
-                        : "border-border text-muted-foreground hover:text-foreground"
+              {/* Active sessions + quick actions */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Active sessions */}
+                <div className="border border-border bg-card p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium flex items-center gap-2">
+                      <Users className="w-4 h-4 text-muted-foreground" /> Active Sessions
+                    </h3>
+                    {activeSessions !== null && (
+                      <span className="text-2xl font-serif">{activeSessions}</span>
                     )}
-                  >
-                    {f === "all" ? "All events" : f.charAt(0).toUpperCase() + f.slice(1)}
-                  </button>
-                ))}
-                <button
-                  onClick={() => {
-                    setSecurityLoading(true);
-                    fetch("/api/admin/security-events", { credentials: "include" })
-                      .then(r => r.ok ? r.json() as Promise<{ events: SecurityEvent[]; metrics: typeof securityMetrics }> : Promise.reject())
-                      .then(d => { setSecurityEvents(d.events ?? []); if (d.metrics) setSecurityMetrics(d.metrics); })
-                      .catch(() => {})
-                      .finally(() => setSecurityLoading(false));
-                  }}
-                  className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border px-3 py-1"
-                >
-                  <RefreshCw className={cn("w-3 h-3", securityLoading && "animate-spin")} />
-                  Refresh
-                </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Live authenticated user sessions stored in the database.</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setPurgeLoading(true);
+                        fetch("/api/admin/sessions/purge-expired", { method: "DELETE", credentials: "include" })
+                          .then(() => fetch("/api/admin/active-sessions", { credentials: "include" }))
+                          .then(r => r.json() as Promise<{ activeSessions: number }>)
+                          .then(d => setActiveSessions(d.activeSessions))
+                          .catch(() => {})
+                          .finally(() => setPurgeLoading(false));
+                      }}
+                      disabled={purgeLoading}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                    >
+                      <RefreshCw className={cn("w-3 h-3", purgeLoading && "animate-spin")} />
+                      Purge expired sessions
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick actions */}
+                <div className="border border-border bg-card p-5 space-y-3">
+                  <h3 className="text-sm font-medium flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-muted-foreground" /> Security Actions
+                  </h3>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => fetchSecurityData()}
+                      className="w-full flex items-center gap-2 text-xs px-3 py-2 border border-border text-muted-foreground hover:text-foreground transition-colors text-left"
+                    >
+                      <RefreshCw className={cn("w-3 h-3", securityLoading && "animate-spin")} />
+                      Refresh all security data
+                    </button>
+                    <button
+                      onClick={() => {
+                        setClearEventsLoading(true);
+                        fetch("/api/admin/security-events/clear", { method: "DELETE", credentials: "include" })
+                          .then(() => fetchSecurityData())
+                          .catch(() => {})
+                          .finally(() => setClearEventsLoading(false));
+                      }}
+                      disabled={clearEventsLoading}
+                      className="w-full flex items-center gap-2 text-xs px-3 py-2 border border-amber-500/30 text-amber-400 hover:bg-amber-500/5 transition-colors text-left disabled:opacity-40"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Clear events older than 30 days
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              {/* Event log table */}
+              {/* IP Blocking */}
               <div className="border border-border">
-                <div className="px-5 py-3 border-b border-border bg-card/50 flex items-center justify-between">
+                <div className="px-5 py-3 border-b border-border bg-card/50 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+                  <h3 className="text-sm font-medium">IP Blocklist</h3>
+                  <span className="text-xs text-muted-foreground font-normal">({blockedIps.length} blocked)</span>
+                </div>
+                <div className="p-5 space-y-4">
+                  {/* Add IP form */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                    <input
+                      type="text"
+                      value={blockIpInput}
+                      onChange={e => setBlockIpInput(e.target.value)}
+                      placeholder="IP address e.g. 192.168.1.1"
+                      className="sm:col-span-1 bg-transparent border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground transition-colors font-mono"
+                    />
+                    <input
+                      type="text"
+                      value={blockReasonInput}
+                      onChange={e => setBlockReasonInput(e.target.value)}
+                      placeholder="Reason for blocking"
+                      className="sm:col-span-2 bg-transparent border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground transition-colors"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={blockExpiresHours}
+                        onChange={e => setBlockExpiresHours(e.target.value)}
+                        placeholder="Hours (∞)"
+                        min="1"
+                        className="w-24 bg-transparent border border-border px-3 py-2 text-sm focus:outline-none focus:border-foreground transition-colors"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!blockIpInput.trim() || !blockReasonInput.trim()) return;
+                          setBlockSubmitting(true);
+                          try {
+                            await fetch("/api/admin/blocked-ips", {
+                              method: "POST", credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                ipAddress: blockIpInput.trim(),
+                                reason: blockReasonInput.trim(),
+                                expiresInHours: blockExpiresHours ? parseInt(blockExpiresHours) : undefined,
+                              }),
+                            });
+                            setBlockIpInput(""); setBlockReasonInput(""); setBlockExpiresHours("");
+                            fetch("/api/admin/blocked-ips", { credentials: "include" })
+                              .then(r => r.json() as Promise<{ blockedIps: typeof blockedIps }>)
+                              .then(d => setBlockedIps(d.blockedIps ?? []));
+                          } catch { /* ignore */ } finally { setBlockSubmitting(false); }
+                        }}
+                        disabled={blockSubmitting || !blockIpInput.trim() || !blockReasonInput.trim()}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-xs px-3 py-2 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-40 whitespace-nowrap"
+                      >
+                        {blockSubmitting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                        Block IP
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Blocked IP list */}
+                  {blockedIps.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">No IPs currently blocked.</p>
+                  ) : (
+                    <div className="divide-y divide-border border border-border">
+                      {blockedIps.map(ip => (
+                        <div key={ip.id} className="flex items-center gap-4 px-4 py-3">
+                          <span className="font-mono text-sm text-red-400 w-36 flex-shrink-0">{ip.ipAddress}</span>
+                          <span className="text-xs text-muted-foreground flex-1 min-w-0 truncate">{ip.reason}</span>
+                          {ip.expiresAt && (
+                            <span className="text-xs text-muted-foreground/60 flex-shrink-0">
+                              expires {new Date(ip.expiresAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                            </span>
+                          )}
+                          {!ip.expiresAt && <span className="text-xs text-muted-foreground/60 flex-shrink-0">permanent</span>}
+                          <span className="text-xs text-muted-foreground/60 flex-shrink-0">
+                            {new Date(ip.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                          </span>
+                          <button
+                            onClick={() => {
+                              fetch(`/api/admin/blocked-ips/${encodeURIComponent(ip.ipAddress)}`, { method: "DELETE", credentials: "include" })
+                                .then(() => setBlockedIps(prev => prev.filter(b => b.id !== ip.id)));
+                            }}
+                            className="flex-shrink-0 text-xs text-muted-foreground hover:text-red-400 transition-colors px-2 py-1 border border-border hover:border-red-500/30"
+                          >
+                            Unblock
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Event log */}
+              <div className="border border-border">
+                <div className="px-5 py-3 border-b border-border bg-card/50 flex items-center justify-between flex-wrap gap-2">
                   <h3 className="text-sm font-medium flex items-center gap-2">
                     <Shield className="w-4 h-4 text-muted-foreground" /> Security Event Log
                     <span className="text-xs text-muted-foreground font-normal">(last 7 days)</span>
                   </h3>
-                  {securityMetrics.topIp && (
-                    <span className="text-xs text-muted-foreground">
-                      Top IP: <span className="font-mono text-foreground">{securityMetrics.topIp}</span>
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {(["all", "warn", "error", "critical"] as const).map(f => (
+                      <button
+                        key={f}
+                        onClick={() => setSecurityFilter(f)}
+                        className={cn(
+                          "px-2.5 py-1 text-xs border transition-colors",
+                          securityFilter === f
+                            ? "bg-foreground text-background border-foreground"
+                            : "border-border text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+                      </button>
+                    ))}
+                    {securityMetrics.topIp && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        Top IP: <span className="font-mono text-foreground">{securityMetrics.topIp}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {securityLoading ? (
@@ -3794,6 +3946,12 @@ export function Admin() {
                     ))}
                   </div>
                 ) : (() => {
+                  const SCOLOR: Record<string, string> = {
+                    info:     "bg-blue-500/10 text-blue-400 border-blue-500/30",
+                    warn:     "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+                    error:    "bg-orange-500/10 text-orange-400 border-orange-500/30",
+                    critical: "bg-red-500/10 text-red-400 border-red-500/30",
+                  };
                   const filtered = securityFilter === "all"
                     ? securityEvents
                     : securityEvents.filter(e => e.severity === securityFilter);
@@ -3802,32 +3960,27 @@ export function Admin() {
                       <div className="px-5 py-12 text-center">
                         <Shield className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
                         <p className="text-sm text-muted-foreground">No security events recorded.</p>
-                        <p className="text-xs text-muted-foreground/60 mt-1">
-                          Events appear here once the <code className="font-mono">security_events</code> table is set up in Supabase.
-                        </p>
+                        <p className="text-xs text-muted-foreground/60 mt-1">Events are logged automatically as the site receives traffic.</p>
                       </div>
                     );
                   }
-                  const SCOLOR: Record<string, string> = {
-                    info:     "bg-blue-500/10 text-blue-400 border-blue-500/30",
-                    warn:     "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
-                    error:    "bg-orange-500/10 text-orange-400 border-orange-500/30",
-                    critical: "bg-red-500/10 text-red-400 border-red-500/30",
-                  };
                   return (
-                    <div className="divide-y divide-border max-h-[520px] overflow-y-auto">
+                    <div className="divide-y divide-border max-h-[480px] overflow-y-auto">
                       {filtered.map(ev => (
-                        <div key={ev.id} className="px-5 py-3 flex items-center gap-4 hover:bg-muted/5 transition-colors">
+                        <div key={ev.id} className="px-5 py-3 flex items-center gap-3 hover:bg-muted/5 transition-colors">
                           <Badge color={SCOLOR[ev.severity] ?? SCOLOR.info}>{ev.severity}</Badge>
-                          <span className="text-xs font-mono text-muted-foreground w-32 flex-shrink-0">{ev.eventType.replace(/_/g, " ")}</span>
+                          <span className="text-xs font-mono text-muted-foreground w-28 flex-shrink-0 truncate">{ev.eventType.replace(/_/g, " ")}</span>
                           <span className="text-sm flex-1 min-w-0 truncate">{ev.message}</span>
-                          {ev.path && (
-                            <span className="text-xs font-mono text-muted-foreground/70 hidden md:block w-36 truncate">{ev.method} {ev.path}</span>
-                          )}
                           {ev.ipAddress && (
-                            <span className="text-xs font-mono text-muted-foreground/70 hidden lg:block w-32">{ev.ipAddress}</span>
+                            <button
+                              onClick={() => setBlockIpInput(ev.ipAddress ?? "")}
+                              title="Copy IP to block form"
+                              className="text-xs font-mono text-muted-foreground/70 hidden lg:block w-32 text-right hover:text-red-400 transition-colors"
+                            >
+                              {ev.ipAddress}
+                            </button>
                           )}
-                          <span className="text-xs text-muted-foreground flex-shrink-0 w-24 text-right">
+                          <span className="text-xs text-muted-foreground flex-shrink-0 w-28 text-right">
                             {new Date(ev.createdAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
@@ -3835,19 +3988,6 @@ export function Admin() {
                     </div>
                   );
                 })()}
-              </div>
-
-              {/* Schema info */}
-              <div className="mt-6 border border-border/50 bg-muted/5 p-5">
-                <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-                  <Database className="w-4 h-4 text-muted-foreground" /> Schema Reference
-                </h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Security events are stored in the <code className="font-mono text-foreground/80">security_events</code> table.
-                  Rate limit logs go to <code className="font-mono text-foreground/80">rate_limit_log</code>.
-                  Both tables are included in <code className="font-mono text-foreground/80">sql/affuaa-supabase-full-schema.sql</code> with RLS enabled — only the service role can write to them.
-                  Run the schema SQL in your Supabase dashboard to activate the Security Monitor.
-                </p>
               </div>
             </div>
           )}
