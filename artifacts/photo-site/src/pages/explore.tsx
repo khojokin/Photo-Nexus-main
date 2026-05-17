@@ -312,23 +312,34 @@ export function Explore() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-12">
-        <div className="mb-12">
-          <h1 className="text-4xl font-serif mb-6">
-            {activeTag ? `Tag: ${activeTag}` : "Explore Gallery"}
-          </h1>
+      {/* ── Editorial hero banner ──────────────────────────────────────── */}
+      <div className="border-b border-border/40 bg-card/30">
+        <div className="container mx-auto px-4 py-10">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-3">
+                {activeTag ? "Browsing tag" : "Gallery"}
+              </p>
+              <h1 className="font-serif text-4xl md:text-5xl leading-tight">
+                {activeTag ? `#${activeTag}` : "Explore"}
+              </h1>
+              {!activeTag && !isFirstLoad && totalPhotos > 0 && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  {totalPhotos.toLocaleString()} photographs &nbsp;·&nbsp; curated for quality
+                </p>
+              )}
+            </div>
 
-          <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
-            {/* Search with history */}
-            <div className="relative w-full md:w-96" ref={searchContainerRef}>
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+            {/* Search */}
+            <div className="relative w-full md:w-80" ref={searchContainerRef}>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground z-10" />
               <Input
                 ref={searchInputRef}
                 placeholder="Search by title, photographer, or tag…"
                 value={inputValue}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onFocus={() => !inputValue && setShowHistory(true)}
-                className="pl-10 pr-8 bg-transparent border-muted rounded-none focus-visible:ring-1 focus-visible:ring-primary"
+                className="pl-9 pr-8 bg-transparent border-border/60 rounded-none text-sm focus-visible:ring-0 focus-visible:border-foreground/40 h-9"
                 data-testid="input-search-photos"
               />
               {inputValue && (
@@ -364,26 +375,24 @@ export function Explore() {
               )}
             </div>
 
-            <div className="flex items-center gap-6 flex-wrap">
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">Sort:</span>
-                <div className="flex gap-2">
-                  {Object.values(ListPhotosSort).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setSort(s as ListPhotosSort)}
-                      className={cn(
-                        "text-sm pb-1 border-b transition-colors",
-                        sort === s
-                          ? "border-primary text-foreground"
-                          : "border-transparent text-muted-foreground hover:text-foreground"
-                      )}
-                      data-testid={`btn-sort-${s}`}
-                    >
-                      {s.charAt(0).toUpperCase() + s.slice(1)}
-                    </button>
-                  ))}
-                </div>
+            {/* Sort + view controls */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-0 border border-border/50">
+                {Object.values(ListPhotosSort).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSort(s as ListPhotosSort)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs transition-colors border-r border-border/50 last:border-r-0",
+                      sort === s
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                    data-testid={`btn-sort-${s}`}
+                  >
+                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                  </button>
+                ))}
               </div>
 
               <button
@@ -392,145 +401,97 @@ export function Explore() {
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-border/50 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/50 transition-colors disabled:opacity-50"
                 title="Take me to a random photo"
               >
-                <Shuffle className="h-3.5 w-3.5" />
-                {surprisingMe ? "…" : "Surprise Me"}
+                <Shuffle className="h-3 w-3" />
+                {surprisingMe ? "…" : "Surprise"}
               </button>
 
-              <div className="flex items-center gap-1 border border-border/50 p-1">
+              <div className="flex items-center border border-border/50">
                 <button
                   onClick={() => setViewMode("masonry")}
-                  className={cn(
-                    "p-1.5 transition-colors",
-                    viewMode === "masonry" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
-                  )}
-                  title="Masonry layout"
+                  className={cn("p-1.5 transition-colors", viewMode === "masonry" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+                  title="Masonry"
                 >
-                  <LayoutGrid className="h-4 w-4" />
+                  <LayoutGrid className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={() => setViewMode("grid")}
-                  className={cn(
-                    "p-1.5 transition-colors",
-                    viewMode === "grid" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
-                  )}
-                  title="Grid layout"
+                  className={cn("p-1.5 transition-colors", viewMode === "grid" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+                  title="Grid"
                 >
-                  <Rows className="h-4 w-4" />
+                  <Rows className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* ── Client-side filter row ── */}
-          {!activeTag && (
-            <div className="mt-5 flex flex-wrap gap-4 items-center">
-              {/* Aspect ratio */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground mr-1">Shape:</span>
-                {(["all", "portrait", "landscape", "square"] as AspectRatio[]).map(r => {
-                  const icons: Record<AspectRatio, React.ElementType> = {
-                    all: Layers, portrait: RectangleVertical, landscape: RectangleHorizontal, square: Square,
-                  };
-                  const Icon = icons[r];
-                  return (
-                    <button
-                      key={r}
-                      onClick={() => setAspectRatio(r)}
-                      className={cn(
-                        "flex items-center gap-1 px-2.5 py-1 text-xs border transition-colors",
-                        aspectRatio === r
-                          ? "border-foreground text-foreground bg-foreground/5"
-                          : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
-                      )}
-                    >
-                      <Icon className="w-3 h-3" />
-                      {r === "all" ? "All" : r.charAt(0).toUpperCase() + r.slice(1)}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Season */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground mr-1">Season:</span>
-                {(["all", "spring", "summer", "autumn", "winter"] as SeasonFilter[]).map(s => (
-                  <button
-                    key={s}
-                    onClick={() => setSeason(s)}
-                    className={cn(
-                      "px-2.5 py-1 text-xs border transition-colors",
-                      season === s
-                        ? "border-foreground text-foreground bg-foreground/5"
-                        : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
-                    )}
-                  >
-                    {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
-                  </button>
-                ))}
-              </div>
-
-              {/* Time of day */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground mr-1">Time:</span>
-                {(["all", "golden-hour", "blue-hour", "night", "midday"] as TimeFilter[]).map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setTimeOfDay(t)}
-                    className={cn(
-                      "px-2.5 py-1 text-xs border transition-colors",
-                      timeOfDay === t
-                        ? "border-foreground text-foreground bg-foreground/5"
-                        : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
-                    )}
-                  >
-                    {t === "all" ? "All" : t.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ")}
-                  </button>
-                ))}
-              </div>
-
-              {/* Popular Tags */}
-              {Array.isArray(tags) && tags.length > 0 && (
-                <TrendingTagsRow
-                  tags={tags}
-                  activeSearch={search}
-                  onTagClick={(tag) => {
-                    setInputValue(tag);
-                    setSearch(tag);
-                    saveSearchHistory(tag);
-                    setSearchHistory(loadSearchHistory());
-                  }}
-                />
-              )}
-
-              {hasActiveClientFilter && (
+      {/* ── Filter + tag strip ──────────────────────────────────────────── */}
+      <div className="border-b border-border/30 bg-background">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center gap-4 py-3 overflow-x-auto scrollbar-none flex-wrap">
+            {/* Shape */}
+            {!activeTag && (["all", "portrait", "landscape", "square"] as AspectRatio[]).map(r => {
+              const icons: Record<AspectRatio, React.ElementType> = {
+                all: Layers, portrait: RectangleVertical, landscape: RectangleHorizontal, square: Square,
+              };
+              const Icon = icons[r];
+              return (
                 <button
-                  onClick={() => { setAspectRatio("all"); setSeason("all"); setTimeOfDay("all"); }}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs border border-border/50 text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                  key={r}
+                  onClick={() => setAspectRatio(r)}
+                  className={cn(
+                    "flex items-center gap-1 px-2.5 py-1 text-xs border transition-colors whitespace-nowrap",
+                    aspectRatio === r ? "border-foreground text-foreground" : "border-border/40 text-muted-foreground hover:text-foreground hover:border-border"
+                  )}
                 >
-                  <X className="w-3 h-3" /> Reset filters
+                  <Icon className="w-3 h-3" />
+                  {r === "all" ? "All shapes" : r.charAt(0).toUpperCase() + r.slice(1)}
                 </button>
-              )}
-            </div>
-          )}
+              );
+            })}
 
-          {!activeTag && (
+            {!activeTag && <span className="text-border/60 text-xs select-none">|</span>}
+
+            {/* Top tags — limited to 10 */}
+            {!loadingTags && Array.isArray(tags) && tags.slice(0, 10).map((tag) => (
+              <button
+                key={tag.name}
+                onClick={() => { setInputValue(tag.name); setSearch(tag.name); saveSearchHistory(tag.name); setSearchHistory(loadSearchHistory()); }}
+                className={cn(
+                  "px-2.5 py-1 text-xs border transition-colors whitespace-nowrap",
+                  search === tag.name ? "border-foreground text-foreground" : "border-border/40 text-muted-foreground hover:text-foreground hover:border-border"
+                )}
+                data-testid={`link-tag-${tag.name}`}
+              >
+                {tag.name}
+                <span className="ml-1 opacity-40">{tag.photoCount}</span>
+              </button>
+            ))}
+
+            {(hasActiveClientFilter || search) && (
+              <button
+                onClick={() => { setAspectRatio("all"); setSeason("all"); setTimeOfDay("all"); clearSearch(); }}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+              >
+                <X className="w-3 h-3" /> Clear
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Mood filter ────────────────────────────────────────────────── */}
+      {!activeTag && (
+        <div className="border-b border-border/20">
+          <div className="container mx-auto px-4">
             <MoodFilter activeMood={activeMood} onMoodChange={(mood) => { setActiveMood(mood); setPage(1); }} />
-          )}
+          </div>
+        </div>
+      )}
 
-          {!loadingTags && Array.isArray(tags) && tags.length > 0 && !activeTag && !activeMood && (
-            <div className="mt-6 flex flex-wrap gap-2">
-              {tags.map((tag) => (
-                <Link
-                  key={tag.name}
-                  href={`/tags/${tag.name}`}
-                  className="px-3 py-1 bg-muted/50 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors border border-border/50"
-                  data-testid={`link-tag-${tag.name}`}
-                >
-                  {tag.name} <span className="opacity-50 ml-1">{tag.photoCount}</span>
-                </Link>
-              ))}
-            </div>
-          )}
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-6">
 
           {activeTag && (
             <div className="mt-8">
