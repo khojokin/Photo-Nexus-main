@@ -16,6 +16,7 @@ import {
   LayoutDashboard, DollarSign, Image, BarChart3, Crown,
   Printer, MessageSquare, Coffee, FileText, CreditCard,
   Check, Info, ArrowUp, Users, Zap, Star, Eye, Upload,
+  ChevronRight, X,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Photo } from "@workspace/api-client-react";
@@ -205,15 +206,197 @@ interface MyAnalytics {
   daily: Array<{ label: string; date: string; views: number; likes: number; downloads: number }>;
 }
 
-function Sparkline({ values, color = "currentColor" }: { values: number[]; color?: string }) {
-  if (values.length < 2) return <span className="text-[10px] text-muted-foreground/40">—</span>;
-  const max = Math.max(...values, 1);
-  const w = 64; const h = 20;
-  const pts = values.map((v, i) => `${(i / (values.length - 1)) * w},${h - (v / max) * h}`).join(" ");
+// ─── Trend Chart (SVG multi-line) ────────────────────────────────────────────
+type DailyRow = { label: string; date: string; views: number; likes: number; downloads: number };
+
+function TrendChart({ data }: { data: DailyRow[] }) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  if (data.length < 2) {
+    return (
+      <div className="flex items-center justify-center h-40 text-xs text-muted-foreground/40">
+        Not enough data yet — keep uploading!
+      </div>
+    );
+  }
+  const W = 600; const H = 160; const PAD = { top: 12, right: 16, bottom: 28, left: 36 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+  const maxVal = Math.max(...data.flatMap(d => [d.views, d.likes, d.downloads]), 1);
+  const xOf = (i: number) => PAD.left + (i / (data.length - 1)) * innerW;
+  const yOf = (v: number) => PAD.top + innerH - (v / maxVal) * innerH;
+  const line = (key: keyof DailyRow) =>
+    data.map((d, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(d[key] as number).toFixed(1)}`).join(" ");
+  const SERIES = [
+    { key: "views" as const,     color: "#a1a1aa", label: "Views" },
+    { key: "likes" as const,     color: "#f87171", label: "Likes" },
+    { key: "downloads" as const, color: "#4ade80", label: "Downloads" },
+  ];
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(maxVal * t));
+  const showEvery = Math.ceil(data.length / 7);
+
   return (
-    <svg width={w} height={h} className="inline-block opacity-70">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
+    <div className="space-y-3">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 160 }}
+        onMouseLeave={() => setHovered(null)}>
+        {/* Grid lines */}
+        {ticks.map(t => {
+          const y = yOf(t);
+          return (
+            <g key={t}>
+              <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} stroke="currentColor" strokeOpacity={0.07} strokeWidth={1} />
+              <text x={PAD.left - 6} y={y + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.35}>{t}</text>
+            </g>
+          );
+        })}
+        {/* X-axis labels */}
+        {data.map((d, i) => i % showEvery === 0 && (
+          <text key={i} x={xOf(i)} y={H - 4} textAnchor="middle" fontSize={9} fill="currentColor" fillOpacity={0.35}>{d.label}</text>
+        ))}
+        {/* Lines */}
+        {SERIES.map(s => (
+          <path key={s.key} d={line(s.key)} fill="none" stroke={s.color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" opacity={0.85} />
+        ))}
+        {/* Hover overlay */}
+        {data.map((d, i) => (
+          <rect key={i} x={xOf(i) - innerW / data.length / 2} y={PAD.top} width={innerW / data.length}
+            height={innerH} fill="transparent" className="cursor-crosshair"
+            onMouseEnter={() => setHovered(i)} />
+        ))}
+        {/* Hover dots + vertical line */}
+        {hovered !== null && (
+          <g>
+            <line x1={xOf(hovered)} x2={xOf(hovered)} y1={PAD.top} y2={PAD.top + innerH}
+              stroke="currentColor" strokeOpacity={0.15} strokeWidth={1} strokeDasharray="3 3" />
+            {SERIES.map(s => (
+              <circle key={s.key} cx={xOf(hovered)} cy={yOf(data[hovered][s.key])} r={3.5}
+                fill={s.color} stroke="var(--background)" strokeWidth={1.5} />
+            ))}
+          </g>
+        )}
+      </svg>
+      {/* Tooltip */}
+      {hovered !== null && (
+        <div className="flex items-center gap-4 text-xs text-muted-foreground px-1">
+          <span className="font-medium text-foreground">{data[hovered].label}</span>
+          {SERIES.map(s => (
+            <span key={s.key} className="flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full" style={{ background: s.color }} />
+              {s.label}: <strong className="text-foreground">{(data[hovered][s.key] as number).toLocaleString()}</strong>
+            </span>
+          ))}
+        </div>
+      )}
+      {/* Legend */}
+      <div className="flex items-center gap-5 px-1">
+        {SERIES.map(s => (
+          <div key={s.key} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span className="inline-block w-3 h-0.5 rounded" style={{ background: s.color }} />
+            {s.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Per-photo stats panel ────────────────────────────────────────────────────
+type MyPhoto = MyAnalytics["photos"][number];
+
+function PhotoStatsPanel({ photo, allPhotos, onClose }: {
+  photo: MyPhoto;
+  allPhotos: MyPhoto[];
+  onClose: () => void;
+}) {
+  const maxViews     = Math.max(...allPhotos.map(p => p.views), 1);
+  const maxLikes     = Math.max(...allPhotos.map(p => p.likes), 1);
+  const maxDownloads = Math.max(...allPhotos.map(p => p.downloads), 1);
+  const avgViews     = Math.round(allPhotos.reduce((s, p) => s + p.views, 0) / allPhotos.length);
+  const avgLikes     = Math.round(allPhotos.reduce((s, p) => s + p.likes, 0) / allPhotos.length);
+  const avgDownloads = Math.round(allPhotos.reduce((s, p) => s + p.downloads, 0) / allPhotos.length);
+
+  const metrics = [
+    { label: "Views",     value: photo.views,     max: maxViews,     avg: avgViews,     color: "#a1a1aa", icon: Eye },
+    { label: "Likes",     value: photo.likes,     max: maxLikes,     avg: avgLikes,     color: "#f87171", icon: Heart },
+    { label: "Downloads", value: photo.downloads, max: maxDownloads, avg: avgDownloads, color: "#4ade80", icon: Download },
+  ];
+
+  const rank = allPhotos.findIndex(p => p.id === photo.id) + 1;
+  const engagementRate = photo.views > 0 ? (((photo.likes + photo.downloads) / photo.views) * 100).toFixed(1) : "0.0";
+
+  return (
+    <div className="border border-foreground/20 bg-card">
+      {/* Header */}
+      <div className="border-b border-border px-5 py-3 flex items-center gap-4">
+        <div className="w-14 h-10 bg-muted overflow-hidden flex-shrink-0">
+          <img src={photo.image_url} alt={photo.title} className="w-full h-full object-cover" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{photo.title}</p>
+          <p className="text-xs text-muted-foreground">Rank #{rank} in your portfolio · {format(new Date(photo.created_at), "MMM d, yyyy")}</p>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <a href={`/photos/${photo.id}`} target="_blank" rel="noreferrer"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors border border-border px-2.5 py-1">
+            View photo
+          </a>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors p-1">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="p-5 space-y-5">
+        {/* Summary row */}
+        <div className="grid grid-cols-4 gap-3">
+          {metrics.map(m => (
+            <div key={m.label} className="border border-border bg-background p-4 space-y-1">
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{m.label}</p>
+              <p className="text-2xl font-serif">{m.value.toLocaleString()}</p>
+            </div>
+          ))}
+          <div className="border border-border bg-background p-4 space-y-1">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Engagement</p>
+            <p className="text-2xl font-serif">{engagementRate}%</p>
+          </div>
+        </div>
+
+        {/* Bar chart vs. portfolio */}
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">Performance vs. Portfolio Average</p>
+          <div className="space-y-4">
+            {metrics.map(m => {
+              const Icon = m.icon;
+              const pct = Math.round((m.value / m.max) * 100);
+              const avgPct = Math.round((m.avg / m.max) * 100);
+              return (
+                <div key={m.label} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <Icon className="w-3 h-3" /> {m.label}
+                    </span>
+                    <span className="text-foreground font-medium">{m.value.toLocaleString()} <span className="text-muted-foreground font-normal">/ avg {m.avg.toLocaleString()}</span></span>
+                  </div>
+                  <div className="relative h-2 bg-muted/50 w-full overflow-hidden">
+                    {/* This photo */}
+                    <div className="absolute inset-y-0 left-0 transition-all duration-500"
+                      style={{ width: `${pct}%`, background: m.color, opacity: 0.85 }} />
+                    {/* Average marker */}
+                    <div className="absolute inset-y-0 w-0.5 bg-foreground/30"
+                      style={{ left: `${avgPct}%` }} />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/50">
+                    {pct >= avgPct
+                      ? `${Math.round(pct - avgPct)}% above portfolio average`
+                      : `${Math.round(avgPct - pct)}% below portfolio average`}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -225,6 +408,7 @@ function AnalyticsTab({ summary, trending, latest, tags }: {
 }) {
   const [myStats, setMyStats] = useState<MyAnalytics | null>(null);
   const [myLoading, setMyLoading] = useState(true);
+  const [selectedPhoto, setSelectedPhoto] = useState<MyPhoto | null>(null);
 
   useEffect(() => {
     fetch("/api/analytics/my", { credentials: "include" })
@@ -256,8 +440,11 @@ function AnalyticsTab({ summary, trending, latest, tags }: {
           <BarChart3 className="w-3.5 h-3.5" /> My Portfolio Analytics
         </h3>
         {myLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {Array(4).fill(0).map((_, i) => <div key={i} className="border border-border bg-card p-6 h-24 animate-pulse" />)}
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {Array(4).fill(0).map((_, i) => <div key={i} className="border border-border bg-card p-6 h-24 animate-pulse" />)}
+            </div>
+            <div className="border border-border bg-card p-6 h-48 animate-pulse" />
           </div>
         ) : !myStats || (myStats.totals.photos === 0) ? (
           <div className="border border-border bg-card p-6 text-sm text-muted-foreground">
@@ -266,48 +453,74 @@ function AnalyticsTab({ summary, trending, latest, tags }: {
           </div>
         ) : (
           <div className="space-y-6">
+            {/* Totals */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "My Photos", value: myStats.totals.photos, key: "views" as const },
-                { label: "Total Views", value: myStats.totals.views, key: "views" as const },
-                { label: "Total Likes", value: myStats.totals.likes, key: "likes" as const },
-                { label: "Total Downloads", value: myStats.totals.downloads, key: "downloads" as const },
+                { label: "My Photos",       value: myStats.totals.photos },
+                { label: "Total Views",     value: myStats.totals.views },
+                { label: "Total Likes",     value: myStats.totals.likes },
+                { label: "Total Downloads", value: myStats.totals.downloads },
               ].map(({ label, value }) => (
                 <div key={label} className="border border-border bg-card p-5 space-y-2">
                   <p className="text-xs uppercase tracking-widest text-muted-foreground">{label}</p>
                   <p className="text-3xl font-serif">{value.toLocaleString()}</p>
-                  {myStats.daily.length > 1 && (
-                    <Sparkline values={myStats.daily.map(d => label.includes("Views") ? d.views : label.includes("Likes") ? d.likes : label.includes("Downloads") ? d.downloads : 0)} />
-                  )}
                 </div>
               ))}
             </div>
 
-            {/* Top performing photos */}
+            {/* 30-day trend chart */}
+            <div className="border border-border bg-card p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-4 h-4 text-muted-foreground" />
+                <h3 className="text-sm font-medium">30-Day Portfolio Trend</h3>
+                <span className="text-xs text-muted-foreground ml-auto">based on upload dates</span>
+              </div>
+              <TrendChart data={myStats.daily} />
+            </div>
+
+            {/* Per-photo drill-down (shown when a photo is selected) */}
+            {selectedPhoto && (
+              <PhotoStatsPanel
+                photo={selectedPhoto}
+                allPhotos={myStats.photos}
+                onClose={() => setSelectedPhoto(null)}
+              />
+            )}
+
+            {/* Top performing photos — clickable for drill-down */}
             {myStats.photos.length > 0 && (
               <div className="border border-border bg-card">
                 <div className="border-b border-border px-5 py-3 flex items-center gap-2">
                   <Star className="w-4 h-4 text-muted-foreground" />
                   <h3 className="text-sm font-medium">Top Performing Photos</h3>
+                  <span className="text-[10px] text-muted-foreground ml-auto">Click a photo for detailed stats</span>
                 </div>
                 <div className="divide-y divide-border">
-                  {myStats.photos.slice(0, 8).map((photo, i) => (
-                    <a key={photo.id} href={`/photos/${photo.id}`}
-                      className="flex items-center gap-4 px-5 py-3 hover:bg-muted/30 transition-colors group">
-                      <span className="w-5 text-center text-xs font-mono text-muted-foreground flex-shrink-0">{i + 1}</span>
-                      <div className="w-12 h-9 bg-muted overflow-hidden flex-shrink-0">
-                        <img src={photo.image_url} alt={photo.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{photo.title}</p>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-shrink-0">
-                        <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{photo.views}</span>
-                        <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{photo.likes}</span>
-                        <span className="flex items-center gap-1"><Download className="w-3 h-3" />{photo.downloads}</span>
-                      </div>
-                    </a>
-                  ))}
+                  {myStats.photos.slice(0, 10).map((photo, i) => {
+                    const isSelected = selectedPhoto?.id === photo.id;
+                    return (
+                      <button key={photo.id} onClick={() => setSelectedPhoto(isSelected ? null : photo)}
+                        className={cn(
+                          "w-full flex items-center gap-4 px-5 py-3 transition-colors text-left group",
+                          isSelected ? "bg-muted/50" : "hover:bg-muted/30"
+                        )}>
+                        <span className="w-5 text-center text-xs font-mono text-muted-foreground flex-shrink-0">{i + 1}</span>
+                        <div className="w-12 h-9 bg-muted overflow-hidden flex-shrink-0">
+                          <img src={photo.image_url} alt={photo.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm truncate">{photo.title}</p>
+                          <p className="text-xs text-muted-foreground">{format(new Date(photo.created_at), "MMM d, yyyy")}</p>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-shrink-0">
+                          <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{photo.views.toLocaleString()}</span>
+                          <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{photo.likes.toLocaleString()}</span>
+                          <span className="flex items-center gap-1"><Download className="w-3 h-3" />{photo.downloads.toLocaleString()}</span>
+                        </div>
+                        <ChevronRight className={cn("w-3.5 h-3.5 text-muted-foreground/40 flex-shrink-0 transition-transform", isSelected && "rotate-90")} />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
